@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>圆锥摆 → 平抛运动演示</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;margin:0;padding:16px;color:#222;}
+  h1{font-size:18px;margin:0 0 12px;}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:10px;}
+  .cap{text-align:center;font-size:13px;color:#556;margin-bottom:6px;}
+  canvas{display:block;background:#fff;}
+  #view3d{cursor:grab;}
+  .info{max-width:340px;font-size:13px;line-height:1.9;}
+  .info hr{border:none;border-top:1px dashed #ccd;}
+  .phase{font-weight:bold;color:#c0392b;}
+  button,select{font:inherit;padding:4px 12px;cursor:pointer;}
+  .pts b{color:#2e9e4f;}
+</style>
+</head>
+<body>
+<h1>圆锥摆 → 平抛运动：落点 P、悬点投影 O、出发点投影 B′ 构成直角三角形</h1>
+<div class="wrap">
+  <div class="panel">
+    <div class="cap">三维视图（鼠标拖动旋转 / 滚轮缩放）</div>
+    <canvas id="view3d"></canvas>
+  </div>
+  <div class="panel">
+    <div class="cap">俯视图（地面投影）</div>
+    <canvas id="topview"></canvas>
+  </div>
+  <div class="info panel">
+    <div>当前阶段：<span class="phase" id="phase"></span></div>
+    <hr>
+    <div><b>已知条件</b><br>
+      悬点高度 H = 3 m，摆球做圆周运动的高度 h = 2 m，<br>
+      圆周半径 r = 1 m，绳与竖直方向夹角 θ = 45°
+    </div>
+    <div><b>圆锥摆（阶段 1）</b><br>
+      mg·tanθ = mv²/r<br>
+      v = √(gr·tanθ) = √9.8 ≈ 3.13 m/s
+    </div>
+    <div><b>平抛（阶段 2）</b><br>
+      t = √(2h/g) ≈ 0.64 s<br>
+      水平射程 d = vt = 2.0 m
+    </div>
+    <div><b>结论</b><br>
+      平抛初速度 v 沿圆周的切线方向，因此 v ⊥ OB′，<br>
+      即 ∠OB′P = 90°，△OB′P 为直角三角形。<br>
+      OP = √(r² + d²) = √5 ≈ 2.24 m
+    </div>
+    <hr>
+    <div class="pts">
+      O：悬点在地面的投影　B：绳子断裂处（平抛出发点）<br>
+      B′：B 在地面的投影　P：落点
+    </div>
+    <hr>
+    <button id="restart">重新播放</button>
+    <select id="speed">
+      <option value="0.5">0.5× 慢速</option>
+      <option value="1" selected>1× 真实速度</option>
+      <option value="2">2× 快速</option>
+    </select>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= 物理参数 ================= */
+const g = 9.8, H = 3, h = 2, r = 1;
+const tanTheta = r / (H - h);            // = 1, θ = 45°
+const v0 = Math.sqrt(g * r * tanTheta);  // ≈ 3.1305 m/s
+const omega = v0 / r;                    // 角速度 rad/s
+const Tswing = 2 * Math.PI / omega;      // 转一圈 ≈ 2.007 s
+const tfall = Math.sqrt(2 * h / g);      // ≈ 0.639 s
+const dshot = v0 * tfall;                // = 2.0 m
+
+/* 时间轴：摆动一圈 → 断裂停顿 → 平抛 → 落地停留 → 循环 */
+const T_SNAP = 0.45, T_REST = 5;
+const t1 = Tswing, t2 = t1 + T_SNAP, t3 = t2 + tfall, t4 = t3 + T_REST;
+
+let simT = 0, speed = 1;
+
+function ballPos(t){
+  if(t < t1){
+    const phi = omega * t;
+    return [r*Math.cos(phi), h, r*Math.sin(phi)];
+  } else if(t < t2){
+    return [r, h, 0];                    // 断裂点 B
+  } else if(t < t3){
+    const tau = t - t2;
+    return [r, h - 0.5*g*tau*tau, v0*tau];
+  }
+  return [r, 0, dshot];                  // 落点 P
+}
+function phase(t){
+  if(t < t1) return 'swing';
+  if(t < t2) return 'snap';
+  if(t < t3) return 'fall';
+  return 'rest';
+}
+
+/* ================= 画布初始化 ================= */
+function setupCanvas(cv, w, hgt){
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = hgt * dpr;
+  cv.style.width = w + 'px'; cv.style.height = hgt + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return ctx;
+}
+const W3 = 760, H3 = 600;
+const ctx3 = setupCanvas(document.getElementById('view3d'), W3, H3);
+const W2 = 380, H2 = 380;
+const ctx2 = setupCanvas(document.getElementById('topview'), W2, H2);
+
+/* ================= 三维投影 ================= */
+const cam = { az: 0.62, el: 0.36, dist: 9.2, f: 620, target: [0, 1.15, 0.25] };
+
+function vsub(a,b){ return [a[0]-b[0], a[1]-b[1], a[2]-b[2]]; }
+function vdot(a,b){ return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]; }
+function vcross(a,b){ return [a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]]; }
+function vnorm(a){ const l = Math.hypot(a[0],a[1],a[2]); return [a[0]/l, a[1]/l, a[2]/l]; }
+
+function project(p){
+  const t = cam.target;
+  const C = [
+    t[0] + cam.dist*Math.cos(cam.el)*Math.sin(cam.az),
+    t[1] + cam.dist*Math.sin(cam.el),
+    t[2] + cam.dist*Math.cos(cam.el)*Math.cos(cam.az)
+  ];
+  const fw = vnorm(vsub(t, C));
+  const rt = vnorm(vcross(fw, [0,1,0]));
+  const uv = vcross(rt, fw);
+  const d = vsub(p, C);
+  const xv = vdot(d, rt), yv = vdot(d, uv), zv = vdot(d, fw);
+  const s = cam.f / Math.max(zv, 0.1);
+  return [W3/2 + xv*s, H3*0.52 - yv*s, s];
+}
+
+function line3(a, b, color, lw, dash){
+  const pa = project(a), pb = project(b);
+  ctx3.save();
+  ctx3.strokeStyle = color; ctx3.lineWidth = lw || 1;
+  if(dash) ctx3.setLineDash(dash);
+  ctx3.beginPath(); ctx3.moveTo(pa[0], pa[1]); ctx3.lineTo(pb[0], pb[1]); ctx3.stroke();
+  ctx3.restore();
+}
+function poly3(pts, color, lw, dash, close){
+  ctx3.save();
+  ctx3.strokeStyle = color; ctx3.lineWidth = lw || 1;
+  if(dash) ctx3.setLineDash(dash);
+  ctx3.beginPath();
+  pts.forEach(function(p, i){
+    const pp = project(p);
+    if(i === 0) ctx3.moveTo(pp[0], pp[1]); else ctx3.lineTo(pp[0], pp[1]);
+  });
+  if(close) ctx3.closePath();
+  ctx3.stroke(); ctx3.restore();
+}
+function dot3(p, rad, color){
+  const pp = project(p);
+  const R = Math.max(2.5, rad * pp[2]);
+  ctx3.fillStyle = color;
+  ctx3.beginPath(); ctx3.arc(pp[0], pp[1], R, 0, Math.PI*2); ctx3.fill();
+}
+function text3(p, str, opt){
+  opt = opt || {};
+  const pp = project(p);
+  ctx3.font = (opt.bold ? 'bold ' : '') + (opt.size || 13) + 'px "Microsoft YaHei",sans-serif';
+  ctx3.textAlign = opt.align || 'left'; ctx3.textBaseline = 'middle';
+  ctx3.lineWidth = 3; ctx3.strokeStyle = 'rgba(255,255,255,0.88)';
+  const x = pp[0] + (opt.dx || 0), y = pp[1] + (opt.dy || 0);
+  ctx3.strokeText(str, x, y);
+  ctx3.fillStyle = opt.color || '#222';
+  ctx3.fillText(str, x, y);
+}
+function arrow3(a, b, color, label){
+  const pa = project(a), pb = project(b);
+  const ang = Math.atan2(pb[1]-pa[1], pb[0]-pa[0]);
+  ctx3.save();
+  ctx3.strokeStyle = color; ctx3.fillStyle = color; ctx3.lineWidth = 2.5;
+  ctx3.beginPath(); ctx3.moveTo(pa[0], pa[1]); ctx3.lineTo(pb[0], pb[1]); ctx3.stroke();
+  ctx3.beginPath();
+  ctx3.moveTo(pb[0], pb[1]);
+  ctx3.lineTo(pb[0]-10*Math.cos(ang-0.45), pb[1]-10*Math.sin(ang-0.45));
+  ctx3.lineTo(pb[0]-10*Math.cos(ang+0.45), pb[1]-10*Math.sin(ang+0.45));
+  ctx3.closePath(); ctx3.fill();
+  ctx3.restore();
+  if(label) text3(b, ' ' + label, {dx: 6, dy: -10, color: color, bold: true});
+}
+function drawBall(pos){
+  const pp = project(pos);
+  const R = Math.max(5, 0.12 * pp[2]);
+  const grd = ctx3.createRadialGradient(pp[0]-R*0.35, pp[1]-R*0.4, R*0.15, pp[0], pp[1], R);
+  grd.addColorStop(0, '#ff9a8a'); grd.addColorStop(1, '#c0392b');
+  ctx3.fillStyle = grd;
+  ctx3.beginPath(); ctx3.arc(pp[0], pp[1], R, 0, Math.PI*2); ctx3.fill();
+  ctx3.strokeStyle = 'rgba(120,30,20,0.6)'; ctx3.lineWidth = 1; ctx3.stroke();
+}
+
+/* ================= 三维场景 ================= */
+function drawPlane(y, border, gridc){
+  const x0 = -2.5, x1 = 3, z0 = -2.5, z1 = 3;
+  for(let x = x0; x <= x1 + 1e-6; x += 0.5) line3([x,y,z0], [x,y,z1], gridc, 1);
+  for(let z = z0; z <= z1 + 1e-6; z += 0.5) line3([x0,y,z], [x1,y,z], gridc, 1);
+  poly3([[x0,y,z0],[x1,y,z0],[x1,y,z1],[x0,y,z1]], border, 1.5, null, true);
+}
+function circlePath(){
+  const pts = [];
+  for(let i = 0; i <= 72; i++){
+    const a = i / 72 * 2 * Math.PI;
+    pts.push([r*Math.cos(a), h, r*Math.sin(a)]);
+  }
+  poly3(pts, 'rgba(70,120,200,0.9)', 1.5, [5,4]);
+}
+function drawTriangle3D(){
+  const O = [0,0,0], Bp = [r,0,0], P = [r,0,dshot];
+  line3(O, Bp, '#2e9e4f', 3);
+  line3(Bp, P, '#2e9e4f', 3);
+  line3(O, P, '#8e44ad', 3);
+  dot3(P, 0.055, '#8e44ad');
+  text3(P, 'P（落点）', {dx: 10, dy: 12, color: '#8e44ad', bold: true});
+  /* 直角标记 */
+  const s = 0.18;
+  poly3([[r-s,0,0], [r-s,0,s], [r,0,s]], '#2e9e4f', 2);
+  text3([r-0.28, 0, 0.26], '90°', {color: '#2e9e4f', size: 12, bold: true});
+  text3([r/2, 0, 0], 'r = 1 m', {dy: 16, align: 'center', color: '#2e9e4f', size: 12});
+  text3([r, 0, dshot/2], 'd = vt = 2 m', {dx: 10, color: '#2e9e4f', size: 12});
+  text3([0.5, 0, 1], 'OP = √5 ≈ 2.24 m', {dx: -10, align: 'right', color: '#8e44ad', size: 12});
+}
+
+function draw3D(t){
+  ctx3.clearRect(0, 0, W3, H3);
+  const ph = phase(t), pos = ballPos(t);
+
+  drawPlane(0, 'rgba(90,100,110,0.7)', 'rgba(130,140,150,0.28)');
+  drawPlane(H, 'rgba(120,130,150,0.6)', 'rgba(150,160,180,0.18)');
+  text3([-2.5, H, -2.5], '天花板', {dy: -10, color: '#889'});
+  text3([-2.5, 0, 3], '地面', {dy: 14, color: '#889'});
+
+  circlePath();
+
+  /* 竖直转轴 S→O */
+  line3([0,H,0], [0,0,0], 'rgba(80,80,80,0.55)', 1, [4,4]);
+  text3([0,H,0], 'S（悬点）', {dx: 8, dy: -8, bold: true});
+  text3([0,0,0], 'O（悬点在地面的投影）', {dx: 8, dy: 16, bold: true});
+  text3([-0.02, h, 0], 'h = 2 m', {dx: -6, dy: -12, align: 'right', size: 12, color: '#667'});
+
+  /* 绳子 / 断头 */
+  if(ph === 'swing'){
+    line3([0,H,0], pos, '#555', 2);
+    line3([0,h,0], pos, 'rgba(70,120,200,0.5)', 1, [3,3]);
+    text3([pos[0]/2, h, pos[2]/2], 'r', {color: '#4a78c2', dy: -10, size: 12, bold: true});
+  } else {
+    const sway = 0.06 * Math.sin(3 * t);
+    line3([0,H,0], [sway, H-0.3, 0], '#999', 1.5);
+  }
+
+  /* 摆动时的小球地面投影 */
+  if(ph === 'swing'){
+    line3(pos, [pos[0],0,pos[2]], 'rgba(150,150,150,0.6)', 1, [2,3]);
+    dot3([pos[0],0,pos[2]], 0.035, '#999');
+  }
+
+  /* 断裂点标记 */
+  if(ph !== 'swing'){
+    const B = [r,h,0], Bp = [r,0,0];
+    line3(B, Bp, 'rgba(80,80,80,0.6)', 1, [4,4]);
+    dot3(B, 0.05, '#e67e22');
+    dot3(Bp, 0.05, '#2e9e4f');
+    text3(B, 'B（断裂点＝平抛出发点）', {dx: 8, dy: -10, color: '#e67e22', bold: true});
+    text3(Bp, 'B′', {dx: 8, dy: 14, color: '#2e9e4f', bold: true});
+    if(ph === 'snap' || (ph === 'fall' && t - t2 < 0.25)){
+      arrow3(B, [r, h, 0.9], '#c0392b', 'v');
+    }
+  }
+
+  /* 平抛轨迹 */
+  if(ph === 'fall' || ph === 'rest'){
+    const tau = Math.min(t - t2, tfall);
+    const pts = [];
+    for(let tt = 0; tt <= tau + 1e-9; tt += 0.02) pts.push([r, h - 0.5*g*tt*tt, v0*tt]);
+    pts.push(pos);
+    poly3(pts, '#ff8c1a', 3);
+    if(ph === 'fall'){
+      dot3([pos[0], 0, pos[2]], 0.035, '#ff8c1a');
+      line3(pos, [pos[0],0,pos[2]], 'rgba(255,140,26,0.4)', 1, [2,3]);
+    }
+  }
+
+  if(ph === 'rest') drawTriangle3D();
+
+  drawBall(pos);
+  if(ph === 'swing') text3(pos, '小球', {dx: 10, dy: -12, size: 12});
+  if(ph === 'snap')  text3([r, h+0.35, 0], '啪！绳子断了', {color: '#c0392b', size: 20, bold: true, align: 'center'});
+}
+
+/* ================= 俯视图 ================= */
+const TS = 78, TCX = 172, TCY = 126;
+function t2d(x, z){ return [TCX + x*TS, TCY + z*TS]; }
+function line2(a, b, color, lw, dash){
+  ctx2.save();
+  ctx2.strokeStyle = color; ctx2.lineWidth = lw || 1;
+  if(dash) ctx2.setLineDash(dash);
+  ctx2.beginPath(); ctx2.moveTo(a[0], a[1]); ctx2.lineTo(b[0], b[1]); ctx2.stroke();
+  ctx2.restore();
+}
+function dot2(p, rad, color){
+  ctx2.fillStyle = color;
+  ctx2.beginPath(); ctx2.arc(p[0], p[1], rad, 0, Math.PI*2); ctx2.fill();
+}
+function text2(x, y, str, color, align, bold, size){
+  ctx2.font = (bold ? 'bold ' : '') + (size || 12) + 'px "Microsoft YaHei",sans-serif';
+  ctx2.textAlign = align || 'left'; ctx2.textBaseline = 'middle';
+  ctx2.lineWidth = 3; ctx2.strokeStyle = 'rgba(255,255,255,0.88)';
+  ctx2.strokeText(str, x, y);
+  ctx2.fillStyle = color || '#222'; ctx2.fillText(str, x, y);
+}
+function arrow2(a, b, color, label){
+  const ang = Math.atan2(b[1]-a[1], b[0]-a[0]);
+  line2(a, b, color, 2.5);
+  ctx2.fillStyle = color;
+  ctx2.beginPath();
+  ctx2.moveTo(b[0], b[1]);
+  ctx2.lineTo(b[0]-10*Math.cos(ang-0.45), b[1]-10*Math.sin(ang-0.45));
+  ctx2.lineTo(b[0]-10*Math.cos(ang+0.45), b[1]-10*Math.sin(ang+0.45));
+  ctx2.closePath(); ctx2.fill();
+  if(label) text2(b[0]+6, b[1]-8, label, color, 'left', true);
+}
+
+function drawTop(t){
+  ctx2.clearRect(0, 0, W2, H2);
+  const ph = phase(t), pos = ballPos(t);
+
+  /* 浅网格 */
+  for(let x = -2; x <= 2; x++) line2(t2d(x,-1.6), t2d(x,2.8), 'rgba(140,150,160,0.18)', 1);
+  for(let z = -1; z <= 2; z++) line2(t2d(-2.2,z), t2d(2.2,z), 'rgba(140,150,160,0.18)', 1);
+
+  /* 圆周轨迹（俯视） */
+  ctx2.save();
+  ctx2.strokeStyle = 'rgba(70,120,200,0.9)'; ctx2.lineWidth = 1.5;
+  ctx2.setLineDash([5,4]);
+  const oc = t2d(0,0);
+  ctx2.beginPath(); ctx2.arc(oc[0], oc[1], r*TS, 0, Math.PI*2); ctx2.stroke();
+  ctx2.restore();
+  text2(oc[0], oc[1] - r*TS - 12, '圆周运动轨迹（俯视）', '#4a78c2', 'center', false, 12);
+
+  /* O 点 */
+  dot2(oc, 4, '#333');
+  text2(oc[0]-6, oc[1]+14, 'O（悬点投影）', '#222', 'center', true);
+
+  if(ph === 'swing'){
+    const bp = t2d(pos[0], pos[2]);
+    line2(oc, bp, 'rgba(70,120,200,0.55)', 1.5, [3,3]);
+    dot2(bp, 6, '#c0392b');
+    text2(bp[0]+8, bp[1]-10, '小球投影', '#c0392b', 'left', false, 12);
+  } else {
+    const Bp = t2d(r, 0);
+    dot2(Bp, 5, '#2e9e4f');
+    text2(Bp[0]+8, Bp[1]-12, 'B′（出发点投影）', '#2e9e4f', 'left', true);
+    /* 切向速度箭头 */
+    if(ph === 'snap' || (ph === 'fall' && t - t2 < 0.25)){
+      arrow2(Bp, t2d(r, 0.75), '#c0392b', 'v（切线方向）');
+    }
+    /* 平抛的地面投影：沿切线的直线 */
+    if(ph === 'fall' || ph === 'rest'){
+      const znow = Math.min(v0 * (t - t2), dshot);
+      line2(Bp, t2d(r, znow), '#ff8c1a', 3);
+      if(ph === 'fall'){
+        dot2(t2d(r, znow), 6, '#ff8c1a');
+        text2(t2d(r, znow)[0]+8, t2d(r, znow)[1]+2, '投影', '#ff8c1a', 'left', false, 12);
+      }
+    }
+  }
+
+  /* 落地后：直角三角形 */
+  if(ph === 'rest'){
+    const O = t2d(0,0), Bp = t2d(r,0), P = t2d(r, dshot);
+    line2(O, Bp, '#2e9e4f', 3);
+    line2(Bp, P, '#2e9e4f', 3);
+    line2(O, P, '#8e44ad', 3);
+    dot2(P, 6, '#8e44ad');
+    text2(P[0]+8, P[1]+6, 'P（落点）', '#8e44ad', 'left', true);
+    /* 直角标记 */
+    const q1 = t2d(r-0.16, 0), q2 = t2d(r-0.16, 0.16), q3 = t2d(r, 0.16);
+    ctx2.strokeStyle = '#2e9e4f'; ctx2.lineWidth = 2;
+    ctx2.beginPath(); ctx2.moveTo(q1[0],q1[1]); ctx2.lineTo(q2[0],q2[1]); ctx2.lineTo(q3[0],q3[1]); ctx2.stroke();
+    text2(q2[0]-14, q2[1]+14, '90°', '#2e9e4f', 'left', true, 12);
+    /* 边长标注 */
+    const mOB = t2d(r/2, 0);
+    text2(mOB[0], mOB[1]-12, 'r = 1 m', '#2e9e4f', 'center');
+    const mBP = t2d(r, dshot/2);
+    text2(mBP[0]+8, mBP[1], 'd = vt = 2 m', '#2e9e4f', 'left');
+    const mOP = t2d(0.42, 1.02);
+    text2(mOP[0]-8, mOP[1], 'OP = √5 ≈ 2.24 m', '#8e44ad', 'right');
+  }
+}
+
+/* ================= 主循环 ================= */
+const phaseEl = document.getElementById('phase');
+const phaseText = {
+  swing: '阶段 1：圆锥摆 —— 水平面内的匀速圆周运动',
+  snap:  '绳子断裂！小球速度沿切线方向（水平）',
+  fall:  '阶段 2：平抛运动',
+  rest:  '落地：△OB′P 为直角三角形，∠OB′P = 90°'
+};
+
+let last = null;
+function frame(now){
+  if(last === null) last = now;
+  const dt = (now - last) / 1000;
+  last = now;
+  simT += dt * speed;
+  if(simT > t4) simT = 0;
+  draw3D(simT);
+  drawTop(simT);
+  phaseEl.textContent = phaseText[phase(simT)];
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ================= 交互 ================= */
+document.getElementById('restart').addEventListener('click', function(){ simT = 0; });
+document.getElementById('speed').addEventListener('change', function(e){ speed = parseFloat(e.target.value); });
+
+const c3 = document.getElementById('view3d');
+let drag = null;
+c3.addEventListener('mousedown', function(e){ drag = {x: e.clientX, y: e.clientY}; c3.style.cursor = 'grabbing'; });
+window.addEventListener('mousemove', function(e){
+  if(!drag) return;
+  cam.az += (e.clientX - drag.x) * 0.005;
+  cam.el = Math.min(1.25, Math.max(0.08, cam.el - (e.clientY - drag.y) * 0.005));
+  drag = {x: e.clientX, y: e.clientY};
+});
+window.addEventListener('mouseup', function(){ drag = null; c3.style.cursor = 'grab'; });
+c3.addEventListener('wheel', function(e){
+  e.preventDefault();
+  cam.dist = Math.min(15, Math.max(5, cam.dist * (1 + Math.sign(e.deltaY) * 0.08)));
+}, {passive: false});
+
+})();
+</script>
+</body>
+</html>
