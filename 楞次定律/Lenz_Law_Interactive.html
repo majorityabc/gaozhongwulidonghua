@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>楞次定律 - Lenz's Law 交互式动画</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow-x: hidden;
+  }
+  
+  /* 标题 */
+  .title-bar {
+    margin-top: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px 40px;
+    border-radius: 30px;
+    font-size: 24px;
+    font-weight: bold;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    letter-spacing: 2px;
+  }
+  
+  /* 主画布区域 */
+  .canvas-container {
+    position: relative;
+    margin: 20px auto;
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+    padding: 20px;
+  }
+  
+  canvas {
+    display: block;
+    border-radius: 10px;
+    cursor: grab;
+  }
+  
+  canvas:active {
+    cursor: grabbing;
+  }
+  
+  /* 控制面板 */
+  .controls {
+    display: flex;
+    gap: 15px;
+    margin: 15px 0;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  
+  .btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  }
+  
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+  }
+  
+  .btn-secondary {
+    background: white;
+    color: #667eea;
+    border: 2px solid #667eea;
+  }
+  
+  .btn-secondary:hover {
+    background: #667eea;
+    color: white;
+  }
+  
+  .btn.active {
+    background: #ff6b6b;
+    color: white;
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+  }
+  
+  /* 信息面板 */
+  .info-panel {
+    background: white;
+    border-radius: 15px;
+    padding: 20px 30px;
+    margin: 10px 20px 20px;
+    max-width: 600px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+  }
+  
+  .info-panel h3 {
+    color: #667eea;
+    margin-bottom: 10px;
+    font-size: 18px;
+  }
+  
+  .info-panel p {
+    color: #555;
+    line-height: 1.8;
+    font-size: 14px;
+  }
+  
+  .formula {
+    background: #f8f9fa;
+    padding: 10px 15px;
+    border-radius: 8px;
+    font-family: 'Courier New', monospace;
+    color: #e83e8c;
+    margin: 10px 0;
+    text-align: center;
+    font-size: 16px;
+  }
+  
+  /* 图例 */
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin: 10px 0;
+    flex-wrap: wrap;
+  }
+  
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #666;
+  }
+  
+  .legend-color {
+    width: 30px;
+    height: 4px;
+    border-radius: 2px;
+  }
+  
+  /* 底部品牌 */
+  .brand {
+    margin: 20px 0;
+    font-size: 20px;
+    font-weight: 900;
+    color: #333;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  
+  /* 状态指示器 */
+  .status {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    background: rgba(255,255,255,0.9);
+    padding: 10px 15px;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #666;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  }
+  
+  .status-value {
+    font-weight: bold;
+    color: #667eea;
+  }
+  
+  /* 响应式 */
+  @media (max-width: 600px) {
+    .title-bar { font-size: 18px; padding: 10px 25px; }
+    .canvas-container { margin: 10px; padding: 10px; }
+    .btn { padding: 10px 18px; font-size: 12px; }
+    .info-panel { margin: 10px; padding: 15px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="title-bar">⚡ 楞次定律 · Lenz's Law</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-color" style="background: #ff4444;"></div>
+    <span>原磁场 (磁铁)</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background: #4444ff;"></div>
+    <span>感应磁场</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-color" style="background: #ffd700;"></div>
+    <span>感应电流</span>
+  </div>
+</div>
+
+<div class="canvas-container">
+  <canvas id="canvas" width="400" height="500"></canvas>
+  <div class="status">
+    <div>状态: <span class="status-value" id="status-text">静止</span></div>
+    <div>速度: <span class="status-value" id="velocity-text">0</span></div>
+  </div>
+</div>
+
+<div class="controls">
+  <button class="btn btn-primary" id="btn-auto">▶ 自动演示</button>
+  <button class="btn btn-secondary" id="btn-near">磁铁靠近</button>
+  <button class="btn btn-secondary" id="btn-far">磁铁远离</button>
+  <button class="btn btn-secondary" id="btn-reset">↺ 重置</button>
+</div>
+
+<div class="info-panel">
+  <h3>📖 楞次定律 (Lenz's Law)</h3>
+  <p>感应电流的磁场总是<strong>阻碍</strong>引起感应电流的磁通量变化。</p>
+  <div class="formula">ε = -dΦ/dt</div>
+  <p><strong>操作提示：</strong></p>
+  <p>• 点击"自动演示"观看完整动画</p>
+  <p>• 点击"磁铁靠近/远离"单步观察</p>
+  <p>• 直接用鼠标拖动磁铁左右移动！</p>
+</div>
+
+<div class="brand">🔬 FRIENDS PHYSICS</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+// 物理参数 - 改为左右布局
+let magnetX = 120;      // 磁铁水平位置（左侧）
+let magnetVX = 0;       // 磁铁水平速度
+let isDragging = false;
+let dragStartX = 0;
+let magnetStartX = 0;
+let autoPlay = false;
+let autoPhase = 0;      // 0:静止 1:靠近 2:远离
+let autoTime = 0;
+
+// 线圈参数 - 固定在右侧
+const coilX = 280;
+const coilY = 250;
+const coilRadius = 70;
+
+// 磁铁参数 - 竖直放置（N在上S在下）
+const magnetWidth = 50;
+const magnetHeight = 100;
+
+// 初始化磁铁Y位置（垂直居中）
+let magnetY = 250;
+
+// 动画循环
+let lastTime = 0;
+
+function draw() {
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  // 清空画布
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, h);
+  
+  // 计算磁通量变化（水平距离）
+  const distance = coilX - (magnetX + magnetWidth/2);
+  const flux = 150000 / (distance * distance + 200);
+  const fluxChange = -magnetVX * 8; // 磁通量变化率（水平移动）
+  
+  // 绘制原磁场（红色箭头）
+  drawOriginalField(ctx, magnetX, magnetY, flux, distance);
+  
+  // 绘制感应磁场（蓝色箭头）
+  if (Math.abs(fluxChange) > 0.1) {
+    drawInducedField(ctx, coilX, coilY, fluxChange);
+  }
+  
+  // 绘制线圈
+  drawCoil(ctx, coilX, coilY, coilRadius, fluxChange);
+  
+  // 绘制磁铁
+  drawMagnet(ctx, magnetX, magnetY, magnetWidth, magnetHeight);
+  
+  // 绘制说明文字
+  drawLabels(ctx, w, h, fluxChange);
+  
+  // 更新状态显示
+  updateStatus(fluxChange);
+}
+
+function drawOriginalField(ctx, cx, cy, flux, distance) {
+  ctx.strokeStyle = '#ff4444';
+  ctx.lineWidth = 2;
+  ctx.fillStyle = '#ff4444';
+  
+  const numLines = 11;
+  // 磁感线延伸到线圈右侧，确保穿过线圈
+  const maxSpread = Math.max(300, Math.abs(distance) + 150);
+  
+  for (let i = -Math.floor(numLines/2); i <= Math.floor(numLines/2); i++) {
+    const ratio = i / Math.floor(numLines/2); // -1 到 1
+    
+    // 起点：从磁铁N极（上端）发出
+    const startX = cx + magnetWidth/2;
+    const startY = cy - magnetHeight/2 + ratio * magnetHeight * 0.3;
+    
+    // 控制点：向右弯曲
+    const cpX = startX + maxSpread * 0.5;
+    const cpY = startY + ratio * maxSpread * 0.3;
+    
+    // 终点：延伸到线圈右侧远处
+    const endX = startX + maxSpread;
+    const endY = startY + ratio * maxSpread * 0.5;
+    
+    // 绘制曲线
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.bezierCurveTo(
+      cpX, cpY,
+      cpX + maxSpread * 0.3, cpY,
+      endX, endY
+    );
+    ctx.stroke();
+    
+    // 绘制箭头（在线圈附近）
+    const arrowT = 0.6; // 箭头位置（线圈附近）
+    const ax = (1-arrowT)*(1-arrowT)*(1-arrowT)*startX + 3*(1-arrowT)*(1-arrowT)*arrowT*cpX + 3*(1-arrowT)*arrowT*arrowT*(cpX + maxSpread*0.3) + arrowT*arrowT*arrowT*endX;
+    const ay = (1-arrowT)*(1-arrowT)*(1-arrowT)*startY + 3*(1-arrowT)*(1-arrowT)*arrowT*cpY + 3*(1-arrowT)*arrowT*arrowT*cpY + arrowT*arrowT*arrowT*endY;
+    
+    // 简化的箭头位置
+    const arrowX = startX + maxSpread * arrowT;
+    const arrowY = startY + ratio * maxSpread * 0.5 * arrowT;
+    drawArrow(ctx, arrowX - 8, arrowY, arrowX, arrowY, '#ff4444', 2, 6);
+  }
+}
+
+function drawInducedField(ctx, cx, cy, fluxChange) {
+  ctx.strokeStyle = '#4444ff';
+  ctx.lineWidth = 2.5;
+  
+  const direction = fluxChange > 0 ? -1 : 1; // 增反减同
+  const numLines = 6;
+  const radius = coilRadius + 40;
+  
+  for (let i = 0; i < numLines; i++) {
+    const angle = (i / numLines) * Math.PI * 2;
+    const startX = cx + Math.cos(angle) * coilRadius;
+    const startY = cy + Math.sin(angle) * coilRadius * 0.3;
+    const endX = cx + Math.cos(angle) * radius;
+    const endY = cy + Math.sin(angle) * radius * 0.3;
+    
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    
+    // 箭头方向
+    const arrowDir = direction > 0 ? 1 : -1;
+    const ax = endX + arrowDir * Math.cos(angle + Math.PI/2) * 10;
+    const ay = endY + arrowDir * Math.sin(angle + Math.PI/2) * 10;
+    drawArrow(ctx, endX, endY, ax, ay, '#4444ff', 2, 6);
+  }
+}
+
+function drawCoil(ctx, cx, cy, radius, fluxChange) {
+  // 线圈主体（灰色圆环）
+  ctx.strokeStyle = '#666';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, radius, radius * 0.3, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // 线圈内侧阴影
+  ctx.strokeStyle = '#888';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, radius - 5, (radius - 5) * 0.3, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  
+  // 感应电流（黄色虚线）
+  if (Math.abs(fluxChange) > 0.1) {
+    const currentDir = fluxChange > 0 ? 1 : -1; // 电流方向
+    ctx.strokeStyle = '#ffd700';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, radius + 3, (radius + 3) * 0.3, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    
+    // 电流箭头
+    const t = Date.now() / 500;
+    const angle = currentDir > 0 ? t : -t;
+    const ax = cx + Math.cos(angle) * (radius + 3);
+    const ay = cy + Math.sin(angle) * (radius + 3) * 0.3;
+    const tx = cx + Math.cos(angle + 0.3 * currentDir) * (radius + 3);
+    const ty = cy + Math.sin(angle + 0.3 * currentDir) * (radius + 3) * 0.3;
+    drawArrow(ctx, ax, ay, tx, ty, '#ffd700', 2, 5);
+  }
+}
+
+function drawMagnet(ctx, cx, cy, w, h) {
+  const halfW = w / 2;
+  const halfH = h / 2;
+  
+  // N极（红色）- 上半部分
+  ctx.fillStyle = '#ff4444';
+  ctx.fillRect(cx - halfW, cy - halfH, w, h/2);
+  
+  // S极（灰色）- 下半部分
+  ctx.fillStyle = '#888';
+  ctx.fillRect(cx - halfW, cy, w, h/2);
+  
+  // 边框
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(cx - halfW, cy - halfH, w, h);
+  
+  // 分隔线
+  ctx.beginPath();
+  ctx.moveTo(cx - halfW, cy);
+  ctx.lineTo(cx + halfW, cy);
+  ctx.stroke();
+  
+  // 标签
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('N', cx, cy - halfH/2);
+  ctx.fillText('S', cx, cy + halfH/2);
+}
+
+function drawArrow(ctx, x1, y1, x2, y2, color, width, head) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  
+  const angle = Math.atan2(y2 - y1, x2 - x1);
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - head * Math.cos(angle - Math.PI/6), y2 - head * Math.sin(angle - Math.PI/6));
+  ctx.lineTo(x2 - head * Math.cos(angle + Math.PI/6), y2 - head * Math.sin(angle + Math.PI/6));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawLabels(ctx, w, h, fluxChange) {
+  ctx.font = '14px Microsoft YaHei';
+  ctx.textAlign = 'left';
+  
+  let text = '';
+  let color = '#666';
+  
+  if (Math.abs(fluxChange) < 0.1) {
+    text = '磁铁静止 - 无感应电流';
+    color = '#666';
+  } else if (fluxChange > 0) {
+    text = '磁铁靠近 → 磁通量增加 → 感应磁场反向（增反）';
+    color = '#4444ff';
+  } else {
+    text = '磁铁远离 → 磁通量减少 → 感应磁场同向（减同）';
+    color = '#4444ff';
+  }
+  
+  ctx.fillStyle = color;
+  ctx.fillText(text, 20, h - 30);
+}
+
+function updateStatus(fluxChange) {
+  const statusText = document.getElementById('status-text');
+  const velocityText = document.getElementById('velocity-text');
+  
+  if (Math.abs(magnetVX) < 0.1) {
+    statusText.textContent = '静止';
+    statusText.style.color = '#666';
+  } else if (magnetVX > 0) {
+    statusText.textContent = '靠近线圈 →';
+    statusText.style.color = '#ff4444';
+  } else {
+    statusText.textContent = '远离线圈 ←';
+    statusText.style.color = '#4444ff';
+  }
+  
+  velocityText.textContent = Math.abs(magnetVX).toFixed(1);
+}
+
+// 动画循环
+function animate(timestamp) {
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);
+  lastTime = timestamp;
+  
+  // 自动演示
+  if (autoPlay) {
+    autoTime += dt;
+    if (autoPhase === 0) {
+      // 靠近（向右移动）
+      magnetVX = 40;
+      if (magnetX > coilX - 100) autoPhase = 1;
+    } else if (autoPhase === 1) {
+      // 停顿
+      magnetVX = 0;
+      if (autoTime > 1.5) {
+        autoPhase = 2;
+        autoTime = 0;
+      }
+    } else if (autoPhase === 2) {
+      // 远离（向左移动）
+      magnetVX = -40;
+      if (magnetX < 100) {
+        autoPhase = 3;
+        autoTime = 0;
+      }
+    } else {
+      // 结束
+      magnetVX = 0;
+      autoPlay = false;
+      document.getElementById('btn-auto').classList.remove('active');
+      document.getElementById('btn-auto').textContent = '▶ 自动演示';
+    }
+  }
+  
+  // 更新磁铁位置（水平移动）
+  if (!isDragging) {
+    magnetX += magnetVX * dt;
+    magnetX = Math.max(50, Math.min(coilX - 80, magnetX));
+    
+    // 阻尼
+    magnetVX *= 0.95;
+  }
+  
+  draw();
+  requestAnimationFrame(animate);
+}
+
+// 鼠标事件 - 水平拖动
+canvas.addEventListener('mousedown', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  
+  // 检查是否点击磁铁
+  if (Math.abs(x - magnetX) < magnetWidth/2 + 15 &&
+      Math.abs(y - magnetY) < magnetHeight/2 + 15) {
+    isDragging = true;
+    dragStartX = x;
+    magnetStartX = magnetX;
+    canvas.style.cursor = 'grabbing';
+  }
+});
+
+canvas.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  magnetX = magnetStartX + (x - dragStartX);
+  magnetX = Math.max(50, Math.min(coilX - 80, magnetX));
+  magnetVX = (x - dragStartX) * 0.5;
+});
+
+canvas.addEventListener('mouseup', () => {
+  isDragging = false;
+  canvas.style.cursor = 'grab';
+});
+
+// 触摸事件（移动端）
+canvas.addEventListener('touchstart', (e) => {
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const x = touch.clientX - rect.left;
+  const y = touch.clientY - rect.top;
+  
+  if (Math.abs(x - magnetX) < magnetWidth/2 + 15 &&
+      Math.abs(y - magnetY) < magnetHeight/2 + 15) {
+    isDragging = true;
+    dragStartX = x;
+    magnetStartX = magnetX;
+  }
+});
+
+canvas.addEventListener('touchmove', (e) => {
+  if (!isDragging) return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  const x = touch.clientX - rect.left;
+  magnetX = magnetStartX + (x - dragStartX);
+  magnetX = Math.max(50, Math.min(coilX - 80, magnetX));
+  magnetVX = (x - dragStartX) * 0.5;
+});
+
+canvas.addEventListener('touchend', () => {
+  isDragging = false;
+});
+
+// 按钮事件
+document.getElementById('btn-auto').addEventListener('click', () => {
+  autoPlay = !autoPlay;
+  const btn = document.getElementById('btn-auto');
+  if (autoPlay) {
+    btn.classList.add('active');
+    btn.textContent = '⏸ 暂停演示';
+    autoPhase = 0;
+    autoTime = 0;
+    magnetX = 80;
+  } else {
+    btn.classList.remove('active');
+    btn.textContent = '▶ 自动演示';
+    magnetVY = 0;
+  }
+});
+
+document.getElementById('btn-near').addEventListener('click', () => {
+  autoPlay = false;
+  document.getElementById('btn-auto').classList.remove('active');
+  document.getElementById('btn-auto').textContent = '▶ 自动演示';
+  magnetVX = 50; // 向右移动（靠近线圈）
+});
+
+document.getElementById('btn-far').addEventListener('click', () => {
+  autoPlay = false;
+  document.getElementById('btn-auto').classList.remove('active');
+  document.getElementById('btn-auto').textContent = '▶ 自动演示';
+  magnetVX = -50; // 向左移动（远离线圈）
+});
+
+document.getElementById('btn-reset').addEventListener('click', () => {
+  autoPlay = false;
+  document.getElementById('btn-auto').classList.remove('active');
+  document.getElementById('btn-auto').textContent = '▶ 自动演示';
+  magnetX = 120;
+  magnetVX = 0;
+});
+
+// 启动动画
+requestAnimationFrame(animate);
+</script>
+
+</body>
+</html>

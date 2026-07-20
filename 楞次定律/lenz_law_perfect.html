@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>楞次定律 - 完美3D演示</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #0a0a1a;
+            font-family: 'Microsoft YaHei', sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 10px;
+        }
+        h1 {
+            color: #ffd700;
+            margin-bottom: 5px;
+            font-size: 22px;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        .main-container {
+            display: flex;
+            gap: 15px;
+            align-items: flex-start;
+        }
+        canvas {
+            border: 2px solid #333;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #0a0a1a 0%, #1a1a3e 100%);
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.8);
+        }
+        .info-panel {
+            width: 260px;
+            background: rgba(15, 15, 35, 0.95);
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            color: #fff;
+        }
+        .info-panel h3 {
+            color: #ffd700;
+            margin-bottom: 12px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+            padding-bottom: 8px;
+            font-size: 16px;
+        }
+        .formula {
+            text-align: center;
+            color: #66ccff;
+            font-style: italic;
+            margin: 10px 0;
+            padding: 8px;
+            background: rgba(100, 200, 255, 0.1);
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        .info-item {
+            margin: 8px 0;
+            padding: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+        .info-label {
+            color: #888;
+            font-size: 11px;
+            margin-bottom: 3px;
+        }
+        .info-value {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        .status-bar {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .status-increasing {
+            background: rgba(255, 100, 100, 0.2);
+            color: #ff6666;
+            border: 1px solid rgba(255, 100, 100, 0.3);
+        }
+        .status-decreasing {
+            background: rgba(100, 255, 100, 0.2);
+            color: #66ff66;
+            border: 1px solid rgba(100, 255, 100, 0.3);
+        }
+        .status-constant {
+            background: rgba(200, 200, 200, 0.1);
+            color: #aaaaaa;
+            border: 1px solid rgba(200, 200, 200, 0.2);
+        }
+        .explanation {
+            margin-top: 10px;
+            padding: 10px;
+            background: rgba(255, 215, 0, 0.1);
+            border-left: 3px solid #ffd700;
+            border-radius: 0 5px 5px 0;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #ddd;
+        }
+        .controls {
+            margin-top: 15px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        button {
+            padding: 8px 16px;
+            background: rgba(100, 150, 255, 0.2);
+            border: 1px solid rgba(100, 150, 255, 0.5);
+            color: #66ccff;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        button:hover {
+            background: rgba(100, 150, 255, 0.4);
+        }
+    </style>
+</head>
+<body>
+    <h1>⚡ 楞次定律 - 完美3D演示</h1>
+    <div class="subtitle">真正的3D透视效果 | 磁感线从N极发出 | 线圈立体呈现</div>
+    
+    <div class="main-container">
+        <canvas id="canvas" width="900" height="650"></canvas>
+        
+        <div class="info-panel">
+            <h3>📊 实时数据</h3>
+            
+            <div class="formula">ε = -N · dΦ/dt</div>
+            
+            <div class="info-item">
+                <div class="info-label">穿过线圈的磁通量 Φ</div>
+                <div class="info-value" style="color: #66ccff;" id="fluxValue">0.000</div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">磁通量变化率 dΦ/dt</div>
+                <div class="info-value" style="color: #ffaa66;" id="fluxChangeValue">0.000</div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">感应电流 I</div>
+                <div class="info-value" style="color: #ff6666;" id="currentValue">0.000 A</div>
+            </div>
+            
+            <div class="info-item">
+                <div class="info-label">电流方向（从左向右看）</div>
+                <div class="info-value" style="color: #66ff66;" id="directionValue">无</div>
+            </div>
+            
+            <div id="statusBar" class="status-bar status-constant">
+                准备就绪
+            </div>
+            
+            <div class="explanation" id="explanation">
+                <strong>楞次定律：</strong>感应电流的磁场总是阻碍引起感应电流的磁通量的变化。
+            </div>
+            
+            <div class="controls">
+                <button onclick="changeSpeed(0.3)">慢速</button>
+                <button onclick="changeSpeed(0.8)" class="active" id="btnNormal">正常</button>
+                <button onclick="changeSpeed(2)">快速</button>
+                <button onclick="togglePause()">暂停</button>
+                <button onclick="reset()">重置</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 3D投影参数 - 真正的透视投影
+        const camera = {
+            x: 0, y: -200, z: 500,  // 相机位置
+            rotX: -0.5,  // 绕X轴旋转（俯视角度）
+            rotY: 0.4,   // 绕Y轴旋转（侧视角度）
+            fov: 600     // 视场
+        };
+        
+        // 场景参数
+        let speed = 0.8;
+        let paused = false;
+        let time = 0;
+        
+        // 磁铁参数
+        const magnet = {
+            x: -200, y: 0, z: 0,
+            width: 200, height: 60, depth: 60,
+            moveSpeed: 25,
+            minX: -250,
+            maxX: 50,
+            direction: 1
+        };
+        
+        // 线圈参数 - 真正的3D椭圆环
+        const coil = {
+            x: 300, y: 0, z: 0,
+            radiusX: 100,  // X轴半径
+            radiusY: 140,  // Y轴半径（椭圆，立起来）
+            tubeRadius: 12,
+            current: 0,
+            currentParticles: []
+        };
+        
+        // 3D到2D透视投影
+        function project3D(x, y, z) {
+            // 平移到相机坐标系
+            const dx = x - camera.x;
+            const dy = y - camera.y;
+            const dz = z - camera.z;
+            
+            // 绕Y轴旋转
+            const cosY = Math.cos(camera.rotY);
+            const sinY = Math.sin(camera.rotY);
+            const x1 = dx * cosY - dz * sinY;
+            const z1 = dx * sinY + dz * cosY;
+            
+            // 绕X轴旋转
+            const cosX = Math.cos(camera.rotX);
+            const sinX = Math.sin(camera.rotX);
+            const y1 = dy * cosX - z1 * sinX;
+            const z2 = dy * sinX + z1 * cosX;
+            
+            // 透视投影
+            const scale = camera.fov / (camera.fov + z2);
+            const x2d = x1 * scale + canvas.width / 2;
+            const y2d = y1 * scale + canvas.height / 2 + 80;
+            
+            return { x: x2d, y: y2d, scale: scale, z: z2 };
+        }
+        
+        // 绘制磁铁（真正的3D长方体）
+        function drawMagnet() {
+            const w = magnet.width;
+            const h = magnet.height;
+            const d = magnet.depth;
+            const x = magnet.x;
+            const y = magnet.y;
+            const z = magnet.z;
+            
+            // 8个顶点
+            const vertices = [
+                { x: x - w/2, y: y - h/2, z: z - d/2 },
+                { x: x + w/2, y: y - h/2, z: z - d/2 },
+                { x: x + w/2, y: y + h/2, z: z - d/2 },
+                { x: x - w/2, y: y + h/2, z: z - d/2 },
+                { x: x - w/2, y: y - h/2, z: z + d/2 },
+                { x: x + w/2, y: y - h/2, z: z + d/2 },
+                { x: x + w/2, y: y + h/2, z: z + d/2 },
+                { x: x - w/2, y: y + h/2, z: z + d/2 }
+            ];
+            
+            const proj = vertices.map(v => project3D(v.x, v.y, v.z));
+            
+            // 定义6个面（顶点索引和颜色）
+            const faces = [
+                { indices: [0, 1, 2, 3], color: '#4488ff', name: 'S极前面' },
+                { indices: [4, 5, 6, 7], color: '#3366cc', name: 'S极后面' },
+                { indices: [0, 1, 5, 4], color: '#6699ff', name: 'S极顶面' },
+                { indices: [3, 2, 6, 7], color: '#2255bb', name: 'S极底面' },
+                { indices: [1, 2, 6, 5], color: '#ff4444', name: 'N极' }
+            ];
+            
+            // 按Z深度排序
+            faces.sort((a, b) => {
+                const zA = a.indices.reduce((sum, i) => sum + proj[i].z, 0) / 4;
+                const zB = b.indices.reduce((sum, i) => sum + proj[i].z, 0) / 4;
+                return zB - zA; // 从远到近
+            });
+            
+            // 绘制每个面
+            faces.forEach(face => {
+                const points = face.indices.map(i => proj[i]);
+                
+                // 创建渐变
+                const gradient = ctx.createLinearGradient(
+                    points[0].x, points[0].y,
+                    points[2].x, points[2].y
+                );
+                
+                if (face.color === '#ff4444') {
+                    // N极 - 红色渐变
+                    gradient.addColorStop(0, '#ff6666');
+                    gradient.addColorStop(0.5, '#ff4444');
+                    gradient.addColorStop(1, '#cc3333');
+                } else {
+                    // S极 - 蓝色渐变
+                    gradient.addColorStop(0, '#6699ff');
+                    gradient.addColorStop(0.5, '#4488ff');
+                    gradient.addColorStop(1, '#3366cc');
+                }
+                
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                points.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+                ctx.closePath();
+                ctx.fill();
+                
+                // 边框
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            });
+            
+            // S极标签
+            const sCenter = project3D(x - w/4, y, z + d/2 + 5);
+            ctx.fillStyle = '#fff';
+            ctx.font = `bold ${18 * sCenter.scale}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('S', sCenter.x, sCenter.y);
+            
+            // N极标签
+            const nCenter = project3D(x + w/4, y, z + d/2 + 5);
+            ctx.fillStyle = '#fff';
+            ctx.font = `bold ${18 * nCenter.scale}px Arial`;
+            ctx.fillText('N', nCenter.x, nCenter.y);
+        }
+        
+        // 绘制磁感线（真正的3D弧形）
+        function drawFieldLines() {
+            const magnetRight = magnet.x + magnet.width/2;
+            const magnetY = magnet.y;
+            const magnetZ = magnet.z;
+            
+            const numLines = 10;
+            for (let i = 0; i < numLines; i++) {
+                const angle = (i / numLines) * Math.PI * 2;
+                
+                // 从N极发出的磁感线
+                const startX = magnetRight;
+                const startY = magnetY + Math.sin(angle) * 15;
+                const startZ = magnetZ + Math.cos(angle) * 15;
+                
+                // 绘制3D曲线（弧形）
+                ctx.strokeStyle = 'rgba(255, 100, 100, 0.7)';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                
+                const points = [];
+                for (let t = 0; t <= 1; t += 0.02) {
+                    // 弧形曲线：从N极发出，向外扩散
+                    const x = startX + t * 280;
+                    const y = startY + Math.sin(t * Math.PI) * 120 * Math.sin(angle);
+                    const z = startZ + Math.sin(t * Math.PI) * 120 * Math.cos(angle);
+                    
+                    const proj = project3D(x, y, z);
+                    points.push(proj);
+                    
+                    if (t === 0) {
+                        ctx.moveTo(proj.x, proj.y);
+                    } else {
+                        ctx.lineTo(proj.x, proj.y);
+                    }
+                }
+                ctx.stroke();
+                
+                // 箭头（在曲线末端）
+                if (points.length > 5) {
+                    const arrowIdx = Math.floor(points.length * 0.9);
+                    const p1 = points[arrowIdx - 1];
+                    const p2 = points[arrowIdx];
+                    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                    
+                    drawArrow(p2.x, p2.y, angle, 10, 'rgba(255, 100, 100, 0.9)');
+                }
+            }
+        }
+        
+        // 绘制线圈（真正的3D椭圆环）
+        function drawCoil() {
+            const cx = coil.x;
+            const cy = coil.y;
+            const cz = coil.z;
+            const rx = coil.radiusX;
+            const ry = coil.radiusY;
+            
+            // 生成椭圆环上的点
+            const segments = 80;
+            const ringPoints = [];
+            
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                // 立起来的椭圆（绕Z轴旋转）
+                const x = cx + Math.cos(angle) * rx;
+                const y = cy + Math.sin(angle) * ry;
+                const z = cz;
+                
+                ringPoints.push(project3D(x, y, z));
+            }
+            
+            // 绘制圆环管（粗线条）
+            ctx.strokeStyle = '#cc8800';
+            ctx.lineWidth = coil.tubeRadius * 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            ringPoints.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+            
+            // 绘制圆环边框（高光）
+            ctx.strokeStyle = '#ffcc00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ringPoints.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+            
+            // 线圈内侧阴影（立体感）
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.lineWidth = coil.tubeRadius;
+            ctx.beginPath();
+            ringPoints.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.closePath();
+            ctx.stroke();
+            
+            // 线圈标签
+            const labelProj = project3D(cx, cy - ry - 30, cz);
+            ctx.fillStyle = '#ffaa00';
+            ctx.font = `bold ${12 * labelProj.scale}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('单匝线圈', labelProj.x, labelProj.y);
+        }
+        
+        // 绘制感应电流
+        function drawCurrent() {
+            if (Math.abs(coil.current) < 0.01) return;
+            
+            const intensity = Math.min(Math.abs(coil.current), 1);
+            const isCounterClockwise = coil.current > 0;
+            
+            // 电流粒子
+            if (Math.random() < intensity * 0.5) {
+                coil.currentParticles.push({
+                    angle: Math.random() * Math.PI * 2,
+                    speed: isCounterClockwise ? -0.06 : 0.06,
+                    life: 1.0,
+                    size: 3 + Math.random() * 3
+                });
+            }
+            
+            // 更新和绘制粒子
+            for (let i = coil.currentParticles.length - 1; i >= 0; i--) {
+                const p = coil.currentParticles[i];
+                p.angle += p.speed;
+                p.life -= 0.015;
+                
+                if (p.life <= 0) {
+                    coil.currentParticles.splice(i, 1);
+                    continue;
+                }
+                
+                const px = coil.x + Math.cos(p.angle) * coil.radiusX;
+                const py = coil.y + Math.sin(p.angle) * coil.radiusY;
+                const pz = coil.z;
+                const proj = project3D(px, py, pz);
+                
+                // 发光效果
+                ctx.fillStyle = `rgba(100, 200, 255, ${p.life * 0.3})`;
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, p.size * 3 * proj.scale, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 核心
+                ctx.fillStyle = `rgba(150, 220, 255, ${p.life})`;
+                ctx.beginPath();
+                ctx.arc(proj.x, proj.y, p.size * proj.scale, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            // 电流方向指示
+            const dirText = isCounterClockwise ? '逆时针 ↺' : '顺时针 ↻';
+            const textProj = project3D(coil.x, coil.y, coil.z + coil.radiusX + 40);
+            ctx.fillStyle = '#66ccff';
+            ctx.font = `bold ${11 * textProj.scale}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText(`感应电流: ${dirText}`, textProj.x, textProj.y);
+            
+            // 方向箭头
+            const arrowCount = 4;
+            for (let i = 0; i < arrowCount; i++) {
+                const baseAngle = (Date.now() * 0.002 * (isCounterClockwise ? -1 : 1) + i / arrowCount) * Math.PI * 2;
+                const nextAngle = baseAngle + 0.15 * (isCounterClockwise ? -1 : 1);
+                
+                const x1 = coil.x + Math.cos(baseAngle) * coil.radiusX;
+                const y1 = coil.y + Math.sin(baseAngle) * coil.radiusY;
+                const x2 = coil.x + Math.cos(nextAngle) * coil.radiusX;
+                const y2 = coil.y + Math.sin(nextAngle) * coil.radiusY;
+                
+                const p1 = project3D(x1, y1, coil.z);
+                const p2 = project3D(x2, y2, coil.z);
+                
+                const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+                
+                ctx.strokeStyle = `rgba(100, 200, 255, ${intensity})`;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+                
+                drawArrow(p2.x, p2.y, angle, 8, `rgba(100, 200, 255, ${intensity})`);
+            }
+        }
+        
+        // 绘制箭头
+        function drawArrow(x, y, angle, length, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(
+                x - length * Math.cos(angle - Math.PI / 6),
+                y - length * Math.sin(angle - Math.PI / 6)
+            );
+            ctx.lineTo(
+                x - length * Math.cos(angle + Math.PI / 6),
+                y - length * Math.sin(angle + Math.PI / 6)
+            );
+            ctx.closePath();
+            ctx.fill();
+        }
+        
+        // 绘制电流表
+        function drawAmmeter() {
+            const ax = 750;
+            const ay = 100;
+            const size = 50;
+            
+            // 表盘
+            ctx.fillStyle = '#f5f5f5';
+            ctx.beginPath();
+            ctx.arc(ax, ay, size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            
+            // 刻度
+            for (let i = -5; i <= 5; i++) {
+                const angle = Math.PI + (i / 5) * Math.PI * 0.7;
+                const x1 = ax + Math.cos(angle) * (size - 8);
+                const y1 = ay + Math.sin(angle) * (size - 8);
+                const x2 = ax + Math.cos(angle) * (size - 18);
+                const y2 = ay + Math.sin(angle) * (size - 18);
+                
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = i === 0 ? 2 : 1;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+            }
+            
+            // 指针
+            const maxCurrent = 2;
+            const needleAngle = Math.PI + (coil.current / maxCurrent) * Math.PI * 0.7;
+            const needleLen = size - 12;
+            const nx = ax + Math.cos(needleAngle) * needleLen;
+            const ny = ay + Math.sin(needleAngle) * needleLen;
+            
+            ctx.strokeStyle = '#ff4444';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            ctx.lineTo(nx, ny);
+            ctx.stroke();
+            
+            // 中心点
+            ctx.fillStyle = '#333';
+            ctx.beginPath();
+            ctx.arc(ax, ay, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 标签
+            ctx.fillStyle = '#333';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('A', ax, ay + size + 20);
+            
+            // 连接线
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(coil.x + coil.radiusX * 0.7, coil.y - coil.radiusY * 0.7);
+            ctx.lineTo(ax - 20, ay + 20);
+            ctx.stroke();
+        }
+        
+        // 计算磁通量
+        function calculateFlux() {
+            const magnetRight = magnet.x + magnet.width/2;
+            const coilLeft = coil.x - coil.radiusX;
+            const distance = coilLeft - magnetRight;
+            
+            if (distance > 250) return 0;
+            if (distance < -100) return 1;
+            
+            return Math.max(0, Math.min(1, 1 - distance / 250));
+        }
+        
+        // 更新物理
+        let lastFlux = 0;
+        function updatePhysics(dt) {
+            if (!paused) {
+                magnet.x += magnet.direction * magnet.moveSpeed * dt * speed;
+                
+                if (magnet.x > magnet.maxX) {
+                    magnet.direction = -1;
+                } else if (magnet.x < magnet.minX) {
+                    magnet.direction = 1;
+                }
+            }
+            
+            const flux = calculateFlux();
+            const fluxChange = (flux - lastFlux) / dt;
+            lastFlux = flux;
+            
+            // 楞次定律
+            coil.current = -fluxChange * 0.8;
+            coil.current = Math.max(-2, Math.min(2, coil.current));
+            
+            updateUI(flux, fluxChange, coil.current);
+        }
+        
+        function updateUI(flux, fluxChange, current) {
+            document.getElementById('fluxValue').textContent = flux.toFixed(3);
+            document.getElementById('fluxChangeValue').textContent = fluxChange.toFixed(3);
+            document.getElementById('currentValue').textContent = Math.abs(current).toFixed(3) + ' A';
+            
+            const statusBar = document.getElementById('statusBar');
+            const explanation = document.getElementById('explanation');
+            const directionValue = document.getElementById('directionValue');
+            
+            if (Math.abs(fluxChange) < 0.01) {
+                statusBar.className = 'status-bar status-constant';
+                statusBar.textContent = '磁铁静止 - 无感应电流';
+                directionValue.textContent = '无';
+                explanation.innerHTML = '<strong>楞次定律：</strong>磁铁静止，磁通量不变，无感应电流。';
+            } else if (fluxChange > 0) {
+                statusBar.className = 'status-bar status-increasing';
+                statusBar.textContent = '磁通量增加 → 产生感应电流';
+                directionValue.textContent = '逆时针 ↺';
+                explanation.innerHTML = '<strong>楞次定律：</strong>磁通量增加 → 感应电流产生反向磁场 → <span style="color:#66ff66">阻碍磁通量增加 → 逆时针（从左向右看）</span>';
+            } else {
+                statusBar.className = 'status-bar status-decreasing';
+                statusBar.textContent = '磁通量减少 → 产生感应电流';
+                directionValue.textContent = '顺时针 ↻';
+                explanation.innerHTML = '<strong>楞次定律：</strong>磁通量减少 → 感应电流产生同向磁场 → <span style="color:#ff6666">阻碍磁通量减少 → 顺时针（从左向右看）</span>';
+            }
+        }
+        
+        // 绘制地面网格
+        function drawGrid() {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+            ctx.lineWidth = 1;
+            
+            for (let i = -5; i <= 5; i++) {
+                const p1 = project3D(i * 100, 100, -300);
+                const p2 = project3D(i * 100, 100, 300);
+                ctx.beginPath();
+                ctx.moveTo(p1.x, p1.y);
+                ctx.lineTo(p2.x, p2.y);
+                ctx.stroke();
+                
+                const p3 = project3D(-500, 100, i * 100);
+                const p4 = project3D(500, 100, i * 100);
+                ctx.beginPath();
+                ctx.moveTo(p3.x, p3.y);
+                ctx.lineTo(p4.x, p4.y);
+                ctx.stroke();
+            }
+        }
+        
+        // 动画循环
+        let lastTime = 0;
+        function animate(currentTime) {
+            if (!lastTime) lastTime = currentTime;
+            const dt = Math.min((currentTime - lastTime) / 1000, 0.05);
+            lastTime = currentTime;
+            
+            updatePhysics(dt);
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            drawGrid();
+            drawFieldLines();
+            drawCoil();
+            drawCurrent();
+            drawMagnet();
+            drawAmmeter();
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // 控制函数
+        function changeSpeed(newSpeed) {
+            speed = newSpeed;
+            document.querySelectorAll('.controls button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (newSpeed === 0.8) document.getElementById('btnNormal').classList.add('active');
+        }
+        
+        function togglePause() {
+            paused = !paused;
+        }
+        
+        function reset() {
+            magnet.x = magnet.minX;
+            magnet.direction = 1;
+            coil.current = 0;
+            coil.currentParticles = [];
+            lastFlux = 0;
+        }
+        
+        // 启动动画
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>

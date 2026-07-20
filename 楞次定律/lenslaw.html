@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>楞次定律 · 3D 交互课件</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #05070f; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; color: #e8eefc; }
+
+  #stage { position: fixed; inset: 0; z-index: 1; }
+  canvas { display: block; }
+
+  #title { position: fixed; top: 20px; left: 24px; z-index: 10; pointer-events: none; }
+  #title h1 {
+    font-size: 22px; font-weight: 600; letter-spacing: 3px;
+    background: linear-gradient(90deg, #5ad1ff, #6f8bff);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  #title p { font-size: 12px; color: rgba(232,238,252,0.5); margin-top: 5px; letter-spacing: 1px; }
+
+  .panel {
+    position: fixed; z-index: 20;
+    background: rgba(14, 20, 38, 0.74);
+    border: 1px solid rgba(120, 170, 255, 0.16);
+    border-radius: 14px;
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  }
+  #controls { top: 20px; right: 20px; width: 330px; padding: 16px 20px; user-select: none; }
+  #dragBar {
+    position: absolute; top: 0; left: 0; right: 0; height: 32px;
+    cursor: grab; border-radius: 14px 14px 0 0;
+    background: rgba(120,170,255,0.06);
+  }
+  #dragBar:active { cursor: grabbing; }
+  h2 {
+    font-size: 11px; font-weight: 600; letter-spacing: 2px;
+    color: rgba(180,205,255,0.65); text-transform: uppercase; margin-bottom: 14px;
+    margin-top: 6px; cursor: grab;
+  }
+
+  .row { margin-bottom: 13px; }
+  .row:last-child { margin-bottom: 0; }
+  .row label {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 12px; color: rgba(232,238,252,0.82); margin-bottom: 6px;
+  }
+  .row label span { color: #5ad1ff; font-variant-numeric: tabular-nums; }
+  input[type=range] {
+    width: 100%; height: 4px; -webkit-appearance: none; appearance: none;
+    background: rgba(255,255,255,0.14); border-radius: 2px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%;
+    background: linear-gradient(135deg, #5ad1ff, #6f8bff); cursor: pointer;
+    box-shadow: 0 0 8px rgba(90,209,255,0.6);
+  }
+  .toggle {
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 12px; color: rgba(232,238,252,0.82); cursor: pointer; user-select: none;
+  }
+  .switch {
+    position: relative; width: 36px; height: 20px; border-radius: 10px;
+    background: rgba(255,255,255,0.18); transition: background .25s;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 2px; left: 2px;
+    width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .25s;
+  }
+  .switch.on { background: linear-gradient(135deg, #5ad1ff, #6f8bff); }
+  .switch.on::after { transform: translateX(16px); }
+  .btn {
+    width: 100%; padding: 9px; font-size: 12px; color: #e8eefc; letter-spacing: 1px;
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px; cursor: pointer; transition: all .2s;
+  }
+  .btn:hover { background: rgba(90,209,255,0.15); border-color: rgba(90,209,255,0.4); }
+  .btn.flip { background: linear-gradient(90deg, rgba(255,90,90,0.2), rgba(90,140,255,0.2)); }
+
+  #subtitleBar {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 30;
+    display: flex; gap: 16px; pointer-events: none;
+  }
+  #subtitleBar > div {
+    font-size: 18px; font-weight: 700; letter-spacing: 3px;
+    padding: 10px 28px; border-radius: 10px;
+    background: rgba(14,20,38,0.78); border: 1px solid rgba(120,170,255,0.18);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    transition: opacity 0.3s; opacity: 0;
+  }
+  #subtitleBar > div.on { opacity: 1; }
+  #subtitleBar > div.zeng { color: #ffb44a; }
+  #subtitleBar > div.jian { color: #4ae0c8; }
+
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+  <div id="subtitleBar">
+    <div id="subZengFan"></div>
+    <div id="subLaiJu"></div>
+    <div id="subZengSuo"></div>
+  </div>
+
+  <div id="title">
+    <h1>动量物理 楞次定律 · 3D</h1>
+  </div>
+
+  <div id="controls" class="panel">
+    <div id="dragBar"></div>
+    <h2>控制面板</h2>
+    <div class="row">
+      <label>磁铁位置 <span id="vPos">远</span></label>
+      <input type="range" id="rPos" min="0" max="100" step="0.5" value="78">
+    </div>
+    <div class="row">
+      <div class="toggle" id="tAuto"><span>自动往复运动</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <label>运动速度 <span id="vSpd">1.0x</span></label>
+      <input type="range" id="rSpd" min="0.2" max="3" step="0.1" value="1">
+    </div>
+    <div class="row">
+      <div class="toggle" id="tField"><span>显示原磁感线</span><div class="switch on"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tFieldArrow"><span>显示磁感线方向箭头</span><div class="switch on"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tCoil"><span>显示线圈磁感线</span><div class="switch on"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tOuter"><span>显示外层磁感线</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tFixedCurr"><span>固定电流（展示安培力）</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tDecomp"><span>显示磁场分量分解</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tHand"><span>显示移动手</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tFiveHands"><span>显示五个手</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tInducedMagnet"><span>线圈变磁铁</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tZengFanJianTong"><span>增反减同</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tLaiJuQuLiu"><span>来拒去留</span><div class="switch"></div></div>
+    </div>
+    <div class="row">
+      <div class="toggle" id="tZengSuoJianKuo"><span>增缩减阔</span><div class="switch"></div></div>
+    </div>
+
+    <div class="row" style="text-align:center">
+      <label>左手位置 <span id="vHand">0°</span></label>
+      <canvas id="cDial" width="140" height="140" style="width:130px;height:130px;cursor:pointer;border-radius:50%;"></canvas>
+    </div>
+
+    <div class="row" style="display:flex;gap:8px">
+      <button class="btn flip" id="bFlip" style="flex:2">翻转磁极 (N ⇄ S)</button>
+      <button class="btn" id="bReset" style="flex:1">重置</button>
+    </div>
+  </div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ============================================================
+   中文构造助手 —— 用 Unicode 码点拼字符串，杜绝编码问题
+   ============================================================ */
+function CN() {
+  let s = '';
+  for (let i = 0; i < arguments.length; i++) s += String.fromCharCode(arguments[i]);
+  return s;
+}
+// 预先构造常用词（码点来自 2D 版已验证的词）
+const Z = {
+  jinDuan: CN(0x8FD1, 0x7AEF),                 // 近端
+  paiLi:   CN(0x6392, 0x65A5, 0x529B),         // 排斥力
+  xiYin:   CN(0x5438, 0x5F15, 0x529B),         // 吸引力
+  jingZhi: CN(0x9759, 0x6B62),                 // 静止
+  ji:      CN(0x6781),                         // 极
+  ciTong:  CN(0x78C1, 0x901A, 0x91CF),         // 磁通量
+  heng:    CN(0x6052, 0x5B9A),                 // 恒定
+  gu:      CN(0x6545),                         // 故
+  kaoJin:  CN(0x9760, 0x8FD1),                 // 靠近
+  yuanLi:  CN(0x8FDC, 0x79BB),                 // 远离
+  xianQuan:CN(0x7EBF, 0x5708),                 // 线圈
+  zengDa:  CN(0x589E, 0x5927),                 // 增大
+  jianXiao:CN(0x51CF, 0x5C0F),                 // 减小
+  ganYing: CN(0x611F, 0x5E94, 0x7535, 0x6D41, 0x4F7F, 0x8FD1, 0x7AEF, 0x5448), // 感应电流使近端呈
+  chanSheng:CN(0x4EA7, 0x751F),                // 产生
+  lengCi:  CN(0x695A, 0x6B21, 0x5B9A, 0x5F8B, 0xFF1A, 0x963B, 0x788D, 0x53D8, 0x5316), // 楞次定律：阻碍变化
+};
+
+/* ============================================================
+   场景 / 相机 / 渲染器 / 控制器
+   ============================================================ */
+const container = document.getElementById('stage');
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.1, 1000);
+const INIT_CAM = new THREE.Vector3(12, 7, 16);
+camera.position.copy(INIT_CAM);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.minDistance = 4;
+controls.maxDistance = 60;
+controls.target.set(0, 0, 0);   // 看向磁铁(左)与线圈(右)中间
+
+/* 灯光 */
+scene.add(new THREE.AmbientLight(0xb0c4ff, 0.55));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
+dirLight.position.set(8, 14, 10);
+scene.add(dirLight);
+const dirLight2 = new THREE.DirectionalLight(0x6688ff, 0.4);
+dirLight2.position.set(-8, 4, -6);
+scene.add(dirLight2);
+
+/* ============================================================
+   场景常量（世界单位）
+   布局：磁铁在左侧(-X)，线圈在右侧(+X)。磁铁朝 +X 移动 = 靠近线圈。
+   ============================================================ */
+const COIL_R = 4.0;            // 线圈半径（变大）
+const COIL_TUBE = 0.16;        // 线圈导线粗细
+const COIL_X = 5.0;            // 线圈中心在 +X（远离左侧磁铁）
+const MAG_LEN = COIL_R * 1.6;  // 磁铁长度
+const MAG_W = COIL_R * 0.5;    // 磁铁截面边长
+const IND_MAG_LEN = COIL_R * 1.8;  // 感生磁铁总长
+const IND_MAG_W   = COIL_R * 0.55; // 感生磁铁截面
+// 磁铁与线圈的距离（正值）。磁铁 X = COIL_X - 该距离（磁铁在左侧）
+const DIST_MIN = COIL_R + MAG_LEN / 2 - 0.6;   // 磁铁端面可贴近线圈
+const DIST_MAX = COIL_R * 5.5;                  // 磁铁最远位置
+const INIT_DIST = DIST_MAX * 0.7;
+// 把"距离"换算成磁铁 X 坐标（磁铁在线圈左侧，X < COIL_X）
+function distToX(dist) { return COIL_X - dist; }
+function xToDist(x) { return COIL_X - x; }
+
+/* 物理常数（电流响应调小，便于观察） */
+const C = 12;
+const IMAX = 1.5;
+
+/* ============================================================
+   地面网格（强调"线圈与地面垂直"+ 空间参照）
+   ============================================================ */
+const grid = new THREE.GridHelper(40, 40, 0x3a5a8a, 0x1a2840);
+grid.material.transparent = true;
+grid.material.opacity = 0.35;
+scene.add(grid);
+
+/* ============================================================
+   简笔画左手 —— 掌心凹陷 + 手背凸起 + 丰富掌纹
+   掌心(+Y)：凹弧面浅粉+多条掌纹，手背(-Y)：凸弧面暖肤色
+   ============================================================ */
+let handGrp;
+(function buildHand() {
+  handGrp = new THREE.Group();
+  scene.add(handGrp);
+
+  // ---- 手心纹理（纯色 + "心"字） ----
+  function makePalmTex() {
+    var c = document.createElement("canvas");
+    c.width = 256; c.height = 256;
+    var cx = c.getContext("2d");
+    // 浅粉底色
+    cx.fillStyle = "#EDCDB5";
+    cx.fillRect(0, 0, 256, 256);
+
+    // 大字"心"
+    cx.fillStyle = "rgba(200,80,60,0.70)";
+    cx.font = "bold 58px 'Microsoft YaHei', 'SimHei', sans-serif";
+    cx.textAlign = "center";
+    cx.textBaseline = "middle";
+    cx.fillText("心", 128, 148);
+
+    var tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  // ---- 手背纹理 ----
+  function makeBackTex() {
+    var c = document.createElement("canvas");
+    c.width = 256; c.height = 256;
+    var cx = c.getContext("2d");
+    cx.fillStyle = "#D6A882";
+    cx.fillRect(0, 0, 256, 256);
+
+    cx.fillStyle = "rgba(180,100,60,0.70)";
+    cx.font = "bold 58px 'Microsoft YaHei', 'SimHei', sans-serif";
+    cx.textAlign = "center";
+    cx.textBaseline = "middle";
+    cx.fillText("手背", 128, 128);
+
+    var tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  var palmTex = makePalmTex();
+  var backTex = makeBackTex();
+
+  // 材质
+  var backMat   = new THREE.MeshStandardMaterial({ map: backTex,  color: 0xD6A882, roughness: 0.62 });
+  var palmMat   = new THREE.MeshStandardMaterial({ map: palmTex,  color: 0xEDCDB5, roughness: 0.62 });
+  var sideMat   = new THREE.MeshStandardMaterial({ color: 0xCE9E7C, roughness: 0.62 });
+  var fingerMat = new THREE.MeshStandardMaterial({ color: 0xD0A078, roughness: 0.60 });
+  var nailMat   = new THREE.MeshStandardMaterial({ color: 0xF7EFE5, roughness: 0.28, metalness: 0.04 });
+  var edgeMat   = new THREE.LineBasicMaterial({ color: 0x6B4F3C, transparent: true, opacity: 0.55 });
+
+  // ---- 手掌（掌心凹+手背凸：+Y掌心中间低，-Y手背中间向外凸） ----
+  // 多用分段数让弧度平滑
+  var palmGeo = new THREE.BoxGeometry(1.5, 0.18, 2.0, 8, 4, 12);
+  var pos = palmGeo.getAttribute("position");
+  for (var i = 0; i < pos.count; i++) {
+    var py = pos.getY(i);
+    var pz = pos.getZ(i);
+    // 横向拱：中间高两边低（抛物线 profile）
+    var archZ = 1 - (pz * pz) / 1.05;   // z=±1 时≈0, z=0 时≈1
+    var archAmount = 0.10 * archZ;
+    if (py > 0.001) {
+      // +Y 面 = 掌心：减拱 → 中间更低 → 凹
+      pos.setY(i, py - archAmount);
+    } else if (py < -0.001) {
+      // -Y 面 = 手背：减拱 → 中间更负 → 向外凸
+      pos.setY(i, py - archAmount);
+    }
+    // 侧面顶点不做处理，让它们随上下顶点自然连接
+  }
+  palmGeo.computeVertexNormals();
+  pos.needsUpdate = true;
+
+  var palmMats = [sideMat, sideMat, palmMat, backMat, sideMat, sideMat];
+  var palm = new THREE.Mesh(palmGeo, palmMats);
+  handGrp.add(palm);
+  // 手掌描边（在修改顶点后创建）
+  var palmEdge = new THREE.LineSegments(new THREE.EdgesGeometry(palmGeo), edgeMat);
+  handGrp.add(palmEdge);
+
+  // ---- 手指构建器（2段指骨 + 指甲 + 描边） ----
+  function addFinger(len1, len2, r1, r2, zPos, bend) {
+    var fg = new THREE.Group();
+    var b = bend || 0.06;
+    var seg = 10;
+
+    // 近节指骨
+    var g1 = new THREE.CylinderGeometry(r1 * 0.9, r1, len1, seg);
+    var m1 = new THREE.Mesh(g1, fingerMat);
+    m1.rotation.z = -Math.PI / 2;
+    m1.position.x = len1 / 2;
+    fg.add(m1);
+    var e1 = new THREE.LineSegments(new THREE.EdgesGeometry(g1), edgeMat);
+    e1.rotation.z = -Math.PI / 2;
+    e1.position.x = len1 / 2;
+    fg.add(e1);
+
+    // 远节指骨
+    var endX1 = len1;
+    var g2 = new THREE.CylinderGeometry(r2 * 0.8, r2, len2, seg);
+    var m2 = new THREE.Mesh(g2, fingerMat);
+    m2.rotation.z = -Math.PI / 2 + b;
+    m2.position.set(endX1 + Math.cos(b) * len2 / 2, Math.sin(b) * len2 / 2, 0);
+    fg.add(m2);
+    var e2 = new THREE.LineSegments(new THREE.EdgesGeometry(g2), edgeMat);
+    e2.rotation.z = -Math.PI / 2 + b;
+    e2.position.set(endX1 + Math.cos(b) * len2 / 2, Math.sin(b) * len2 / 2, 0);
+    fg.add(e2);
+
+    // 指甲（扁平盒，背侧 = +Y）
+    var tipX = endX1 + Math.cos(b) * len2;
+    var tipY = Math.sin(b) * len2;
+    var nailLen = len2 * 0.58;
+    var nailW = r2 * 0.55;
+    var nailGeo = new THREE.BoxGeometry(nailLen, 0.022, nailW);
+    var nail = new THREE.Mesh(nailGeo, nailMat);
+    nail.rotation.z = b;
+    nail.position.set(
+      tipX - Math.cos(b) * nailLen * 0.44 + Math.sin(b) * (r2 * 0.32),
+      tipY - Math.sin(b) * nailLen * 0.44 + Math.cos(b) * (r2 * 0.32),
+      0
+    );
+    fg.add(nail);
+
+    fg.position.set(0.72, 0, zPos);
+    handGrp.add(fg);
+  }
+
+  // 左手四指（-Z 到 +Z：食指→小指）
+  addFinger(0.68, 0.45, 0.155, 0.125, -0.62, 0.07);
+  addFinger(0.78, 0.52, 0.165, 0.132, -0.22, 0.05);
+  addFinger(0.72, 0.47, 0.158, 0.126,  0.20, 0.06);
+  addFinger(0.52, 0.35, 0.135, 0.108,  0.60, 0.09);
+
+  // ---- 拇指（-Z侧） ----
+  var thumbGrp = new THREE.Group();
+  var seg = 10;
+  var tMetaLen = 0.58, tProxLen = 0.50, tDistLen = 0.42;
+
+  var tMetaGeo = new THREE.CylinderGeometry(0.17, 0.19, tMetaLen, seg);
+  var tMeta = new THREE.Mesh(tMetaGeo, fingerMat);
+  tMeta.rotation.z = -Math.PI / 2;
+  tMeta.position.x = tMetaLen / 2;
+  thumbGrp.add(tMeta);
+  var tMetaEdge = new THREE.LineSegments(new THREE.EdgesGeometry(tMetaGeo), edgeMat);
+  tMetaEdge.rotation.z = -Math.PI / 2;
+  tMetaEdge.position.x = tMetaLen / 2;
+  thumbGrp.add(tMetaEdge);
+
+  var tAng1 = 0.38;
+  var tEnd1 = tMetaLen;
+  var tProxGeo = new THREE.CylinderGeometry(0.16, 0.18, tProxLen, seg);
+  var tProx = new THREE.Mesh(tProxGeo, fingerMat);
+  tProx.rotation.z = -Math.PI / 2 + tAng1;
+  tProx.position.set(tEnd1 + Math.cos(tAng1) * tProxLen / 2, Math.sin(tAng1) * tProxLen / 2, 0);
+  thumbGrp.add(tProx);
+  var tProxEdge = new THREE.LineSegments(new THREE.EdgesGeometry(tProxGeo), edgeMat);
+  tProxEdge.rotation.z = -Math.PI / 2 + tAng1;
+  tProxEdge.position.set(tEnd1 + Math.cos(tAng1) * tProxLen / 2, Math.sin(tAng1) * tProxLen / 2, 0);
+  thumbGrp.add(tProxEdge);
+
+  var tAng2 = tAng1 + 0.32;
+  var tEnd2X = tEnd1 + Math.cos(tAng1) * tProxLen;
+  var tEnd2Y = Math.sin(tAng1) * tProxLen;
+  var tDistGeo = new THREE.CylinderGeometry(0.14, 0.16, tDistLen, seg);
+  var tDist = new THREE.Mesh(tDistGeo, fingerMat);
+  tDist.rotation.z = -Math.PI / 2 + tAng2;
+  tDist.position.set(tEnd2X + Math.cos(tAng2) * tDistLen / 2, tEnd2Y + Math.sin(tAng2) * tDistLen / 2, 0);
+  thumbGrp.add(tDist);
+  var tDistEdge = new THREE.LineSegments(new THREE.EdgesGeometry(tDistGeo), edgeMat);
+  tDistEdge.rotation.z = -Math.PI / 2 + tAng2;
+  tDistEdge.position.set(tEnd2X + Math.cos(tAng2) * tDistLen / 2, tEnd2Y + Math.sin(tAng2) * tDistLen / 2, 0);
+  thumbGrp.add(tDistEdge);
+
+  var tTipX = tEnd2X + Math.cos(tAng2) * tDistLen;
+  var tTipY = tEnd2Y + Math.sin(tAng2) * tDistLen;
+  var tNailGeo = new THREE.BoxGeometry(tDistLen * 0.56, 0.022, 0.20);
+  var tNail = new THREE.Mesh(tNailGeo, nailMat);
+  tNail.rotation.z = tAng2;
+  tNail.position.set(
+    tTipX - Math.cos(tAng2) * tDistLen * 0.30 + Math.sin(tAng2) * 0.10,
+    tTipY - Math.sin(tAng2) * tDistLen * 0.30 + Math.cos(tAng2) * 0.10, 0
+  );
+  thumbGrp.add(tNail);
+
+  // 拇指力方向箭头 + F 标签
+  var arrowGrp = new THREE.Group();
+  var tipX = tEnd2X + Math.cos(tAng2) * tDistLen;
+  var tipY = tEnd2Y + Math.sin(tAng2) * tDistLen;
+  var shaftLen = 0.28;
+  var shaftGeo = new THREE.CylinderGeometry(0.03, 0.03, shaftLen, 8);
+  var shaft = new THREE.Mesh(shaftGeo, new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.3, emissive: 0x330000 }));
+  shaft.rotation.z = -Math.PI / 2;
+  shaft.position.set(tipX + shaftLen / 2 + 0.06, tipY, 0);
+  arrowGrp.add(shaft);
+  var coneGeo = new THREE.ConeGeometry(0.07, 0.14, 8);
+  var cone = new THREE.Mesh(coneGeo, new THREE.MeshStandardMaterial({ color: 0xff4444, roughness: 0.3, emissive: 0x330000 }));
+  cone.rotation.z = -Math.PI / 2;
+  cone.position.set(tipX + shaftLen + 0.10, tipY, 0);
+  arrowGrp.add(cone);
+  // F 标签
+  var fCanvas = document.createElement('canvas');
+  fCanvas.width = 128; fCanvas.height = 128;
+  var fCtx = fCanvas.getContext('2d');
+  fCtx.fillStyle = '#ff4444';
+  fCtx.font = 'bold 100px sans-serif';
+  fCtx.textAlign = 'center';
+  fCtx.textBaseline = 'middle';
+  fCtx.fillText('F', 64, 64);
+  var fTex = new THREE.CanvasTexture(fCanvas);
+  fTex.colorSpace = THREE.SRGBColorSpace;
+  var fSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: fTex, transparent: true, depthTest: false, depthWrite: false }));
+  fSprite.scale.set(0.8, 0.8, 1);
+  fSprite.position.set(tipX + shaftLen + 0.22, tipY + 0.15, 0);
+  arrowGrp.add(fSprite);
+  thumbGrp.add(arrowGrp);
+
+  thumbGrp.position.set(-0.40, 0.04, -0.88);
+  thumbGrp.rotation.y = Math.PI / 2;
+  handGrp.add(thumbGrp);
+
+  // ---- 手腕 ----
+  var wristGeo = new THREE.CylinderGeometry(0.32, 0.40, 1.15, 12);
+  var wrist = new THREE.Mesh(wristGeo, fingerMat);
+  wrist.rotation.z = -Math.PI / 2;
+  wrist.position.x = -1.25;
+  handGrp.add(wrist);
+  var wristEdge = new THREE.LineSegments(new THREE.EdgesGeometry(wristGeo), edgeMat);
+  wristEdge.rotation.z = -Math.PI / 2;
+  wristEdge.position.x = -1.25;
+  handGrp.add(wristEdge);
+
+  handGrp.position.set(5.15, 3.7, 0);
+  handGrp.rotation.z = Math.PI / 2;
+	handGrp.rotation.x = -Math.PI / 2;
+  })();
+
+/* ============================================================
+   线圈支架（两根立柱 + 底座，强调竖直站立）
+   ============================================================ */
+const standMat = new THREE.MeshStandardMaterial({ color: 0x6a7a90, roughness: 0.6, metalness: 0.3 });
+const standGeo = new THREE.CylinderGeometry(0.07, 0.07, COIL_R + 0.3, 12);
+[-0.35, 0.35].forEach(function (off) {
+  const post = new THREE.Mesh(standGeo, standMat);
+  post.position.set(COIL_X + off, -(COIL_R + 0.3) / 2, 0);
+  scene.add(post);
+});
+const baseGeo = new THREE.BoxGeometry(1.1, 0.12, 0.5);
+const baseMesh = new THREE.Mesh(baseGeo, standMat);
+baseMesh.position.set(COIL_X, -(COIL_R + 0.3) + 0.06, 0);
+scene.add(baseMesh);
+
+/* ============================================================
+   线圈（Torus，竖直立在 YZ 平面，法线沿 X 朝向磁铁）
+   ============================================================ */
+const coilGroup = new THREE.Group();
+scene.add(coilGroup);
+const coilGeo = new THREE.TorusGeometry(COIL_R, COIL_TUBE, 24, 96);
+const coilMat = new THREE.MeshStandardMaterial({ color: 0xcfd8ee, roughness: 0.35, metalness: 0.6 });
+const coil = new THREE.Mesh(coilGeo, coilMat);
+// Torus 默认在 XY 平面（法线沿 Z），旋转到 YZ 平面使法线沿 X
+coil.rotation.y = Math.PI / 2;
+coilGroup.add(coil);
+coilGroup.position.x = COIL_X;   // 线圈组整体移到 COIL_X（右侧，远离磁铁）
+
+// 近端极性辉光（朝向磁铁一侧 = +X 侧）：用 Sprite
+function makePolaritySprite(rgbStr) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const cx = c.getContext('2d');
+  const g = cx.createRadialGradient(128,128,0,128,128,128);
+  g.addColorStop(0, 'rgba(' + rgbStr + ',0.9)');
+  g.addColorStop(0.4, 'rgba(' + rgbStr + ',0.35)');
+  g.addColorStop(1, 'rgba(' + rgbStr + ',0)');
+  cx.fillStyle = g; cx.fillRect(0,0,256,256);
+  const tex = new THREE.CanvasTexture(c);
+  const m = new THREE.SpriteMaterial({ map: tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  const sp = new THREE.Sprite(m);
+  sp.scale.set(COIL_R*1.6, COIL_R*1.6, 1);
+  return sp;
+}
+const glowN = makePolaritySprite('255,90,90');
+const glowS = makePolaritySprite('90,160,255');
+glowN.position.set(-COIL_R*0.55, 0, 0);   // 近端 = 朝向磁铁一侧（磁铁在左侧 -X）
+glowS.position.set(-COIL_R*0.55, 0, 0);
+glowN.visible = false; glowS.visible = false;
+coilGroup.add(glowN, glowS);
+
+/* ============================================================
+   条形磁铁（BoxGeometry，红蓝双色 + N/S 文字贴图）
+   ============================================================ */
+const magnetGroup = new THREE.Group();
+scene.add(magnetGroup);
+
+// 侧面纹理：彩色底 + 居中大号字母（印刷在磁铁表面）
+function makeSideTexture(letter, bgColor) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 128;   // 宽:高 ≈ 2:1，匹配磁铁侧面长宽比
+  const cx = c.getContext('2d');
+  // 背景渐变，模拟磁铁漆面
+  const g = cx.createLinearGradient(0, 0, 0, 128);
+  g.addColorStop(0, shade(bgColor, 1.15));
+  g.addColorStop(0.5, bgColor);
+  g.addColorStop(1, shade(bgColor, 0.8));
+  cx.fillStyle = g; cx.fillRect(0, 0, 256, 128);
+  // 高光
+  cx.fillStyle = 'rgba(255,255,255,0.12)';
+  cx.fillRect(0, 0, 256, 14);
+  // 字母（白色描边 + 白色填充，居中）
+  cx.font = 'bold 96px sans-serif';
+  cx.textAlign = 'center'; cx.textBaseline = 'middle';
+  cx.lineWidth = 6; cx.strokeStyle = 'rgba(0,0,0,0.35)';
+  cx.strokeText(letter, 128, 66);
+  cx.fillStyle = '#ffffff';
+  cx.fillText(letter, 128, 66);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+// 颜色明暗调整工具：#rrggbb + factor(>1变亮,<1变暗)
+function shade(hex, f) {
+  const r = Math.min(255, Math.max(0, parseInt(hex.slice(1,3),16) * f)) | 0;
+  const g = Math.min(255, Math.max(0, parseInt(hex.slice(3,5),16) * f)) | 0;
+  const b = Math.min(255, Math.max(0, parseInt(hex.slice(5,7),16) * f)) | 0;
+  return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+// 为每个半段构建材质数组（BoxGeometry 6 面：[+X,-X,+Y,-Y,+Z,-Z]）
+// 端面(±X)纯色，四个侧面(±Y,±Z)印字
+function makeHalfMaterials(letter, endColorHex, sideTex) {
+  const endMat = new THREE.MeshStandardMaterial({ color: endColorHex, roughness: 0.45, metalness: 0.25, emissive: new THREE.Color(endColorHex).multiplyScalar(0.12) });
+  const sideMat = new THREE.MeshStandardMaterial({ map: sideTex, roughness: 0.4, metalness: 0.3 });
+  return [endMat, endMat, sideMat, sideMat, sideMat, sideMat];
+}
+const halfGeo = new THREE.BoxGeometry(MAG_LEN / 2, MAG_W, MAG_W);
+
+// N 段（红）与 S 段（蓝）的纹理
+const texN = makeSideTexture('N', '#d63a30');
+const texS = makeSideTexture('S', '#2f66e0');
+const matsN = makeHalfMaterials('N', 0xe8443a, texN);
+const matsS = makeHalfMaterials('S', 0x3a6ce8, texS);
+
+const magHalfA = new THREE.Mesh(halfGeo, matsN);   // 朝向线圈端（默认 N）
+const magHalfB = new THREE.Mesh(halfGeo, matsS);   // 远端（默认 S）
+magHalfA.position.x = MAG_LEN / 4;
+magHalfB.position.x = -MAG_LEN / 4;
+magnetGroup.add(magHalfA, magHalfB);
+
+// facingN=true: N 段(matsN) 在磁铁本地 +X 端（朝向左侧的线圈）
+let facingN = true;
+function applyMagnetOrientation() {
+  magHalfA.material = facingN ? matsN : matsS;   // magHalfA 在 +X 端
+  magHalfB.material = facingN ? matsS : matsN;   // magHalfB 在 -X 端
+}
+applyMagnetOrientation();
+
+// ---- 感生磁铁（半透明，线圈变磁铁模式） ----
+const indTexN = makeSideTexture('N', '#d63a30');
+const indTexS = makeSideTexture('S', '#2f66e0');
+function makeInducedHalfMaterials(letter, endColorHex, sideTex) {
+  const endMat = new THREE.MeshStandardMaterial({
+    color: endColorHex, roughness: 0.45, metalness: 0.25,
+    emissive: new THREE.Color(endColorHex).multiplyScalar(0.12),
+    transparent: true, opacity: 0.50, depthWrite: false
+  });
+  const sideMat = new THREE.MeshStandardMaterial({
+    map: sideTex, roughness: 0.4, metalness: 0.3,
+    transparent: true, opacity: 0.50, depthWrite: false
+  });
+  return [endMat, endMat, sideMat, sideMat, sideMat, sideMat];
+}
+const indMatsN = makeInducedHalfMaterials('N', 0xe8443a, indTexN);
+const indMatsS = makeInducedHalfMaterials('S', 0x3a6ce8, indTexS);
+const indMagHalfGeo = new THREE.BoxGeometry(IND_MAG_LEN / 2, IND_MAG_W, IND_MAG_W);
+const inducedMagnetGroup = new THREE.Group();
+inducedMagnetGroup.position.x = COIL_X;
+inducedMagnetGroup.visible = false;
+scene.add(inducedMagnetGroup);
+const indMagHalfA = new THREE.Mesh(indMagHalfGeo, indMatsN);
+const indMagHalfB = new THREE.Mesh(indMagHalfGeo, indMatsS);
+indMagHalfA.position.x =  IND_MAG_LEN / 4;
+indMagHalfB.position.x = -IND_MAG_LEN / 4;
+inducedMagnetGroup.add(indMagHalfA, indMagHalfB);
+function applyInducedMagnetPolarity() {
+  const leftIsN = I > 0;
+  indMagHalfA.material = leftIsN ? indMatsS : indMatsN;
+  indMagHalfB.material = leftIsN ? indMatsN : indMatsS;
+}
+function makeForceSprite(text, rgbStr) {
+  var c = document.createElement('canvas');
+  c.width = 256; c.height = 128;
+  var cx = c.getContext('2d');
+  cx.fillStyle = 'rgba(0,0,0,0)';
+  cx.fillRect(0, 0, 256, 128);
+  cx.fillStyle = 'rgba(' + rgbStr + ',0.9)';
+  cx.font = 'bold 40px "Microsoft YaHei","SimHei",sans-serif';
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillText(text, 128, 64);
+  var tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  var m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+  var sp = new THREE.Sprite(m);
+  sp.scale.set(3.5, 1.75, 1);
+  return sp;
+}
+var forceSpritePai = makeForceSprite(Z.paiLi, '255,120,100');
+var forceSpriteXi  = makeForceSprite(Z.xiYin, '100,180,255');
+forceSpritePai.visible = false;
+forceSpriteXi.visible = false;
+scene.add(forceSpritePai);
+scene.add(forceSpriteXi);
+
+/* ============================================================
+   原磁感线（3D：双磁荷模型 streamline）
+   磁铁沿 X 轴，N/S 端坐标随 facingN 变化
+   ============================================================ */
+const fieldLineGroup = new THREE.Group();
+scene.add(fieldLineGroup);
+
+function magnetPoles3D() {
+  const cx = magnetGroup.position.x;
+  const hL = MAG_LEN / 2;
+  // 磁铁在左侧(cx<0)，线圈在原点，"朝线圈"方向 = +X
+  // facingN: N 在磁铁的 +X 端（朝向线圈）
+  let nX, sX;
+  if (facingN) { nX = cx + hL; sX = cx - hL; }   // N 朝 +X(线圈方向)
+  else         { nX = cx - hL; sX = cx + hL; }
+  return { n: new THREE.Vector3(nX, 0, 0), s: new THREE.Vector3(sX, 0, 0) };
+}
+
+// 计算磁荷在某点产生的场（1/r^2 方向），返回新 Vector3
+function dipoleField(p, n, s) {
+  let dx = p.x - n.x, dy = p.y - n.y, dz = p.z - n.z;
+  let r2 = dx*dx + dy*dy + dz*dz + 0.01;
+  let inv = 1 / (r2 * Math.sqrt(r2));
+  let bx = dx * inv, by = dy * inv, bz = dz * inv;
+  dx = p.x - s.x; dy = p.y - s.y; dz = p.z - s.z;
+  r2 = dx*dx + dy*dy + dz*dz + 0.01;
+  inv = 1 / (r2 * Math.sqrt(r2));
+  bx -= dx * inv; by -= dy * inv; bz -= dz * inv;
+  return new THREE.Vector3(bx, by, bz);
+}
+
+/* 带方向箭头的磁感线构建器
+   - pts: 轨迹点数组（按流动方向排列，如 N→S）
+   - 在轨迹的 1/3、2/3 处各放一个小箭头（Cone），朝向切线方向
+   - arrowDirSign: +1 沿轨迹正方向，-1 反向（用于感应场方向随 I 翻转）
+*/
+const ARROW_GEO = new THREE.ConeGeometry(0.12, 0.34, 10);
+function addDirectedLine(group, pts, color, opacity, arrowDirSign, showArrow) {
+  const dirSign = arrowDirSign || 1;
+  const drawArrows = showArrow !== false;   // 默认画箭头，传 false 关闭
+  const mat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: opacity });
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  group.add(new THREE.Line(g, mat));
+  if (!drawArrows || pts.length < 4) return;
+  const arrowMat = new THREE.MeshBasicMaterial({ color: color });
+  // 在靠近两端（磁极）位置各放一个箭头
+  [0.08, 0.92].forEach(function (frac) {
+    const idx = Math.floor(pts.length * frac);
+    const p = pts[idx];
+    const pn = pts[Math.min(idx + 1, pts.length - 1)];
+    const tangent = new THREE.Vector3(
+      dirSign * (pn.x - p.x),
+      dirSign * (pn.y - p.y),
+      dirSign * (pn.z - p.z)
+    );
+    if (tangent.lengthSq() < 1e-10) return;
+    tangent.normalize();
+    const arrow = new THREE.Mesh(ARROW_GEO, arrowMat);
+    arrow.position.copy(p);
+    // Cone 默认朝 +Y，旋转使其朝向 tangent
+    const quat = new THREE.Quaternion();
+    quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+    arrow.quaternion.copy(quat);
+    group.add(arrow);
+  });
+}
+
+function makeLabelSprite(num) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const cx = c.getContext('2d');
+  cx.fillStyle = '#ffffff';
+  cx.font = 'bold 28px sans-serif';
+  cx.textAlign = 'center';
+  cx.textBaseline = 'middle';
+  cx.fillText(String(num), 32, 32);
+  const tex = new THREE.CanvasTexture(c);
+  const m = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false });
+  const sp = new THREE.Sprite(m);
+  sp.scale.set(0.7, 0.7, 1);
+  return sp;
+}
+
+function rebuildFieldLines() {
+  // 清空
+  while (fieldLineGroup.children.length) {
+    const ch = fieldLineGroup.children.pop();
+    if (ch.geometry) ch.geometry.dispose();
+    if (ch.material) { if (ch.material.map) ch.material.map.dispose(); ch.material.dispose(); }
+  }
+  if (!showField) return;
+  const poles = magnetPoles3D();
+  const n = poles.n, s = poles.s;
+  const step = 0.12;
+  const maxSteps = 400;
+  const lineColor = 0x7fb8ff;
+  coilHits.length = 0;  // {pos, B} 磁感线与线圈平面的交点及该处磁场
+
+  // 从某个极出发，沿磁场(+正向 / -反向)积分画一条磁感线
+  // startPole: 起点；endPole: 终止判断；sign: +1 正向(N→S)，-1 反向(S→N)
+  function traceLine(startPole, endPole, dir, sign, labelNum) {
+    let p = startPole.clone().add(dir.clone().multiplyScalar(0.35));
+    const pts = [p.clone()];
+    for (let st = 0; st < maxSteps; st++) {
+      const B = dipoleField(p, n, s);
+      if (B.lengthSq() < 1e-12) break;
+      B.normalize().multiplyScalar(sign);
+      const prevP = p.clone();
+      p = p.clone().add(B.multiplyScalar(step));
+      pts.push(p.clone());
+      // 检测是否穿过线圈平面 x = COIL_X，且在圆环区域内
+      if ((prevP.x - COIL_X) * (p.x - COIL_X) < 0) {
+        const t = (COIL_X - prevP.x) / (p.x - prevP.x);
+        const iy = prevP.y + t * (p.y - prevP.y);
+        const iz = prevP.z + t * (p.z - prevP.z);
+        const r2 = iy * iy + iz * iz;
+        if (r2 > 0.05 * COIL_R * COIL_R && r2 < 4 * COIL_R * COIL_R) {
+          const hitPos = new THREE.Vector3(COIL_X, iy, iz);
+          // 去重：同一交点只记录一次
+          let dup = false;
+          for (let ci = 0; ci < coilHits.length; ci++) {
+            if (coilHits[ci].pos.distanceToSquared(hitPos) < 0.25) { dup = true; break; }
+          }
+          if (!dup) {
+            coilHits.push({ pos: hitPos, B: dipoleField(hitPos, n, s) });
+          }
+        }
+      }
+      if (p.distanceTo(endPole) < 0.35) break;
+      if (Math.abs(p.x) > 40 || Math.abs(p.y) > 40 || Math.abs(p.z) > 40) break;
+    }
+    if (pts.length < 3) return;
+    addDirectedLine(fieldLineGroup, pts, lineColor, 0.5, 1, showFieldArrows);
+    if (labelNum != null) {
+      const mid = pts[Math.floor(pts.length / 2)];
+      const label = makeLabelSprite(labelNum);
+      label.position.copy(mid);
+      fieldLineGroup.add(label);
+    }
+  }
+
+  // 对称生成某个极的种子方向（朝外半球）
+  // theta = 与磁轴的夹角（从该极朝外测量）
+  // specs: [[theta, 每圈条数], ...]
+  function poleSeedDirs(specs) {
+    const out = [];
+    for (let i = 0; i < specs.length; i++) {
+      const theta = specs[i][0];
+      const count = specs[i][1];
+      for (let k = 0; k < count; k++) {
+        const phi = (k / count) * Math.PI * 2;
+        out.push({ theta: theta, phi: phi });
+      }
+    }
+    return out;
+  }
+
+  // 磁轴方向（N→S 的单位向量）
+  const axis = new THREE.Vector3().subVectors(s, n).normalize();   // N 指向 S
+  // 构造与 axis 正交的两个基 e1,e2（用于种子方向的 phi 旋转）
+  const ref = Math.abs(axis.y) < 0.9 ? new THREE.Vector3(0,1,0) : new THREE.Vector3(1,0,0);
+  const e1 = new THREE.Vector3().crossVectors(axis, ref).normalize();
+  const e2 = new THREE.Vector3().crossVectors(axis, e1).normalize();
+  // 给定 theta(与朝外方向夹角)、phi，算出"从极朝外"的单位方向
+  function outwardDir(theta, phi) {
+    const ca = Math.cos(theta), sa = Math.sin(theta);
+    const cp = Math.cos(phi), sp = Math.sin(phi);
+    // 朝外 = -axis 方向（从该极指向远离另一极的方向）
+    return new THREE.Vector3()
+      .addScaledVector(axis, -ca)
+      .addScaledVector(e1, sa * cp)
+      .addScaledVector(e2, sa * sp)
+      .normalize();
+  }
+
+  // N 极与 S 极对称播种：[theta, 每圈条数] 配对
+  // 只保留贴近磁轴(穿线圈)和中等角度的磁感线，去掉最外圈大闭合环
+  const innerSpecs = [[0.08 * Math.PI, 6]];
+  const innerSeedCount = poleSeedDirs(innerSpecs).length;
+  const specs = [[0.08 * Math.PI, 6]];
+  if (showOuterField) {
+    specs.push([0.22 * Math.PI, 8]);
+    specs.push([0.38 * Math.PI, 8]);
+  }
+  const seedSpecs = poleSeedDirs(specs);
+
+  // N 极：朝外方向 = -axis 方向，正向积分(N→S)，编号 1~6
+  for (let i = 0; i < seedSpecs.length; i++) {
+    const sp = seedSpecs[i];
+    traceLine(n, s, outwardDir(sp.theta, sp.phi), +1, null, false);
+  }
+  // 轴线磁感线：两端沿轴向外延伸（不闭合），编号 7
+  (function() {
+    const farDist = 24;
+    // N 极向外（-axis 方向）
+    const ptsN = [n.clone()];
+    for (let d = step; d <= farDist; d += step) ptsN.push(n.clone().addScaledVector(axis, -d));
+    addDirectedLine(fieldLineGroup, ptsN, lineColor, 0.5, 1, showFieldArrows);
+    // S 极向外（+axis 方向）
+    const ptsS = [s.clone()];
+    for (let d = step; d <= farDist; d += step) ptsS.push(s.clone().addScaledVector(axis, d));
+    addDirectedLine(fieldLineGroup, ptsS, lineColor, 0.5, 1, showFieldArrows);
+  })();
+  // S 极：朝外方向 = +axis 方向（outwardDir 已含 -axis，对 S 极要用 +axis，这里翻转）
+  // 即 S 极的种子方向 = outwardDir 取反（朝远离 N 的方向）
+  for (let i = 0; i < seedSpecs.length; i++) {
+    const sp = seedSpecs[i];
+    const d = outwardDir(sp.theta, sp.phi).multiplyScalar(-1);  // S 极朝外 = +axis 侧
+    traceLine(s, n, d, -1);   // 反向积分(S→N)
+  }
+
+  // 辅助：从某点画一条带锥形箭头的短射线（圆柱体杆 + 锥形箭头）
+  function drawArrowRay(from, dirVec, color) {
+    const len = Math.min(8.0, dirVec.length() * 600);
+    if (len < 0.02) return;
+    const d = dirVec.clone().normalize();
+    const to = from.clone().add(d.clone().multiplyScalar(len));
+    const mid = from.clone().add(d.clone().multiplyScalar(len * 0.5));
+    // 细圆柱体杆
+    const rodGeo = new THREE.CylinderGeometry(0.04, 0.04, len, 6);
+    const rodMat = new THREE.MeshBasicMaterial({ color: color, depthTest: false });
+    const rod = new THREE.Mesh(rodGeo, rodMat);
+    rod.position.copy(mid);
+    const quat = new THREE.Quaternion();
+    quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d);
+    rod.quaternion.copy(quat);
+    fieldLineGroup.add(rod);
+    // 箭头锥体
+    const coneGeo = new THREE.ConeGeometry(0.1, 0.28, 8);
+    const coneMat = new THREE.MeshBasicMaterial({ color: color, depthTest: false });
+    const cone = new THREE.Mesh(coneGeo, coneMat);
+    cone.position.copy(to);
+    cone.quaternion.copy(quat);
+    fieldLineGroup.add(cone);
+  }
+
+  // 在交点处分解磁场为轴向(Bx)和径向(Br)，各画一条带箭头的射线
+  if (showDecomp) {
+    for (let hi = 0; hi < coilHits.length; hi++) {
+      const hit = coilHits[hi].pos;
+      const B = coilHits[hi].B;
+      // 轴向分量（水平 X 方向）—— 蓝色
+      drawArrowRay(hit, new THREE.Vector3(B.x, 0, 0), 0x5ad1ff);
+      // 径向分量（YZ 平面，线圈中心向外）—— 绿色
+      const r = Math.sqrt(hit.y * hit.y + hit.z * hit.z);
+      if (r > 0.01) {
+        const rDir = new THREE.Vector3(0, hit.y / r, hit.z / r);
+        const Br = B.y * rDir.y + B.z * rDir.z;
+        drawArrowRay(hit, rDir.clone().multiplyScalar(Br), 0x5eff8a);
+      }
+      // 交点光点
+      const marker = makePolaritySprite('255,255,220');
+      marker.position.copy(hit);
+      marker.scale.set(0.3, 0.3, 1);
+      fieldLineGroup.add(marker);
+    }
+  }
+}
+
+
+/* ============================================================
+   电流粒子（沿线圈圆周流动，方向 = sign(I)，速度 ∝ |I|）
+   ============================================================ */
+const N_PART = 30;
+const partGeo = new THREE.SphereGeometry(0.22, 14, 14);
+const PART_R = COIL_R;  // 粒子轨道半径（线圈导线上）
+const partMat = new THREE.MeshBasicMaterial({ color: 0xffcc33, depthTest: false });
+const particles = [];
+for (let i = 0; i < N_PART; i++) {
+  const m = new THREE.Mesh(partGeo, partMat);
+  scene.add(m);
+  particles.push(m);
+}
+let particlePhase = 0;
+
+/* ============================================================
+   线圈的磁感线（载流线圈导线周围的环形磁感线）
+   物理本质：导线通电后，周围产生一圈圈绕导线的同心圆磁感线；
+   导线弯成线圈后，这些圆环就"套"在线圈导线上。
+   - 圆环平面垂直于该处导线的切线方向
+   - 圆环的圆心在线圈导线上
+   - 方向（绕导线的转向）由感应电流符号决定（楞次定律）
+   线圈大圆在 YZ 平面，参数 θ 绕大圆：
+     导线点 P = (0, COIL_R·cosθ, COIL_R·sinθ)  （相对 coilGroup）
+     切线 T = (0, -sinθ, cosθ)
+     圆环平面内两正交轴：径向 R = (0, cosθ, sinθ)，轴向 X = (1,0,0)
+     圆环点 = P + r·(cos(t)·R + sin(t)·X)
+   ============================================================ */
+const coilFieldGroup = new THREE.Group();
+coilGroup.add(coilFieldGroup);   // 作为线圈组子对象，跟随线圈位置
+
+// 在导线上选若干位置，每个位置画 1 个圆环；圆环半径随位置变化形成嵌套
+function buildCoilFieldRings() {
+  while (coilFieldGroup.children.length) {
+    const ch = coilFieldGroup.children.pop();
+    ch.geometry.dispose();
+  }
+  // 颜色与透明度随感应电流（提高基础亮度，更清晰）
+  const intensity = Math.min(1, Math.abs(I) / IMAX);
+  const alpha = 0.55 + intensity * 0.40;
+  const mat = new THREE.LineBasicMaterial({ color: 0xff8a4d, transparent: true, opacity: alpha, linewidth: 3 });
+
+  // 6 个圆环，沿导线均匀分布（θ 绕大圆 0~2π）
+  const nRings = 6;
+  const iSign = I > 0 ? 1 : -1;   // 电流方向符号，控制箭头朝向
+  const arrowMat = new THREE.MeshBasicMaterial({ color: 0xff8a4d });
+  for (let ri = 0; ri < nRings; ri++) {
+    const theta = (ri / nRings) * Math.PI * 2;
+    const cT = Math.cos(theta), sT = Math.sin(theta);
+    // 导线点（相对 coilGroup 本地坐标）
+    const px = 0, py = COIL_R * cT, pz = COIL_R * sT;
+    // 圆环平面两轴
+    // 径向 R = (0, cosθ, sinθ)
+    const rx = 0, ry = cT, rz = sT;
+    // 轴向 X = (1,0,0)
+    // 圆环半径（套在导线外，再放大）
+    const ringR = COIL_R * 0.55;
+    const segs = 36;
+    const pts = [];
+    for (let k = 0; k <= segs; k++) {
+      const t = (k / segs) * Math.PI * 2;
+      const ct = Math.cos(t), st = Math.sin(t);
+      pts.push(new THREE.Vector3(
+        px + ringR * (ct * rx + st * 1),   // X 轴分量
+        py + ringR * (ct * ry),             // 径向 Y 分量
+        pz + ringR * (ct * rz)              // 径向 Z 分量
+      ));
+    }
+    const g = new THREE.BufferGeometry().setFromPoints(pts);
+    coilFieldGroup.add(new THREE.Line(g, mat));
+
+    // 在线圈内侧那一半（t=π，靠近线圈中心轴）放一个方向箭头
+    // t=π 处：圆环切线 = -X 轴方向；乘以电流符号 iSign 得实际方向
+    const tArr = Math.PI;
+    const ax = px + ringR * (Math.cos(tArr) * rx + Math.sin(tArr) * 1);
+    const ay = py + ringR * (Math.cos(tArr) * ry);
+    const az = pz + ringR * (Math.cos(tArr) * rz);
+    // 切线方向（t=π）：(-sin(π)·R + cos(π)·X) = (0,0,0)+(-1,0,0) = (-1,0,0)
+    const tangent = new THREE.Vector3(-1 * iSign, 0, 0);
+    const arrow = new THREE.Mesh(ARROW_GEO, arrowMat);
+    arrow.position.set(ax, ay, az);
+    const quat = new THREE.Quaternion();
+    quat.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+    arrow.quaternion.copy(quat);
+    coilFieldGroup.add(arrow);
+  }
+
+  // 沿线圈中心轴线(X轴)的感生磁感线（不闭合，长度适中，带方向）
+  // 方向遵循楞次定律：I>0(N极靠近) 近端(-X侧)呈N，磁感线从 -X 侧穿出 → 沿 -X 方向
+  //                  I<0(N极远离) → 沿 +X 方向
+  // 中心磁感线：明显比圆环磁感线长（单侧 = 圆环直径的 2 倍，总长 = 直径的 4 倍）
+  const halfLen = COIL_R * 2.2;   // 单侧长度，总长约 17.6
+  const axDir = iSign > 0 ? -1 : 1;   // 轴向方向
+  // 起点在朝向磁铁一侧（磁感线穿出端），终点在另一侧
+  const axisStart = new THREE.Vector3(-axDir * halfLen, 0, 0);
+  const axisEnd = new THREE.Vector3(axDir * halfLen, 0, 0);
+  // 用密集点构成线段
+  const axisSegs = 20;
+  const axisPts = [];
+  for (let k = 0; k <= axisSegs; k++) {
+    const tt = k / axisSegs;
+    axisPts.push(new THREE.Vector3(
+      axisStart.x + (axisEnd.x - axisStart.x) * tt,
+      0, 0
+    ));
+  }
+  addDirectedLine(coilFieldGroup, axisPts, 0xff8a4d, alpha, 1, true);  // true = 画方向箭头
+}
+
+/* ============================================================
+   物理状态 & updatePhysics（公式与 2D 版一致）
+   ============================================================ */
+let prevDist = INIT_DIST;
+let vx = 0;   // 此处 vx 实为"距离变化率"（靠近线圈为负）
+let Phi = 0, prevPhi = 0;
+let emf = 0, I = 0, lastI = 0;
+let autoMode = false, autoT = 0, speedMul = 1;
+let showField = true;
+let showFieldArrows = true;   // 显示磁感线方向箭头
+let showCoil = true;          // 显示线圈磁感线开关
+let showOuterField = false;  // 显示外层磁感线开关
+let fixedCurrentMode = false; // 固定电流模式（展示安培力）
+let showDecomp = false;      // 显示磁场分量分解
+let showMovingHand = false;   // 显示移动手
+let showFiveHands = false;    // 显示五个手
+let showInducedMagnet = false; // 线圈变磁铁
+let showZengFan = false;       // 增反减同
+let showLaiJu = false;         // 来拒去留
+let showZengSuo = false;       // 增缩减阔
+let fieldDirty = true;       // 磁铁移动后需重建磁感线
+let handAngle = 0;           // 左手绕线圈的角度 (rad)
+let coilHits = [];              // 磁感线与线圈平面的交点
+let fieldHands = [];           // 交点处的左手克隆
+let lastFacingN = facingN;
+
+// 克隆5个左手放到交点
+for (let _hi = 0; _hi < 5; _hi++) {
+  let _h = handGrp.clone(true);
+  _h.visible = false;
+  scene.add(_h);
+  fieldHands.push(_h);
+}
+
+function updatePhysics(dt) {
+  // 当前磁铁与线圈的距离（正值）
+  let dist = xToDist(magnetGroup.position.x);
+  if (autoMode) {
+    autoT += dt * speedMul;
+    const center = (DIST_MIN + DIST_MAX) / 2;
+    const amp = (DIST_MAX - DIST_MIN) / 2 * 0.92;
+    dist = center + amp * Math.sin(autoT * 1.3);
+    magnetGroup.position.x = distToX(dist);
+  }
+  dist = xToDist(magnetGroup.position.x);
+
+  // 距离变化率：靠近线圈(磁铁向 +X 移动)为负
+  vx = (dist - prevDist) / Math.max(dt, 1e-3);
+  prevDist = dist;
+
+  const d = dist;
+  const D = Math.max(d / COIL_R, 0.2);
+  const V = vx / COIL_R;
+  const mDir = facingN ? -1 : 1;
+
+  prevPhi = Phi;
+  Phi = mDir * C / (D * D * D);
+  emf = 3 * mDir * C * V / (D * D * D * D);
+  let Iraw = emf;
+  Iraw = Math.max(-IMAX, Math.min(IMAX, Iraw));
+  I = Iraw * 0.85 + lastI * 0.15;   // 减小滞后，电流响应更灵敏
+  lastI = I;
+}
+
+/* ============================================================
+   UI 绑定
+   ============================================================ */
+const rPos = document.getElementById('rPos');
+const vPos = document.getElementById('vPos');
+// 滑块值 v: 0..100 -> 距离从远(DIST_MAX)到近(DIST_MIN)；磁铁 X = -距离
+function distFromSlider(v) {
+  return DIST_MAX - (v / 100) * (DIST_MAX - DIST_MIN);
+}
+function sliderFromDist(dist) {
+  return 100 - ((dist - DIST_MIN) / (DIST_MAX - DIST_MIN)) * 100;
+}
+function setSliderFromDist(dist) {
+  rPos.value = sliderFromDist(dist);
+  updatePosLabel();
+}
+function updatePosLabel() {
+  const dist = xToDist(magnetGroup.position.x);
+  const t = (dist - DIST_MIN) / (DIST_MAX - DIST_MIN);
+  vPos.textContent = t > 0.66 ? '远' : (t < 0.33 ? '近' : '中');
+}
+magnetGroup.position.x = distToX(INIT_DIST);
+setSliderFromDist(INIT_DIST);
+
+rPos.addEventListener('input', function () {
+  if (autoMode) {
+    autoMode = false;
+    document.getElementById('tAuto').querySelector('.switch').classList.remove('on');
+  }
+  magnetGroup.position.x = distToX(distFromSlider(+rPos.value));
+  updatePosLabel();
+});
+
+const rSpd = document.getElementById('rSpd');
+rSpd.addEventListener('input', function () {
+  speedMul = +rSpd.value;
+  document.getElementById('vSpd').textContent = speedMul.toFixed(1) + 'x';
+});
+
+function bindToggle(id, cb, initOn) {
+  const el = document.getElementById(id);
+  const sw = el.querySelector('.switch');
+  if (initOn) sw.classList.add('on');
+  el.onclick = function () { cb(sw.classList.toggle('on')); };
+}
+bindToggle('tAuto', function (on) { autoMode = on; }, false);
+bindToggle('tField', function (on) { showField = on; fieldDirty = true; }, true);
+bindToggle('tFieldArrow', function (on) { showFieldArrows = on; fieldDirty = true; }, true);
+bindToggle('tCoil', function (on) { showCoil = on; }, true);
+bindToggle('tOuter', function (on) { showOuterField = on; fieldDirty = true; }, false);
+bindToggle('tFixedCurr', function (on) { fixedCurrentMode = on; }, false);
+bindToggle('tDecomp', function (on) { showDecomp = on; fieldDirty = true; }, false);
+bindToggle('tHand', function (on) { showMovingHand = on; }, false);
+bindToggle('tFiveHands', function (on) { showFiveHands = on; }, false);
+bindToggle('tInducedMagnet', function (on) { showInducedMagnet = on; }, false);
+bindToggle('tZengFanJianTong', function (on) { showZengFan = on; }, false);
+bindToggle('tLaiJuQuLiu', function (on) { showLaiJu = on; }, false);
+bindToggle('tZengSuoJianKuo', function (on) { showZengSuo = on; }, false);
+
+// 圆形拨盘：左手绕线圈角度
+const cDial = document.getElementById('cDial');
+const vHand = document.getElementById('vHand');
+const dCtx = cDial.getContext('2d');
+const dR = 58;  // 拨盘半径
+const dCx = 70, dCy = 70;  // 拨盘圆心
+
+function drawDial() {
+  dCtx.clearRect(0, 0, 140, 140);
+  // 外圈
+  dCtx.beginPath();
+  dCtx.arc(dCx, dCy, dR, 0, Math.PI * 2);
+  dCtx.strokeStyle = 'rgba(120,170,255,0.35)';
+  dCtx.lineWidth = 3;
+  dCtx.stroke();
+  // 内圈刻度
+  dCtx.beginPath();
+  dCtx.arc(dCx, dCy, dR - 6, 0, Math.PI * 2);
+  dCtx.strokeStyle = 'rgba(120,170,255,0.15)';
+  dCtx.lineWidth = 1;
+  dCtx.stroke();
+  // 十字参考线
+  dCtx.strokeStyle = 'rgba(120,170,255,0.12)';
+  dCtx.lineWidth = 1;
+  dCtx.beginPath(); dCtx.moveTo(dCx, dCy - dR + 8); dCtx.lineTo(dCx, dCy + dR - 8); dCtx.stroke();
+  dCtx.beginPath(); dCtx.moveTo(dCx - dR + 8, dCy); dCtx.lineTo(dCx + dR - 8, dCy); dCtx.stroke();
+  // 手柄圆点
+  var hx = dCx + dR * Math.sin(handAngle);
+  var hy = dCy - dR * Math.cos(handAngle);
+  dCtx.beginPath();
+  dCtx.arc(hx, hy, 9, 0, Math.PI * 2);
+  dCtx.fillStyle = 'rgba(90,209,255,0.85)';
+  dCtx.fill();
+  dCtx.strokeStyle = '#fff';
+  dCtx.lineWidth = 2;
+  dCtx.stroke();
+  // 圆心小点
+  dCtx.beginPath();
+  dCtx.arc(dCx, dCy, 3, 0, Math.PI * 2);
+  dCtx.fillStyle = 'rgba(255,255,255,0.4)';
+  dCtx.fill();
+}
+
+function dialAngleFromEvent(e) {
+  var rect = cDial.getBoundingClientRect();
+  var sx = rect.width / 140;
+  var sy = rect.height / 140;
+  var dx = (e.clientX - rect.left) / sx - dCx;
+  var dy = (e.clientY - rect.top) / sy - dCy;
+  return Math.atan2(dx, -dy);
+}
+
+var dialDragging = false;
+cDial.addEventListener('mousedown', function(e) {
+  dialDragging = true;
+  handAngle = dialAngleFromEvent(e);
+  if (handAngle < 0) handAngle += Math.PI * 2;
+  vHand.textContent = (handAngle * 180 / Math.PI).toFixed(0) + '°';
+  drawDial();
+});
+window.addEventListener('mousemove', function(e) {
+  if (!dialDragging) return;
+  handAngle = dialAngleFromEvent(e);
+  if (handAngle < 0) handAngle += Math.PI * 2;
+  vHand.textContent = (handAngle * 180 / Math.PI).toFixed(0) + '°';
+  drawDial();
+});
+window.addEventListener('mouseup', function() { dialDragging = false; });
+// 触摸支持
+cDial.addEventListener('touchstart', function(e) {
+  dialDragging = true;
+  e.preventDefault();
+  handAngle = dialAngleFromEvent(e.touches[0]);
+  if (handAngle < 0) handAngle += Math.PI * 2;
+  vHand.textContent = (handAngle * 180 / Math.PI).toFixed(0) + '°';
+  drawDial();
+});
+window.addEventListener('touchmove', function(e) {
+  if (!dialDragging) return;
+  handAngle = dialAngleFromEvent(e.touches[0]);
+  if (handAngle < 0) handAngle += Math.PI * 2;
+  vHand.textContent = (handAngle * 180 / Math.PI).toFixed(0) + '°';
+  drawDial();
+});
+window.addEventListener('touchend', function() { dialDragging = false; });
+drawDial();
+
+function flashBtn(btn) {
+  btn.style.outline = '2px solid #5ad1ff';
+  setTimeout(function () { btn.style.outline = ''; }, 200);
+}
+
+document.getElementById('bFlip').onclick = function () {
+  facingN = !facingN;
+  applyMagnetOrientation();   // 翻转 N/S 半段纹理
+  fieldDirty = true;
+  flashBtn(this);
+};
+
+document.getElementById('bReset').onclick = function () {
+  autoMode = false;
+  document.getElementById('tAuto').querySelector('.switch').classList.remove('on');
+  facingN = true;
+  applyMagnetOrientation();
+  magnetGroup.position.x = distToX(INIT_DIST);
+  setSliderFromDist(INIT_DIST);
+  prevDist = INIT_DIST; vx = 0; I = 0; emf = 0; lastI = 0;
+  showInducedMagnet = false;
+  showZengFan = false;
+  showLaiJu = false;
+  showZengSuo = false;
+  showFieldArrows = true;
+  showOuterField = false;
+  showMovingHand = false;
+  showFiveHands = false;
+  document.getElementById('tInducedMagnet').querySelector('.switch').classList.remove('on');
+  document.getElementById('tZengFanJianTong').querySelector('.switch').classList.remove('on');
+  document.getElementById('tLaiJuQuLiu').querySelector('.switch').classList.remove('on');
+  document.getElementById('tZengSuoJianKuo').querySelector('.switch').classList.remove('on');
+  document.getElementById('tFieldArrow').querySelector('.switch').classList.add('on');
+  document.getElementById('tOuter').querySelector('.switch').classList.remove('on');
+  document.getElementById('tHand').querySelector('.switch').classList.remove('on');
+  document.getElementById('tFiveHands').querySelector('.switch').classList.remove('on');
+  document.getElementById('subZengFan').className = '';
+  document.getElementById('subLaiJu').className = '';
+  document.getElementById('subZengSuo').className = '';
+  fieldDirty = true; lastFacingN = facingN;
+  flashBtn(this);
+};
+
+/* ============================================================
+   主循环
+   ============================================================ */
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, clock.getDelta());
+
+  updatePhysics(dt);
+
+  // 固定电流模式：磁铁静止时维持恒定电流（从左向右看逆时针，展示安培力）
+  if (fixedCurrentMode && Math.abs(vx) <= 0.4) {
+    I = 0.5;
+    lastI = I;
+  }
+
+  // 重建磁感线（位置/朝向变化时）
+  if (fieldDirty || lastFacingN !== facingN) {
+    rebuildFieldLines();
+    fieldDirty = false;
+    lastFacingN = facingN;
+  }
+
+
+  // 检测磁铁是否移动（用于标脏磁感线）
+  if (Math.abs(magnetGroup.position.x - prevMagXFieldCheck) > 0.01) {
+    fieldDirty = true;
+  }
+  prevMagXFieldCheck = magnetGroup.position.x;
+
+  // 电流粒子沿圆周流动
+  if (Math.abs(I) > 0.02) {
+    // 电流方向（楞次定律）：
+    //   N 极靠近 -> I>0 -> 从磁铁侧(-X)看线圈为顺时针 -> phi 递减
+    //   N 极远离 -> I<0 -> 从磁铁侧(-X)看线圈为逆时针 -> phi 递增
+    const dir = I > 0 ? -1 : 1;
+    particlePhase += dir * (0.5 + Math.abs(I) * 1.8) * dt;
+    for (let i = 0; i < N_PART; i++) {
+      const phi = particlePhase + (i / N_PART) * Math.PI * 2;
+      const yy = Math.cos(phi) * PART_R;
+      const zz = Math.sin(phi) * PART_R;
+      particles[i].position.set(COIL_X, yy, zz);
+      particles[i].visible = true;
+      // 大小随电流
+      const s = 0.6 + Math.min(1, Math.abs(I) / IMAX) * 0.7;
+      particles[i].scale.setScalar(s);
+    }
+  } else {
+    for (let i = 0; i < N_PART; i++) particles[i].visible = false;
+  }
+
+  // 线圈的磁感线（套在导线上的圆环，开关打开且有感应电流时显示）
+  // 固定电流模式下不显示线圈磁感线，仅展示电流粒子
+  const isFixedCurrActive = fixedCurrentMode && Math.abs(vx) <= 0.4;
+  if (showCoil && Math.abs(I) > 0.03 && !isFixedCurrActive) {
+    buildCoilFieldRings();
+    coilFieldGroup.visible = true;
+  } else {
+    coilFieldGroup.visible = false;
+  }
+
+  // 近端极性辉光
+  if (Math.abs(I) > 0.02) {
+    const nearIsN = I > 0;
+    glowN.visible = nearIsN;
+    glowS.visible = !nearIsN;
+    const sc = COIL_R * (1.2 + Math.min(1, Math.abs(I) / IMAX) * 0.5);
+    glowN.scale.set(sc, sc, 1);
+    glowS.scale.set(sc, sc, 1);
+  } else {
+    glowN.visible = false; glowS.visible = false;
+  }
+
+  // 线圈变磁铁模式
+  if (showInducedMagnet) {
+    inducedMagnetGroup.visible = true;
+    applyInducedMagnetPolarity();
+    // 显示斥力/引力标签
+    var repulsive = (facingN === (I > 0));
+    forceSpritePai.visible = repulsive;
+    forceSpriteXi.visible = !repulsive;
+    var mx = (magnetGroup.position.x + COIL_X) / 2;
+    forceSpritePai.position.set(mx, 2.8, 0);
+    forceSpriteXi.position.set(mx, 2.8, 0);
+  } else {
+    inducedMagnetGroup.visible = false;
+    forceSpritePai.visible = false;
+    forceSpriteXi.visible = false;
+  }
+
+  // 增反减同 字幕
+  var subZF = document.getElementById('subZengFan');
+  if (showZengFan && Math.abs(vx) > 0.05) {
+    var a1 = vx < 0;
+    subZF.textContent = a1 ? '增则反' : '减则同';
+    subZF.className = a1 ? 'on zeng' : 'on jian';
+  } else {
+    subZF.className = '';
+  }
+  // 来拒去留 字幕
+  var subLJ = document.getElementById('subLaiJu');
+  if (showLaiJu && Math.abs(vx) > 0.05) {
+    var a2 = vx < 0;
+    subLJ.textContent = a2 ? '来则拒' : '去则留';
+    subLJ.className = a2 ? 'on zeng' : 'on jian';
+  } else {
+    subLJ.className = '';
+  }
+  // 增缩减阔 字幕
+  var subZS = document.getElementById('subZengSuo');
+  if (showZengSuo && Math.abs(vx) > 0.05) {
+    var a3 = vx < 0;
+    subZS.textContent = a3 ? '增则缩' : '减则阔';
+    subZS.className = a3 ? 'on zeng' : 'on jian';
+  } else {
+    subZS.className = '';
+  }
+
+  // 左手沿线圈圆环运动：拇指始终指向圆心
+  // 磁体远离(I<0)时，在YZ平面翻转180°
+  var hR = COIL_R * 0.92;
+  var handFlip = I < 0 ? Math.PI : 0;
+  handGrp.position.set(5.15, hR * Math.cos(-handAngle), hR * Math.sin(-handAngle));
+  handGrp.rotation.z = Math.PI / 2;
+  handGrp.rotation.x = -Math.PI / 2 - handAngle + handFlip;
+  handGrp.rotation.y = 0;
+  handGrp.visible = showMovingHand;
+  for (var _fi2 = 0; _fi2 < fieldHands.length; _fi2++) {
+    var _a = (_fi2 + 1) * Math.PI * 2 / 6;  // 60°间隔均匀分布
+    fieldHands[_fi2].position.set(5.15, hR * Math.cos(-_a), hR * Math.sin(-_a));
+    fieldHands[_fi2].rotation.z = Math.PI / 2;
+    fieldHands[_fi2].rotation.x = -Math.PI / 2 - _a + handFlip;
+    fieldHands[_fi2].rotation.y = 0;
+    fieldHands[_fi2].visible = showFiveHands;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+let prevMagXFieldCheck = magnetGroup.position.x;
+
+// 初始化磁铁材质/标签已上方处理
+rebuildFieldLines();
+animate();
+
+/* ============================================================
+   响应窗口缩放
+   ============================================================ */
+addEventListener('resize', function () {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+// 控制面板拖拽
+(function() {
+  var panel = document.getElementById('controls');
+  var bar = document.getElementById('dragBar');
+  var dragging = false, offX = 0, offY = 0;
+  bar.addEventListener('mousedown', function(e) {
+    dragging = true;
+    var r = panel.getBoundingClientRect();
+    offX = e.clientX - r.left;
+    offY = e.clientY - r.top;
+    panel.style.right = 'auto';
+    panel.style.left = r.left + 'px';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    panel.style.left = (e.clientX - offX) + 'px';
+    panel.style.top = (e.clientY - offY) + 'px';
+  });
+  window.addEventListener('mouseup', function() { dragging = false; });
+  // 触摸支持
+  bar.addEventListener('touchstart', function(e) {
+    dragging = true;
+    var r = panel.getBoundingClientRect();
+    offX = e.touches[0].clientX - r.left;
+    offY = e.touches[0].clientY - r.top;
+    panel.style.right = 'auto';
+    panel.style.left = r.left + 'px';
+    e.preventDefault();
+  });
+  window.addEventListener('touchmove', function(e) {
+    if (!dragging) return;
+    panel.style.left = (e.touches[0].clientX - offX) + 'px';
+    panel.style.top = (e.touches[0].clientY - offY) + 'px';
+  });
+  window.addEventListener('touchend', function() { dragging = false; });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>传送带模型：滑动摩擦加速 → 共速匀速</title>
+<style>
+  body {
+    margin: 0; min-height: 100vh; background: #eef1f5;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h2 { margin: 14px 0 2px; color: #2c3e50; font-size: 20px; }
+  .sub { margin: 0 0 6px; color: #7f8c8d; font-size: 13px; }
+  canvas {
+    background: #fdfdfd; border-radius: 12px; max-width: 97vw;
+    box-shadow: 0 4px 18px rgba(0,0,0,.12);
+  }
+  #panel {
+    display: flex; gap: 22px; align-items: center; flex-wrap: wrap; justify-content: center;
+    margin: 12px; padding: 10px 20px; background: #fff; border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08); font-size: 14px; color: #34495e;
+  }
+  button {
+    padding: 7px 20px; border: none; border-radius: 18px; cursor: pointer;
+    background: #2980b9; color: #fff; font-size: 14px;
+  }
+  button:hover { background: #3498db; }
+  #btnReset { background: #7f8c8d; }
+  #btnReset:hover { background: #95a5a6; }
+  input[type=range] { vertical-align: middle; width: 110px; }
+  .val { display: inline-block; min-width: 38px; color: #2980b9; font-weight: bold; }
+</style>
+</head>
+<body>
+<h2>传送带模型：物块轻放后的运动分析</h2>
+<canvas id="cv" width="1160" height="640"></canvas>
+<div id="panel">
+  <button id="btnPlay">暂停</button>
+  <button id="btnReset">重置</button>
+  <label>传送带速度 v <input type="range" id="sV" min="1" max="5" step="0.5" value="2"><span class="val" id="vV">2.0</span>m/s</label>
+  <label>动摩擦因数 μ <input type="range" id="sM" min="0.05" max="0.5" step="0.05" value="0.2"><span class="val" id="vM">0.20</span></label>
+  <label>动画速度 <input type="range" id="sS" min="0.25" max="2" step="0.25" value="1"><span class="val" id="vS">1.0×</span></label>
+</div>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+// ---- 布局常量 ----
+const worldX0 = 130;          // x=0（起点）在画布上的像素位置
+const beltTopY = 300;         // 传送带上表面 y 坐标
+const beltH = 46;             // 传送带厚度
+const groundY = 505;          // 地面线 y 坐标
+const blockSize = 46;
+const V_ARROW = 38;           // 速度箭头比例：px / (m/s)
+
+// ---- 物理参数 ----
+const g = 10;
+let v0 = 2, mu = 0.2;
+let a, t1, T, totalX, pxPerM;
+let simT = 0, playing = true, timeScale = 1, lastTs = null;
+
+function recompute() {
+  a = mu * g;                 // 滑动摩擦力产生的加速度
+  t1 = v0 / a;                // 达到共速所需时间
+  T = t1 + 2.5;               // 总演示时长（共速后再演示 2.5 s）
+  totalX = v0 * T;            // 标记点（传送带）总位移
+  pxPerM = (W - worldX0 - 60) / (totalX + 0.9);
+}
+recompute();
+
+// t 时刻的状态
+function stateAt(t) {
+  let xb, vb;
+  if (t <= t1) { xb = 0.5 * a * t * t; vb = a * t; }
+  else { xb = 0.5 * a * t1 * t1 + v0 * (t - t1); vb = v0; }
+  const xm = v0 * t;          // 传送带标记点 P 的对地位移
+  return { xb, vb, xm, scratch: xm - xb };
+}
+const X = x => worldX0 + x * pxPerM;
+
+// ---- 绘图工具 ----
+function drawArrow(x1, y1, x2, y2, color, label, labelDy) {
+  ctx.strokeStyle = ctx.fillStyle = color;
+  ctx.lineWidth = 2.5;
+  if (Math.hypot(x2 - x1, y2 - y1) < 3) {
+    ctx.beginPath(); ctx.arc(x1, y1, 3, 0, 7); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - 11 * Math.cos(ang - 0.42), y2 - 11 * Math.sin(ang - 0.42));
+    ctx.lineTo(x2 - 11 * Math.cos(ang + 0.42), y2 - 11 * Math.sin(ang + 0.42));
+    ctx.closePath(); ctx.fill();
+  }
+  if (label) {
+    ctx.font = 'bold 14px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label, (x1 + x2) / 2, (y1 + y2) / 2 + (labelDy || -10));
+  }
+}
+function dashedVLine(x, y1, y2, color) {
+  ctx.strokeStyle = color; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(x, y1); ctx.lineTo(x, y2); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ---- 主绘制 ----
+function draw() {
+  const st = stateAt(simT);
+  const slipping = simT < t1 - 1e-9;
+  const bx = X(st.xb), mx = X(st.xm);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // 地面 + 刻度尺
+  ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(16, groundY); ctx.lineTo(W - 16, groundY); ctx.stroke();
+  ctx.lineWidth = 1;
+  for (let px = 16; px < W - 16; px += 12) {   // 地面阴影线
+    ctx.beginPath(); ctx.moveTo(px, groundY); ctx.lineTo(px - 8, groundY + 9); ctx.stroke();
+  }
+
+  // 起点参考线
+  dashedVLine(worldX0, 235, groundY, '#95a5a6');
+  ctx.fillStyle = '#7f8c8d'; ctx.font = '13px "Microsoft YaHei"'; ctx.textAlign = 'left';
+  ctx.fillText('起点（地面参考）', worldX0 + 8, groundY - 12);
+
+  // 传送带（环形带 + 两端滚筒 + 支架腿）
+  const beltL = X(-1.1), beltR = X(totalX + 0.9);
+  const rollerR = beltH / 2, rollerY = beltTopY + rollerR;
+  const pulleyL = beltL + rollerR, pulleyR = beltR - rollerR;
+
+  // 环形带内部（机身）
+  ctx.beginPath();
+  ctx.moveTo(pulleyL, beltTopY);
+  ctx.lineTo(pulleyR, beltTopY);
+  ctx.arc(pulleyR, rollerY, rollerR, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(pulleyL, beltTopY + beltH);
+  ctx.arc(pulleyL, rollerY, rollerR, Math.PI / 2, Math.PI * 1.5);
+  ctx.closePath();
+  ctx.fillStyle = '#9aa7a7';
+  ctx.fill();
+
+  // 上皮带下方的一排托辊
+  const nIdl = Math.floor((pulleyR - pulleyL) / 150);
+  for (let i = 1; i <= nIdl; i++) {
+    const ix = pulleyL + (pulleyR - pulleyL) * i / (nIdl + 1);
+    ctx.fillStyle = '#7f8c8d';
+    ctx.beginPath(); ctx.arc(ix, beltTopY + 15, 5, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(ix, beltTopY + 15, 5, 0, 7); ctx.stroke();
+  }
+
+  // 随带移动的纹路（上行向右，下行向左）
+  const xi0 = Math.floor(-v0 * simT - 1), xi1 = Math.ceil(totalX + 1 - v0 * simT);
+  for (let xi = xi0; xi <= xi1; xi += 0.5) {
+    const px = X(xi + v0 * simT);
+    if (px >= pulleyL && px <= pulleyR) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(px, beltTopY + 3); ctx.lineTo(px, beltTopY + 13); ctx.stroke();
+    }
+    const qx = pulleyL + (pulleyR - px);   // 下行对称位置
+    if (qx >= pulleyL && qx <= pulleyR) {
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(qx, beltTopY + beltH - 13); ctx.lineTo(qx, beltTopY + beltH - 3); ctx.stroke();
+    }
+  }
+
+  // 环形带外沿（橡胶带）
+  ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.moveTo(pulleyL, beltTopY);
+  ctx.lineTo(pulleyR, beltTopY);
+  ctx.arc(pulleyR, rollerY, rollerR, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(pulleyL, beltTopY + beltH);
+  ctx.arc(pulleyL, rollerY, rollerR, Math.PI / 2, Math.PI * 1.5);
+  ctx.closePath();
+  ctx.stroke();
+
+  // 两端滚筒（辐条转动显示带的运行）
+  for (const cx of [pulleyL, pulleyR]) {
+    ctx.fillStyle = '#7f8c8d';
+    ctx.beginPath(); ctx.arc(cx, rollerY, rollerR - 4, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, rollerY, rollerR - 4, 0, 7); ctx.stroke();
+    const ang = v0 * simT * pxPerM / rollerR;
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      ctx.moveTo(cx - (rollerR - 7) * Math.cos(ang + k * Math.PI / 3), rollerY - (rollerR - 7) * Math.sin(ang + k * Math.PI / 3));
+      ctx.lineTo(cx + (rollerR - 7) * Math.cos(ang + k * Math.PI / 3), rollerY + (rollerR - 7) * Math.sin(ang + k * Math.PI / 3));
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#2c3e50';
+    ctx.beginPath(); ctx.arc(cx, rollerY, 3, 0, 7); ctx.fill();
+  }
+
+  // 划痕（红色，位于传送带表面：从物块当前位置到标记点 P）
+  if (st.scratch * pxPerM > 2) {
+    ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(bx, beltTopY - 1); ctx.lineTo(mx, beltTopY - 1); ctx.stroke();
+    ctx.lineWidth = 2;
+    for (const ex of [bx, mx]) {
+      ctx.beginPath(); ctx.moveTo(ex, beltTopY - 8); ctx.lineTo(ex, beltTopY + 6); ctx.stroke();
+    }
+  }
+  // 划痕标注
+  const scMid = (bx + mx) / 2;
+  ctx.fillStyle = '#e74c3c'; ctx.font = 'bold 15px "Microsoft YaHei"'; ctx.textAlign = 'center';
+  ctx.fillText('划痕 Δx = x带 − x物 = ' + st.scratch.toFixed(2) + ' m', Math.max(scMid, 220), beltTopY - 128);
+  dashedVLine(bx, beltTopY - 120, beltTopY - 6, '#e74c3c');
+  if (mx - bx > 30) dashedVLine(mx, beltTopY - 120, beltTopY - 6, '#e74c3c');
+  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(bx, beltTopY - 118); ctx.lineTo(Math.max(scMid - 120, bx + 6), beltTopY - 118); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(Math.min(scMid + 120, mx - 6), beltTopY - 118); ctx.lineTo(mx, beltTopY - 118); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 传送带标记点 P（绿色）
+  ctx.fillStyle = '#27ae60';
+  ctx.beginPath(); ctx.arc(mx, beltTopY, 7, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(mx, beltTopY, 7, 0, 7); ctx.stroke();
+  ctx.font = 'bold 13px "Microsoft YaHei"'; ctx.textAlign = 'center';
+  ctx.fillText('P', mx, beltTopY + 32);
+
+  // 物块
+  ctx.fillStyle = '#f39c12'; ctx.strokeStyle = '#d68910'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.roundRect(bx - blockSize / 2, beltTopY - blockSize, blockSize, blockSize, 5);
+  ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#7e5109'; ctx.font = 'bold 14px "Microsoft YaHei"'; ctx.textAlign = 'center';
+  ctx.fillText('物块', bx, beltTopY - blockSize / 2 + 5);
+
+  // 滑动摩擦力箭头（仅加速阶段）
+  if (slipping) {
+    const fy = beltTopY - blockSize / 2;
+    drawArrow(bx - blockSize / 2 - 56, fy, bx - blockSize / 2 - 4, fy, '#e67e22', '', 0);
+    ctx.fillStyle = '#e67e22'; ctx.font = 'bold 14px "Microsoft YaHei"'; ctx.textAlign = 'center';
+    ctx.fillText('f = μmg', bx - blockSize / 2 - 30, fy - 12);
+  }
+
+  // 物块速度箭头（蓝）
+  drawArrow(bx, beltTopY - blockSize - 24, bx + Math.max(st.vb * V_ARROW, 0.01), beltTopY - blockSize - 24,
+    '#2980b9', 'v物 = ' + st.vb.toFixed(2) + ' m/s', -10);
+  // 传送带速度箭头（绿，跟随标记点 P 随传送带一起运动，长度不变）
+  drawArrow(mx, beltTopY - 40, mx + v0 * V_ARROW, beltTopY - 40,
+    '#27ae60', 'v带 = ' + v0.toFixed(1) + ' m/s（恒定）', -10);
+
+  // 对地位移箭头（地面参考）
+  dashedVLine(bx, beltTopY + 40, 392, '#2980b9');
+  drawArrow(worldX0, 398, bx, 398, '#2980b9',
+    '物块对地位移 x物 = ' + st.xb.toFixed(2) + ' m', -10);
+  dashedVLine(mx, beltTopY + 40, 452, '#27ae60');
+  drawArrow(worldX0, 458, mx, 458, '#27ae60',
+    '传送带对地位移 x带 = ' + st.xm.toFixed(2) + ' m', -10);
+
+  // 结束提示
+  if (simT >= T && !playing) {
+    ctx.fillStyle = 'rgba(44,62,80,0.85)';
+    ctx.beginPath(); ctx.roundRect(W / 2 - 190, 60, 380, 44, 10); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px "Microsoft YaHei"'; ctx.textAlign = 'center';
+    ctx.fillText('演示结束：点击“重新播放”再看一遍', W / 2, 88);
+  }
+}
+
+// ---- 控制 ----
+const btnPlay = document.getElementById('btnPlay');
+const btnReset = document.getElementById('btnReset');
+btnPlay.onclick = () => {
+  if (simT >= T) { simT = 0; playing = true; btnPlay.textContent = '暂停'; }
+  else { playing = !playing; btnPlay.textContent = playing ? '暂停' : '播放'; }
+};
+btnReset.onclick = () => { simT = 0; playing = true; btnPlay.textContent = '暂停'; };
+function bindSlider(id, vid, fmt, fn) {
+  const s = document.getElementById(id), v = document.getElementById(vid);
+  s.oninput = () => { v.textContent = fmt(+s.value); fn(+s.value); };
+}
+bindSlider('sV', 'vV', x => x.toFixed(1), x => { v0 = x; recompute(); btnReset.onclick(); });
+bindSlider('sM', 'vM', x => x.toFixed(2), x => { mu = x; recompute(); btnReset.onclick(); });
+bindSlider('sS', 'vS', x => x.toFixed(2).replace(/0+$/, '').replace(/\.$/, '.0') + '×', x => { timeScale = x; });
+
+// 支持 ?t=秒数 直接定位到某一时刻（暂停状态）
+const qt = parseFloat(new URLSearchParams(location.search).get('t'));
+if (isFinite(qt)) { simT = Math.min(Math.max(qt, 0), T); playing = false; btnPlay.textContent = '播放'; }
+
+function frame(ts) {
+  if (lastTs == null) lastTs = ts;
+  const dt = Math.min(0.05, (ts - lastTs) / 1000);
+  lastTs = ts;
+  if (playing) {
+    simT += dt * timeScale;
+    if (simT >= T) { simT = T; playing = false; btnPlay.textContent = '重新播放'; }
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

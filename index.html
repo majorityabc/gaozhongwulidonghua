@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>高中物理动画实验室</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:linear-gradient(135deg,#0c0f1d,#1a1e35);min-height:100vh;color:#e0e0e0;display:flex;flex-direction:column;align-items:center}
+button,input{font:inherit}
+.page{width:100%;max-width:1160px}
+.topbar{display:flex;justify-content:flex-end;align-items:center;padding:22px 24px 0}
+.login-btn,.logout-btn,.submit-btn,.entry-btn{border:none;cursor:pointer;transition:all .25s ease}
+.login-btn,.logout-btn,.submit-btn{padding:12px 20px;border-radius:12px;background:linear-gradient(90deg,#64b5f6,#42a5f5);color:#fff;font-weight:600;box-shadow:0 10px 30px rgba(66,165,245,.25)}
+.login-btn:hover,.logout-btn:hover,.submit-btn:hover{transform:translateY(-1px);box-shadow:0 14px 36px rgba(66,165,245,.32)}
+.header{text-align:center;padding:28px 20px 30px}
+.header h1{font-size:clamp(2.2rem,5vw,3.2rem);background:linear-gradient(90deg,#64b5f6,#42a5f5);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:10px}
+.header p{color:#90a4ae;font-size:1.06rem}
+.auth-panel{display:none;width:min(1080px,calc(100% - 48px));margin:0 auto 28px;padding:24px;border:1px solid rgba(255,255,255,.1);border-radius:18px;background:rgba(255,255,255,.05);backdrop-filter:blur(8px)}
+.auth-panel.show{display:block}
+.auth-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.auth-head h2{font-size:1.2rem;color:#eaf4ff}
+.auth-head p{color:#8ea1b5;font-size:.92rem;margin-top:6px}
+.entry-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px}
+.entry-btn{display:block;text-decoration:none;padding:20px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#e0e0e0}
+.entry-btn:hover{background:rgba(255,255,255,.1);border-color:rgba(100,180,255,.35);transform:translateY(-2px)}
+.entry-btn strong{display:block;font-size:1.02rem;margin-bottom:8px;color:#fff}
+.entry-btn span{display:block;color:#90a4ae;font-size:.88rem;line-height:1.7}
+.section{width:100%;max-width:760px;padding:0 24px 40px;margin:0 auto}
+.section h2{color:#64b5f6;font-size:1.4em;margin-bottom:16px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.1)}
+.cards{display:flex;flex-wrap:wrap;gap:16px}
+.card{background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:20px 24px;min-width:260px;flex:1;cursor:pointer;transition:all .25s;text-decoration:none;color:inherit;display:block}
+.card:hover{background:rgba(255,255,255,0.1);border-color:rgba(100,180,255,.35);transform:translateY(-2px)}
+.card h3{color:#e0e0e0;font-size:1.05em;margin-bottom:6px}
+.card .meta{color:#78909c;font-size:.82em;line-height:1.8}
+.footer{padding:20px;color:#616161;font-size:.8em;margin-top:auto}
+.modal{position:fixed;inset:0;background:rgba(6,10,20,.7);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}
+.modal.show{display:flex}
+.modal-card{width:min(420px,100%);background:#151b2e;border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:24px;box-shadow:0 30px 90px rgba(0,0,0,.4)}
+.modal-card h3{font-size:1.2rem;margin-bottom:8px;color:#fff}
+.modal-card p{color:#95a7bc;font-size:.92rem;line-height:1.7;margin-bottom:18px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:.9rem;color:#cfe2ff;margin-bottom:7px}
+.form-group input{width:100%;padding:12px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:#fff;outline:none}
+.form-group input:focus{border-color:#64b5f6;box-shadow:0 0 0 3px rgba(100,181,246,.16)}
+.modal-actions{display:flex;gap:12px;margin-top:8px}
+.secondary-btn{flex:1;padding:12px 16px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:transparent;color:#b6c5d3;cursor:pointer}
+.submit-btn{flex:1}
+.notice{margin-top:14px;color:#7fc3ff;font-size:.85rem;display:none}
+.notice.show{display:block}
+@media (max-width:640px){
+.topbar{padding:18px 16px 0}
+.auth-panel,.section{width:100%;padding-left:16px;padding-right:16px}
+.auth-panel{width:calc(100% - 32px)}
+.modal-card{padding:20px}
+.modal-actions{flex-direction:column}
+}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topbar">
+    <button id="loginButton" class="login-btn">登录</button>
+  </div>
+
+  <div class="header">
+    <h1>⚡ 高中物理动画实验室</h1>
+    <p>交互式物理模拟与教学动画集合 — 动手观察，直观理解</p>
+  </div>
+
+  <section id="authPanel" class="auth-panel">
+    <div class="auth-head">
+      <div>
+        <h2 id="authTitle">登录成功</h2>
+        <p>现在你可以从这里进入高中物理动画和高中网络讲义两个模块。</p>
+      </div>
+      <button id="logoutButton" class="logout-btn">退出登录</button>
+    </div>
+    <div class="entry-grid">
+      <a class="entry-btn" href="/physics/">
+        <strong>进入高中物理动画</strong>
+        <span>查看电磁学、碰撞、圆周运动、传送带等互动动画内容。</span>
+      </a>
+      <a class="entry-btn" href="#" id="lectureEntryButton">
+        <strong>进入高中网络讲义</strong>
+        <span>讲义入口已预留。后续可继续接成正式讲义登录入口。</span>
+      </a>
+    </div>
+  </section>
+
+  <div class="section">
+    <h2>⚡ 交流发电机</h2>
+    <div class="cards">
+      <a class="card" href="/generator/">
+        <h3>3D 发电机原理实验室</h3>
+        <div class="meta">Three.js 3D · 单匝线圈切割磁感线 · 右手定则</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🧲 楞次定律</h2>
+    <div class="cards">
+      <a class="card" href="/lenz/lenslaw.html">
+        <h3>楞次定律 3D 交互演示</h3>
+        <div class="meta">Three.js 3D · 拖拽交互 · 观察磁通量变化与感应电流方向</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>⚛️ 电荷与电场</h2>
+    <div class="cards">
+      <a class="card" href="/physics/电荷电场/电荷的电场线.html">
+        <h3>电荷电场线 3D 动画</h3>
+        <div class="meta">正电荷 · 负电荷 · 同种点电荷 · 异种点电荷 · 三维电场线分布</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>💥 碰撞专题</h2>
+    <div class="cards">
+      <a class="card" href="/physics/三种碰撞/">
+        <h3>三种碰撞演示</h3>
+        <div class="meta">完全非弹性 · 一般非弹性 · 弹性碰撞 · 支持慢动作与质量切换</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🧱 传送带模型</h2>
+    <div class="cards">
+      <a class="card" href="/physics/传送带/">
+        <h3>传送带运动动画</h3>
+        <div class="meta">滑动摩擦加速 → 共速匀速 · 可调传送带速度、摩擦因数、动画速度</div>
+      </a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>🔮 圆锥摆 → 平抛运动</h2>
+    <div class="cards">
+      <a class="card" href="/pendulum/圆锥摆-平抛运动演示.html">
+        <h3>圆锥摆 → 平抛运动 3D 演示</h3>
+        <div class="meta">Three.js 3D · 落点 P、悬点投影 O、出发点投影 B′ 构成直角三角形</div>
+      </a>
+    </div>
+  </div>
+</div>
+
+<div id="loginModal" class="modal" aria-hidden="true">
+  <div class="modal-card">
+    <h3>登录物理学习平台</h3>
+    <p>登录成功后，将显示“高中物理动画”和“高中网络讲义”两个入口。</p>
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="username">账号</label>
+        <input id="username" name="username" type="text" placeholder="请输入账号" required>
+      </div>
+      <div class="form-group">
+        <label for="password">密码</label>
+        <input id="password" name="password" type="password" placeholder="请输入密码" required>
+      </div>
+      <div class="modal-actions">
+        <button type="button" id="cancelButton" class="secondary-btn">取消</button>
+        <button type="submit" class="submit-btn">确认登录</button>
+      </div>
+      <div id="notice" class="notice">登录成功，已为你展开两个入口。</div>
+    </form>
+  </div>
+</div>
+
+<div class="footer">高中物理动画实验室</div>
+
+<script>
+const loginButton=document.getElementById('loginButton');
+const logoutButton=document.getElementById('logoutButton');
+const loginModal=document.getElementById('loginModal');
+const cancelButton=document.getElementById('cancelButton');
+const loginForm=document.getElementById('loginForm');
+const authPanel=document.getElementById('authPanel');
+const notice=document.getElementById('notice');
+const lectureEntryButton=document.getElementById('lectureEntryButton');
+const STORAGE_KEY='physics_animation_logged_in';
+
+function setLoggedIn(loggedIn){
+  if(loggedIn){
+    localStorage.setItem(STORAGE_KEY,'1');
+    authPanel.classList.add('show');
+    loginButton.textContent='已登录';
+  }else{
+    localStorage.removeItem(STORAGE_KEY);
+    authPanel.classList.remove('show');
+    loginButton.textContent='登录';
+  }
+}
+
+function openModal(){
+  loginModal.classList.add('show');
+  loginModal.setAttribute('aria-hidden','false');
+}
+
+function closeModal(){
+  loginModal.classList.remove('show');
+  loginModal.setAttribute('aria-hidden','true');
+  notice.classList.remove('show');
+}
+
+if(localStorage.getItem(STORAGE_KEY)==='1'){
+  setLoggedIn(true);
+}
+
+loginButton.addEventListener('click',()=>{
+  if(localStorage.getItem(STORAGE_KEY)==='1'){
+    authPanel.scrollIntoView({behavior:'smooth',block:'center'});
+    return;
+  }
+  openModal();
+});
+
+cancelButton.addEventListener('click',closeModal);
+
+loginModal.addEventListener('click',(e)=>{
+  if(e.target===loginModal) closeModal();
+});
+
+loginForm.addEventListener('submit',(e)=>{
+  e.preventDefault();
+  const username=document.getElementById('username').value.trim();
+  const password=document.getElementById('password').value.trim();
+  if(!username||!password) return;
+  setLoggedIn(true);
+  notice.classList.add('show');
+  setTimeout(()=>{
+    closeModal();
+    authPanel.scrollIntoView({behavior:'smooth',block:'start'});
+  },450);
+});
+
+logoutButton.addEventListener('click',()=>{
+  setLoggedIn(false);
+});
+
+lectureEntryButton.addEventListener('click',(e)=>{
+  e.preventDefault();
+  alert('高中网络讲义入口位已放到登录成功面板中。若你要，我下一步可以继续把它接成正式讲义登录入口。');
+});
+
+document.addEventListener('keydown',(e)=>{
+  if(e.key==='Escape') closeModal();
+});
+</script>
+</body>
+</html>
