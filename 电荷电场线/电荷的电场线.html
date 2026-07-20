@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D 点电荷电场线分布</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b1020; font-family: "Microsoft YaHei", sans-serif; }
+  #ui {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    display: flex; gap: 8px; z-index: 10; flex-wrap: wrap; justify-content: center;
+  }
+  #ui button {
+    padding: 8px 18px; border: 1px solid #3a4a6b; border-radius: 20px;
+    background: rgba(20,30,55,.85); color: #9db2d8; font-size: 14px; cursor: pointer;
+    transition: all .2s;
+  }
+  #ui button:hover { border-color: #ffd166; color: #ffd166; }
+  #ui button.active { background: #ffd166; color: #1a2340; border-color: #ffd166; font-weight: bold; }
+  #desc {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    color: #c9d6f2; font-size: 15px; z-index: 10; text-align: center;
+    background: rgba(20,30,55,.7); padding: 8px 20px; border-radius: 12px;
+    max-width: 90%;
+  }
+  #hint {
+    position: fixed; top: 14px; right: 16px; color: #5f7099; font-size: 12px; z-index: 10;
+  }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<div id="ui">
+  <button data-scene="0" class="active">正电荷</button>
+  <button data-scene="1">负电荷</button>
+  <button data-scene="2">两个同种点电荷</button>
+  <button data-scene="3">两个异种点电荷</button>
+</div>
+<div id="hint">左键拖动旋转 · 滚轮缩放 · 右键拖动平移</div>
+<div id="desc"></div>
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+// ============ 场景定义：四种电荷分布 ============
+const SCENES = [
+  {
+    name: '正电荷',
+    desc: '正点电荷的电场线：从正电荷出发，呈放射状伸向无穷远',
+    charges: [{ q: 1, x: 0, y: 0, z: 0 }],
+    camPos: [3.2, 2.4, 4.8],
+    seedsPerCharge: 18,
+  },
+  {
+    name: '负电荷',
+    desc: '负点电荷的电场线：从无穷远汇聚，终止于负电荷（箭头指向电荷）',
+    charges: [{ q: -1, x: 0, y: 0, z: 0 }],
+    camPos: [3.2, 2.4, 4.8],
+    seedsPerCharge: 18,
+  },
+  {
+    name: '两个同种点电荷',
+    desc: '两个等量正电荷：电场线互相“排斥”，中垂面上没有电场线穿过；沿连线外侧（背离对方）方向各有一条场线伸向远方',
+    charges: [{ q: 1, x: -2, y: 0, z: 0 }, { q: 1, x: 2, y: 0, z: 0 }],
+    camPos: [4.5, 3.2, 7],
+    seedsPerCharge: 14,
+    outerSeeds: true,   // 沿连线外侧（背离对方电荷）方向额外补种子点
+  },
+  {
+    name: '两个异种点电荷',
+    desc: '等量异种电荷（电偶极子）：电场线从正电荷出发，终止于负电荷；沿连线方向有一条直通电场线，外侧（背离对方）方向也各有一条',
+    charges: [{ q: 1, x: -2, y: 0, z: 0 }, { q: -1, x: 2, y: 0, z: 0 }],
+    camPos: [4.5, 3.2, 7],
+    seedsPerCharge: 16,
+    innerSeeds: true,   // 沿连线内侧（指向对方）方向：从正电荷直通到负电荷
+    outerSeeds: true,   // 沿连线外侧（背离对方）方向额外补种子点
+  },
+];
+
+const CHARGE_RADIUS = 0.25;   // 电荷球半径
+const SEED_RADIUS   = 0.32;   // 场线种子点到电荷中心距离
+const DS            = 0.045;  // 积分步长
+const MAX_STEPS     = 1600;   // 单条场线最大步数
+const R_MAX         = 14;     // 场线延伸最远距离
+const HIT_RADIUS    = 0.28;   // 到达异号电荷的判定距离
+
+// ============ 电场计算：E = Σ q·r̂/r² (k=1) ============
+function fieldAt(px, py, pz, charges) {
+  let ex = 0, ey = 0, ez = 0;
+  for (const c of charges) {
+    const dx = px - c.x, dy = py - c.y, dz = pz - c.z;
+    const r2 = dx * dx + dy * dy + dz * dz;
+    if (r2 < 1e-8) continue;
+    const f = c.q / (r2 * Math.sqrt(r2));
+    ex += f * dx; ey += f * dy; ez += f * dz;
+  }
+  return [ex, ey, ez];
+}
+
+// 斐波那契球面均匀取种子点
+function fibonacciSphere(n) {
+  const pts = [], golden = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (i / (n - 1)) * 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const theta = golden * i;
+    pts.push([Math.cos(theta) * r, y, Math.sin(theta) * r]);
+  }
+  return pts;
+}
+
+// 从种子点出发沿（或逆）电场方向积分出一条场线
+// dirSign = +1 表示沿 E 方向（种子在正电荷上），-1 表示逆 E 方向（种子在负电荷上）
+function traceLine(sx, sy, sz, dirSign, charges) {
+  const pts = [];
+  let x = sx, y = sy, z = sz;
+  let prevEx = 0, prevEy = 0, prevEz = 0;   // 上一步的电场（用于检测 E 反向）
+  for (let step = 0; step < MAX_STEPS; step++) {
+    pts.push(x, y, z);
+    const [ex, ey, ez] = fieldAt(x, y, z, charges);
+    const len = Math.sqrt(ex * ex + ey * ey + ez * ez);
+    if (len < 1e-9) break;
+    // 检测是否穿越了 E=0 的奇点面（如两个同种电荷连线的中点）：
+    // 相邻两步的电场点积变负，说明 E 方向反转，场线在此终止。
+    if (step > 0) {
+      const dot = ex * prevEx + ey * prevEy + ez * prevEz;
+      if (dot < 0) break;
+    }
+    prevEx = ex; prevEy = ey; prevEz = ez;
+    const s = DS * dirSign / len;
+    x += ex * s; y += ey * s; z += ez * s;
+    // 到达某个异号电荷附近 → 终止
+    let hit = false;
+    for (const c of charges) {
+      const dx = x - c.x, dy = y - c.y, dz = z - c.z;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const isSource = (dirSign > 0 && c.q > 0) || (dirSign < 0 && c.q < 0);
+      if (!isSource && d < HIT_RADIUS) { pts.push(x, y, z); hit = true; break; }
+    }
+    if (hit) break;
+    if (x * x + y * y + z * z > R_MAX * R_MAX) break;
+  }
+  return pts;
+}
+
+// ============ Three.js 基础 ============
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0b1020);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 200);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+dirLight.position.set(5, 8, 6);
+scene.add(dirLight);
+
+let sceneGroup = null;
+
+// 生成 "+" / "−" 文字贴图精灵
+function makeSignSprite(sign) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 96px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(sign, 64, sign === '+' ? 62 : 56);
+  const tex = new THREE.CanvasTexture(cv);
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false });
+  const sp = new THREE.Sprite(mat);
+  sp.scale.set(0.34, 0.34, 1);
+  sp.renderOrder = 999;
+  return sp;
+}
+
+const coneGeo = new THREE.ConeGeometry(0.055, 0.17, 10);
+const lineMat = new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.9 });
+const coneMat = new THREE.MeshBasicMaterial({ color: 0xffd166 });
+const UP = new THREE.Vector3(0, 1, 0);
+
+function buildScene(cfg) {
+  // 清理旧场景
+  if (sceneGroup) {
+    sceneGroup.traverse(o => {
+      if (o.geometry && o.geometry !== coneGeo) o.geometry.dispose();
+      if (o.material && o.material !== lineMat && o.material !== coneMat) {
+        if (o.material.map) o.material.map.dispose();
+        o.material.dispose();
+      }
+    });
+    scene.remove(sceneGroup);
+  }
+  sceneGroup = new THREE.Group();
+
+  // 画电荷球
+  for (const c of cfg.charges) {
+    const color = c.q > 0 ? 0xe74c3c : 0x3498db;
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(CHARGE_RADIUS, 32, 24),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.1 })
+    );
+    sphere.position.set(c.x, c.y, c.z);
+    sceneGroup.add(sphere);
+    const sign = makeSignSprite(c.q > 0 ? '+' : '−');
+    sign.position.set(c.x, c.y, c.z);
+    sceneGroup.add(sign);
+  }
+
+  // 生成场线：种子点分布在每个电荷周围的小球面上
+  for (const c of cfg.charges) {
+    const dirSign = c.q > 0 ? 1 : -1;   // 正电荷向外积分，负电荷反向（几何上仍向外延伸）
+    const seeds = fibonacciSphere(cfg.seedsPerCharge);
+    // 沿两电荷连线方向额外补种子点（教学上重点强调的场线）
+    for (const other of cfg.charges) {
+      if (other === c) continue;
+      let dx = other.x - c.x, dy = other.y - c.y, dz = other.z - c.z;
+      const dl = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dl < 1e-6) continue;
+      const ux = dx / dl, uy = dy / dl, uz = dz / dl;       // 指向另一电荷的单位向量
+      if (cfg.innerSeeds) seeds.push([ ux,  uy,  uz]);      // 内侧：指向对方
+      if (cfg.outerSeeds) seeds.push([-ux, -uy, -uz]);      // 外侧：背离对方
+    }
+    for (const [ux, uy, uz] of seeds) {
+      const sx = c.x + ux * SEED_RADIUS, sy = c.y + uy * SEED_RADIUS, sz = c.z + uz * SEED_RADIUS;
+      const pts = traceLine(sx, sy, sz, dirSign, cfg.charges);
+      if (pts.length < 30) continue;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      sceneGroup.add(new THREE.Line(geo, lineMat));
+
+      // 沿场线放箭头（圆锥），方向为 E 的方向
+      const n = pts.length / 3;
+      for (const frac of [0.3, 0.6, 0.85]) {
+        const i = Math.floor(n * frac);
+        if (i < 2 || i >= n - 2) continue;
+        const p0 = new THREE.Vector3(pts[3 * (i - 1)], pts[3 * (i - 1) + 1], pts[3 * (i - 1) + 2]);
+        const p1 = new THREE.Vector3(pts[3 * (i + 1)], pts[3 * (i + 1) + 1], pts[3 * (i + 1) + 2]);
+        const dir = p1.sub(p0);
+        if (dir.lengthSq() < 1e-12) continue;
+        dir.normalize().multiplyScalar(dirSign);  // 负电荷场景箭头指向电荷
+        const cone = new THREE.Mesh(coneGeo, coneMat);
+        cone.position.set(pts[3 * i], pts[3 * i + 1], pts[3 * i + 2]);
+        cone.quaternion.setFromUnitVectors(UP, dir);
+        sceneGroup.add(cone);
+      }
+    }
+  }
+
+  scene.add(sceneGroup);
+  camera.position.set(...cfg.camPos);
+  controls.target.set(0, 0, 0);
+  controls.update();
+  document.getElementById('desc').textContent = cfg.desc;
+}
+
+// ============ 界面交互 ============
+const buttons = document.querySelectorAll('#ui button');
+buttons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    buttons.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    buildScene(SCENES[+btn.dataset.scene]);
+  });
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// 支持 ?scene=0~3 直接打开指定场景
+let initial = parseInt(new URLSearchParams(location.search).get('scene'), 10);
+if (!(initial >= 0 && initial < SCENES.length)) initial = 0;
+buttons.forEach(b => b.classList.toggle('active', +b.dataset.scene === initial));
+buildScene(SCENES[initial]);
+
+(function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+})();
+</script>
+</body>
+</html>
