@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>三种碰撞演示：完全非弹性 / 一般非弹性 / 弹性碰撞（按钮版）</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;margin:0;padding:16px;color:#222;position:relative;}
+  h1{font-size:18px;margin:0 0 12px;}
+  .wrap{display:flex;gap:16px;flex-wrap:nowrap;align-items:flex-start;width:100%;max-width:calc(100vw - 32px);}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:10px;}
+  .panel.canvas-panel{flex:1 1 auto;min-width:0;}    /* 画布面板可伸缩 */
+  .cap{text-align:center;font-size:13px;color:#556;margin-bottom:6px;}
+  canvas{display:block;background:#fff;max-width:100%;height:auto;}   /* 窄屏时画布按比例缩放 */
+  .info{flex:0 0 270px;width:270px;font-size:13px;line-height:1.9;}  /* 信息面板固定宽，永远在右边 */
+  .info hr{border:none;border-top:1px dashed #ccd;}
+  .phase{font-weight:bold;color:#c0392b;}
+  button,select{font:inherit;padding:4px 12px;cursor:pointer;}
+  .btns{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+  #slowBtn{background:#c0392b;color:#fff;border:none;border-radius:6px;}
+  .barbox{background:#e8edf3;border-radius:4px;height:12px;overflow:hidden;margin-top:2px;}
+  .bar{height:100%;width:0%;background:linear-gradient(90deg,#4da3ff,#c0392b);transition:width .05s;}
+  .val{font-family:Consolas,monospace;color:#124;}
+  .note{font-size:12px;color:#667;}
+  .langbox{position:absolute;top:14px;right:16px;font-size:13px;z-index:20;}
+  #langBtn{background:#fff;border:1px solid #cdd5df;border-radius:6px;}
+  .langmenu{display:none;position:absolute;right:0;top:110%;background:#fff;border:1px solid #dde3ea;border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,.12);overflow:hidden;min-width:110px;}
+  .langmenu.show{display:block;}
+  .langmenu div{padding:7px 14px;cursor:pointer;white-space:nowrap;}
+  .langmenu div:hover{background:#f0f4f9;}
+  .langmenu div.cur{color:#c0392b;font-weight:bold;}
+
+  /* ===== 三种碰撞切换按钮 ===== */
+  .typeBtns{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+  .typeBtns button{
+    flex:1;min-width:150px;padding:10px 14px;font-size:14px;font-weight:bold;
+    border:2px solid #cdd5df;background:#fff;color:#445;border-radius:8px;
+    transition:all .15s;cursor:pointer;
+  }
+  .typeBtns button:hover{border-color:#7aa8d8;background:#f3f8ff;}
+  .typeBtns button.active{
+    color:#fff;border-color:transparent;
+    box-shadow:0 2px 8px rgba(0,0,0,.15);
+  }
+  .typeBtns button[data-e="1"]   .swatch{background:#2e9e4f;}    /* 弹性：绿 */
+  .typeBtns button[data-e="0.4"] .swatch{background:#f08c1a;}    /* 一般非弹性：橙 */
+  .typeBtns button[data-e="0"]   .swatch{background:#c0392b;}    /* 完全非弹性：红 */
+  .typeBtns button[data-e="1"].active   {background:#2e9e4f;}
+  .typeBtns button[data-e="0.4"].active {background:#f08c1a;}
+  .typeBtns button[data-e="0"].active   {background:#c0392b;}
+  .swatch{display:inline-block;width:10px;height:10px;border-radius:50%;background:#999;margin-right:8px;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="langbox">
+  <button id="langBtn">语言 / Language</button>
+  <div class="langmenu" id="langMenu">
+    <div data-lang="zh" class="cur">中文</div>
+    <div data-lang="en">English</div>
+  </div>
+</div>
+<h1 id="h1t">三种碰撞演示：完全非弹性 / 一般非弹性 / 弹性碰撞</h1>
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="typeBtns" id="typeBtns">
+      <button type="button" data-e="1"><span class="swatch"></span><span data-tn="elastic">弹性碰撞（e = 1）</span></button>
+      <button type="button" data-e="0"><span class="swatch"></span><span data-tn="perfect">完全非弹性碰撞（e = 0）</span></button>
+      <button type="button" data-e="0.4"><span class="swatch"></span><span data-tn="inelastic">一般非弹性碰撞（e = 0.4）</span></button>
+    </div>
+    <div class="cap" id="capt">恢复系数 e 决定形变恢复程度：e=0 完全不恢复，0&lt;e&lt;1 部分恢复，e=1 完全恢复</div>
+    <canvas id="view"></canvas>
+    <div class="btns">
+      <button id="playBtn">暂停</button>
+      <button id="slowBtn">慢动作</button>
+      <button id="resetBtn">重置</button>
+      <select id="massSel">
+        <option value="1">m<sub>A</sub> : m<sub>B</sub> = 1 : 1（等质量）</option>
+        <option value="2">m<sub>A</sub> : m<sub>B</sub> = 2 : 1（A 质量大）</option>
+        <option value="0.5">m<sub>A</sub> : m<sub>B</sub> = 1 : 2（B 质量大）</option>
+      </select>
+      <span class="note" id="modeNote"></span>
+    </div>
+  </div>
+  <div class="info panel">
+    <div><span id="phaseLabel">当前阶段：</span><span class="phase" id="phase"></span></div>
+    <hr>
+    <div>v<sub>A</sub> = <span class="val" id="vA"></span> m/s<br>
+         v<sub>B</sub> = <span class="val" id="vB"></span> m/s</div>
+    <div><span id="momLabel">总动量</span> p = <span class="val" id="p"></span> kg·m/s<span id="conserved">（守恒）</span><br>
+         <span id="ekLabel">总动能</span> E<sub>k</sub> = <span class="val" id="ek"></span> J</div>
+    <div><span id="defLabel">形变程度</span><div class="barbox"><div class="bar" id="defbar"></div></div></div>
+    <hr>
+    <div class="note" id="result"></div>
+    <div class="note" id="explain">说明：三种碰撞动量都守恒，区别在于动能。完全非弹性碰撞形变一点不恢复、两球粘在一起共速，动能损失最大；一般非弹性碰撞形变只恢复一部分，动能损失一部分，分开时两球仍带残余形变；弹性碰撞形变完全恢复，动能不损失。</div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= 多语言 ================= */
+const I18N = {
+  zh: {
+    docTitle: '三种碰撞演示：完全非弹性 / 一般非弹性 / 弹性碰撞（按钮版）',
+    title: '三种碰撞演示：完全非弹性 / 一般非弹性 / 弹性碰撞',
+    cap: '恢复系数 e 决定形变恢复程度：e=0 完全不恢复，0<e<1 部分恢复，e=1 完全恢复',
+    play: '播放', pause: '暂停', slow: '慢动作', normal: '正常', reset: '重置',
+    typeNames: { elastic:'弹性碰撞（e = 1）', inelastic:'一般非弹性碰撞（e = 0.4）', perfect:'完全非弹性碰撞（e = 0）' },
+    massOpts: ['m<sub>A</sub> : m<sub>B</sub> = 1 : 1（等质量）',
+               'm<sub>A</sub> : m<sub>B</sub> = 2 : 1（A 质量大）',
+               'm<sub>A</sub> : m<sub>B</sub> = 1 : 2（B 质量大）'],
+    slowNote: '慢动作模式：碰撞过程放慢约 8 倍',
+    phaseLabel: '当前阶段：',
+    momLabel: '总动量', conserved: '（守恒）', ekLabel: '总动能',
+    defLabel: '形变程度',
+    ground: '光滑水平面（无摩擦）',
+    phBefore: () => '碰撞前：A 以 v₀ = 2.00 m/s 匀速接近静止的 B',
+    phMid:    () => '两球共速！形变达到最大',
+    phComp:   () => '压缩阶段：A 减速、B 加速，两球越来越扁',
+    phStick:  () => '完全非弹性碰撞：形变一点不恢复，两球粘在一起以共同速度前进',
+    phRestP:  () => '恢复阶段：形变只恢复一点点，A 继续减速、B 继续加速',
+    phRestF:  () => '恢复阶段：形变完全恢复，A 继续减速、B 继续加速',
+    phSepP:   () => '分离：碰撞结束，两球带着残余形变各自运动（v_A′ < v_B′）',
+    phSepF:   () => '分离：碰撞结束，两球恢复原状，各自匀速运动',
+    banner: v => '共速 v = ' + v + ' m/s，形变最大！',
+    resStick: (v, dE) => '结果：v_A′ = v_B′ = ' + v + ' m/s（两球共速粘连），动能损失 ΔE = ' + dE + ' J（三种碰撞中损失最大）',
+    resP: (a, b, dE) => '结果：v_A′ = ' + a + ' m/s，v_B′ = ' + b + ' m/s，动能损失 ΔE = ' + dE + ' J（部分损失，两球留有残余形变）',
+    resF: (a, b) => '结果：v_A′ = ' + a + ' m/s，v_B′ = ' + b + ' m/s，动能无损失（完全恢复）',
+    note: '说明：三种碰撞动量都守恒，区别在于动能。完全非弹性碰撞形变一点不恢复、两球粘在一起共速，动能损失最大；一般非弹性碰撞形变只恢复一部分，动能损失一部分，分开时两球仍带残余形变；弹性碰撞形变完全恢复，动能不损失。<br><br>上方三个按钮可切换碰撞类型：<b style="color:#2e9e4f">弹性碰撞</b>（形变完全恢复，动能守恒）、<b style="color:#f08c1a">一般非弹性碰撞</b>（形变部分恢复，分开时两球仍扁）、<b style="color:#c0392b">完全非弹性碰撞</b>（形变一点都不恢复，两球共速粘连）。'
+  },
+  en: {
+    docTitle: 'Three Types of Collision: Perfectly Inelastic / Inelastic / Elastic (button version)',
+    title: 'Three types of collision: perfectly inelastic / inelastic / elastic',
+    cap: 'The restitution coefficient e sets how much the deformation recovers: e=0 none, 0<e<1 partial, e=1 full',
+    play: 'Play', pause: 'Pause', slow: 'Slow motion', normal: 'Normal', reset: 'Reset',
+    typeNames: { elastic:'Elastic (e = 1)', inelastic:'Inelastic (e = 0.4)', perfect:'Perfectly inelastic (e = 0)' },
+    massOpts: ['m<sub>A</sub> : m<sub>B</sub> = 1 : 1 (equal mass)',
+               'm<sub>A</sub> : m<sub>B</sub> = 2 : 1 (A heavier)',
+               'm<sub>A</sub> : m<sub>B</sub> = 1 : 2 (B heavier)'],
+    slowNote: 'Slow-motion mode: the collision is slowed ~8×',
+    phaseLabel: 'Phase: ',
+    momLabel: 'Total momentum', conserved: ' (conserved)', ekLabel: 'Total kinetic energy',
+    defLabel: 'Deformation',
+    ground: 'Frictionless surface',
+    phBefore: () => 'Before collision: A moves uniformly toward stationary B at v₀ = 2.00 m/s',
+    phMid:    () => 'Common velocity! Maximum deformation',
+    phComp:   () => 'Compression: A decelerates, B accelerates — the balls flatten more and more',
+    phStick:  () => 'Perfectly inelastic: no restitution at all — the balls stick together and move on at the common velocity',
+    phRestP:  () => 'Restitution: the deformation recovers only a little — A keeps decelerating, B keeps accelerating',
+    phRestF:  () => 'Restitution: the deformation fully recovers — A keeps decelerating, B keeps accelerating',
+    phSepP:   () => 'Separated: collision over — the balls move on with residual deformation (v_A′ < v_B′)',
+    phSepF:   () => 'Separated: collision over — the balls are fully restored and move uniformly',
+    banner: v => 'Common velocity v = ' + v + ' m/s — max deformation!',
+    resStick: (v, dE) => 'Result: v_A′ = v_B′ = ' + v + ' m/s (stuck together), kinetic energy loss ΔE = ' + dE + ' J (the largest loss of the three)',
+    resP: (a, b, dE) => 'Result: v_A′ = ' + a + ' m/s, v_B′ = ' + b + ' m/s, kinetic energy loss ΔE = ' + dE + ' J (partial loss; residual deformation remains)',
+    resF: (a, b) => 'Result: v_A′ = ' + a + ' m/s, v_B′ = ' + b + ' m/s, no kinetic energy loss (fully restored)',
+    note: 'Note: momentum is conserved in all three collisions; the difference is kinetic energy. In a perfectly inelastic collision the deformation never recovers, the balls stick together, and the KE loss is the largest. In an inelastic collision the deformation recovers only partially, some KE is lost, and the balls separate with residual deformation. In an elastic collision the deformation fully recovers and no KE is lost.<br><br>Use the three buttons above to switch collision type: <b style="color:#2e9e4f">Elastic</b> (fully recovers, KE conserved), <b style="color:#f08c1a">Inelastic</b> (partially recovers, balls stay flat when separating), <b style="color:#c0392b">Perfectly inelastic</b> (never recovers, balls stick together at common velocity).'
+  }
+};
+let lang = 'zh';
+const L = () => I18N[lang];
+
+/* ================= 物理参数 ================= */
+const R = 40;                 // 两球半径相同，质量不同理解为密度不同
+const V0 = 160;               // A 球初速度 px/s（= 2.0 m/s）
+const PX = 80;                // 80 px/s 对应 1 m/s
+const DELTA_MAX = 0.5 * R;    // 最大形变量（两球水平压缩量之和）
+const T_COL = Math.PI * DELTA_MAX / V0;  // 弹性碰撞接触总时长 ≈ 0.393 s
+const OMEGA = Math.PI / T_COL;           // 压缩阶段角频率
+const T_C = T_COL / 2;                   // 压缩阶段时长（达到共速）
+
+let mA = 1, mB = 1;           // 质量（kg）
+let E = 1;                    // 恢复系数：0 完全非弹性，0.4 一般非弹性，1 弹性（默认弹性）
+
+/* 场景布局 */
+const W = 1200, H = 380, GROUND_Y = 290, CY = GROUND_Y - R;
+const XA0 = 160, XB0 = 720;
+const XA_C = XB0 - 2 * R;                 // 接触瞬间 A 的位置
+const T_CON = (XA_C - XA0) / V0;          // 接近阶段时长
+const T_MID = T_CON + T_C;                // 共速（形变最大）时刻
+
+const tRest = () => E > 0 ? E * T_C : 0;  // 恢复阶段时长
+const tSep  = () => T_MID + tRest();      // 分离（或粘连开始）时刻
+const tEnd  = () => tSep() + 1.7;         // 动画结束时刻
+const dRes  = () => DELTA_MAX * (1 - E * E);  // 残余形变（e=1 时为 0）
+
+/* ================= 状态 ================= */
+let simT = 0, playing = true, slowMode = false, holding = 0, midHeld = false;
+
+function massSetup(){ mA = parseFloat(document.getElementById('massSel').value); mB = 1; }
+function M(){ return mA + mB; }
+function vcm(){ return mA * V0 / M(); }
+function Xcm0(){ return (mA * XA_C + mB * XB0) / M(); }
+
+/* t 时刻的运动状态：位置、速度、形变量 */
+function state(t){
+  const Mt = M(), vc = vcm(), dm = DELTA_MAX;
+  let xA, xB, vA, vB, delta = 0;
+  if(t < T_CON){                                   // 接近阶段
+    xA = XA0 + V0 * t; xB = XB0; vA = V0; vB = 0;
+  } else if(t < T_MID){                            // 压缩阶段（三种碰撞相同）
+    const tau = t - T_CON;
+    const q  = 2 * R - dm * Math.sin(OMEGA * tau); // 两球心间距
+    const qd = -V0 * Math.cos(OMEGA * tau);        // 间距变化率
+    const X  = Xcm0() + vc * tau;
+    xA = X - (mB / Mt) * q;  xB = X + (mA / Mt) * q;
+    vA = vc - (mB / Mt) * qd;  vB = vc + (mA / Mt) * qd;
+    delta = 2 * R - q;
+  } else if(E > 0 && t <= tSep()){                 // 恢复阶段（e > 0）
+    const tau = t - T_MID, w2 = OMEGA / E, dr = dRes();
+    const q  = 2 * R - dr - dm * E * E * Math.cos(w2 * tau);
+    const qd = E * V0 * Math.sin(w2 * tau);        // 分离时相对速度 = e·v0
+    const X  = Xcm0() + vc * (T_C + tau);
+    xA = X - (mB / Mt) * q;  xB = X + (mA / Mt) * q;
+    vA = vc - (mB / Mt) * qd;  vB = vc + (mA / Mt) * qd;
+    delta = 2 * R - q;
+  } else if(E === 0){                              // 完全非弹性：粘连共速，保持最大形变
+    const tau = t - T_MID, q = 2 * R - dm;
+    const X = Xcm0() + vc * (T_C + tau);
+    xA = X - (mB / Mt) * q;  xB = X + (mA / Mt) * q;
+    vA = vc;  vB = vc;  delta = dm;
+  } else {                                         // 分离后：各自匀速，保留残余形变
+    const s = state(tSep()), tau = t - tSep();
+    xA = s.xA + s.vA * tau;  xB = s.xB + s.vB * tau;
+    vA = s.vA;  vB = s.vB;  delta = dRes();
+  }
+  return {xA:xA, xB:xB, vA:vA, vB:vB, delta:delta};
+}
+
+/* ================= 画布 ================= */
+function setupCanvas(cv, w, hgt){
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = hgt * dpr;
+  cv.style.width = w + 'px'; cv.style.height = hgt + 'px';
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return ctx;
+}
+const ctx = setupCanvas(document.getElementById('view'), W, H);
+
+function drawGround(){
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(20, GROUND_Y); ctx.lineTo(W - 20, GROUND_Y); ctx.stroke();
+  ctx.lineWidth = 1; ctx.strokeStyle = '#bbb';
+  for(let x = 28; x < W - 20; x += 18){
+    ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x - 8, GROUND_Y + 8); ctx.stroke();
+  }
+  ctx.fillStyle = '#99a'; ctx.font = '12px sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText(L().ground, 30, GROUND_Y + 24);
+}
+
+/* 画一个可水平压扁的球：水平半径 a 变小，竖直半径 b 略增（体积不变） */
+function drawBall(x, compress, color1, color2, label, massLabel){
+  const a = R - compress;                 // 水平半轴：变小 = 水平方向变瘦
+  const b = Math.sqrt(R * R * R / a);     // 竖直半轴：略鼓，保持“体积”不变
+  ctx.save();
+  ctx.translate(x, CY);
+  ctx.scale(a, b);
+  const g = ctx.createRadialGradient(-0.35, -0.35, 0.1, 0, 0, 1.05);
+  g.addColorStop(0, color1); g.addColorStop(1, color2);
+  ctx.beginPath(); ctx.arc(0, 0, 1, 0, Math.PI * 2);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = 2 / Math.max(a, b); ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 20px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(label, x, CY - 9);
+  ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.font = '12px sans-serif';
+  ctx.fillText(massLabel, x, CY + 13);
+}
+
+function drawArrow(x, v, label){
+  if(Math.abs(v) < 2) return;
+  const y = CY - R - 26, len = v * 0.55;
+  ctx.strokeStyle = '#2e9e4f'; ctx.fillStyle = '#2e9e4f'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + len, y); ctx.stroke();
+  const dir = Math.sign(len);
+  ctx.beginPath();
+  ctx.moveTo(x + len, y);
+  ctx.lineTo(x + len - 9 * dir, y - 5);
+  ctx.lineTo(x + len - 9 * dir, y + 5);
+  ctx.closePath(); ctx.fill();
+  ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(label, x + len / 2, y - 10);
+}
+
+function drawBanner(text){
+  ctx.save();
+  ctx.fillStyle = 'rgba(192,57,43,.92)';
+  ctx.font = 'bold 17px sans-serif';
+  const w = ctx.measureText(text).width + 40;
+  ctx.beginPath(); ctx.roundRect(W/2 - w/2, 16, w, 34, 8); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(text, W/2, 33);
+  ctx.restore();
+}
+
+/* ================= 界面信息 ================= */
+const $ = id => document.getElementById(id);
+function fmt(v){ return (v / PX).toFixed(2); }
+function ekOf(vA, vB){ const a = vA / PX, b = vB / PX; return 0.5 * mA * a * a + 0.5 * mB * b * b; }
+
+function updateInfo(s){
+  const vAms = s.vA / PX, vBms = s.vB / PX;
+  $('vA').textContent = fmt(s.vA);
+  $('vB').textContent = fmt(s.vB);
+  $('p').textContent  = (mA * vAms + mB * vBms).toFixed(2);
+  $('ek').textContent = ekOf(s.vA, s.vB).toFixed(2);
+  $('defbar').style.width = Math.min(100, s.delta / DELTA_MAX * 100) + '%';
+
+  let ph;
+  if(simT < T_CON)                        ph = L().phBefore();
+  else if(holding > 0 || Math.abs(simT - T_MID) < T_COL * 0.06)
+                                          ph = L().phMid();
+  else if(simT < T_MID)                   ph = L().phComp();
+  else if(E === 0)                        ph = L().phStick();
+  else if(simT <= tSep())                 ph = E < 1 ? L().phRestP() : L().phRestF();
+  else                                    ph = E < 1 ? L().phSepP() : L().phSepF();
+  $('phase').textContent = ph;
+
+  if(simT >= tEnd()){
+    if(E === 0){
+      const dE = (ekOf(V0, 0) - ekOf(vcm(), vcm())).toFixed(2);
+      $('result').textContent = L().resStick(fmt(vcm()), dE);
+    } else {
+      const e = state(tSep());
+      if(E < 1){
+        const dE = (ekOf(V0, 0) - ekOf(e.vA, e.vB)).toFixed(2);
+        $('result').textContent = L().resP(fmt(e.vA), fmt(e.vB), dE);
+      } else {
+        $('result').textContent = L().resF(fmt(e.vA), fmt(e.vB));
+      }
+    }
+  }
+}
+
+/* ================= 主循环 ================= */
+let last = performance.now();
+function frame(now){
+  const wall = Math.min(0.05, (now - last) / 1000); last = now;
+  if(playing && simT < tEnd()){
+    if(holding > 0){
+      holding -= wall;                       // 共速时刻停顿强调
+    } else {
+      let scale = 1;
+      if(slowMode && simT > T_CON - 0.03 && simT < tSep() + 0.35) scale = 0.12;
+      else if(slowMode) scale = 1.5;
+      const prev = simT;
+      simT = Math.min(tEnd(), simT + wall * scale);
+      if(prev < T_MID && simT >= T_MID && !midHeld){   // 到达共速点
+        simT = T_MID; holding = slowMode ? 0.7 : 0.25; midHeld = true;
+      }
+    }
+  }
+  const s = state(simT);
+
+  ctx.clearRect(0, 0, W, H);
+  drawGround();
+  const cA = s.delta / 2, cB = s.delta / 2;  // 两球对称分担形变
+  drawBall(s.xA, cA, '#7ec3ff', '#2f7fe0', 'A', 'm_A=' + mA + 'kg');
+  drawBall(s.xB, cB, '#ffd08a', '#f08c1a', 'B', 'm_B=' + mB + 'kg');
+  if(E === 0 && simT >= T_MID){
+    drawArrow((s.xA + s.xB) / 2, s.vA, 'v_共');   // 粘连后只画一个共同速度箭头
+  } else {
+    drawArrow(s.xA, s.vA, 'v_A');
+    drawArrow(s.xB, s.vB, 'v_B');
+  }
+  if(holding > 0 || (simT >= T_MID - T_COL*0.06 && simT <= T_MID + T_COL*0.06 && simT >= T_CON))
+    drawBanner(L().banner(fmt(vcm())));
+  updateInfo(s);
+
+  requestAnimationFrame(frame);
+}
+
+/* ================= 语言切换 ================= */
+function applyLang(){
+  document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  document.title = L().docTitle;
+  $('h1t').textContent = L().title;
+  $('capt').textContent = L().cap;
+  $('playBtn').textContent = playing ? L().pause : L().play;
+  $('slowBtn').textContent = slowMode ? L().normal : L().slow;
+  $('resetBtn').textContent = L().reset;
+  // 刷新三个切换按钮的文字
+  document.querySelectorAll('#typeBtns button [data-tn]').forEach(el => {
+    el.textContent = L().typeNames[el.dataset.tn];
+  });
+  const ms = $('massSel');
+  for(let i = 0; i < ms.options.length; i++) ms.options[i].innerHTML = L().massOpts[i];
+  $('phaseLabel').textContent = L().phaseLabel;
+  $('momLabel').textContent = L().momLabel;
+  $('conserved').textContent = L().conserved;
+  $('ekLabel').textContent = L().ekLabel;
+  $('defLabel').textContent = L().defLabel;
+  $('explain').innerHTML = L().note;
+  $('modeNote').textContent = slowMode ? L().slowNote : '';
+  document.querySelectorAll('.langmenu div').forEach(d =>
+    d.classList.toggle('cur', d.dataset.lang === lang));
+  updateInfo(state(simT));           // 立即刷新动态文字
+}
+
+$('langBtn').onclick = e => {
+  e.stopPropagation();
+  $('langMenu').classList.toggle('show');
+};
+document.addEventListener('click', () => $('langMenu').classList.remove('show'));
+document.querySelectorAll('.langmenu div').forEach(d => {
+  d.onclick = () => {
+    lang = d.dataset.lang;
+    $('langMenu').classList.remove('show');
+    applyLang();
+  };
+});
+
+/* ================= 控件 ================= */
+/* 三种碰撞切换按钮 */
+function setType(newE){
+  E = newE;
+  // 高亮当前选中
+  document.querySelectorAll('#typeBtns button').forEach(b => {
+    b.classList.toggle('active', parseFloat(b.dataset.e) === E);
+  });
+  reset(slowMode);
+}
+document.querySelectorAll('#typeBtns button').forEach(b => {
+  b.onclick = () => setType(parseFloat(b.dataset.e));
+});
+
+$('playBtn').onclick = () => {
+  if(!playing && simT >= tEnd()){
+    reset(slowMode);                  // 已结束：重置后开始
+    playing = true;
+  } else {
+    playing = !playing;               // 正常切换 播放/暂停
+  }
+  $('playBtn').textContent = playing ? L().pause : L().play;
+};
+$('slowBtn').onclick = () => {
+  slowMode = !slowMode;
+  $('slowBtn').textContent = slowMode ? L().normal : L().slow;
+  $('modeNote').textContent = slowMode ? L().slowNote : '';
+};
+$('resetBtn').onclick = () => { reset(slowMode); $('modeNote').textContent = slowMode ? L().slowNote : ''; };
+$('massSel').onchange = () => { reset(slowMode); $('modeNote').textContent = slowMode ? L().slowNote : ''; };
+
+function reset(slow){
+  massSetup();
+  simT = 0; playing = false; slowMode = slow; holding = 0; midHeld = false;
+  $('playBtn').textContent = L().play;     // 重置后静止，等待按播放
+  $('result').textContent = '';
+}
+
+/* 初始化：默认选中弹性碰撞 */
+massSetup();
+setType(1);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
