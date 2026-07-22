@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>速度的合成与分解 —— 人拉船 与 虫子爬绳</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;margin:0;background:#f5f6f8;color:#222;}
+  header{padding:12px 20px;background:#2c3e50;color:#fff;}
+  header h1{font-size:18px;margin:0;}
+  header p{margin:4px 0 0;font-size:13px;color:#cdd7e1;line-height:1.6;}
+  #tabbar{display:flex;gap:8px;padding:12px 14px 0;}
+  #tabbar button{padding:8px 26px;border:1px solid #2c7be5;border-bottom:none;background:#fff;color:#2c7be5;border-radius:8px 8px 0 0;cursor:pointer;font-size:14px;}
+  #tabbar button.active{background:#2c7be5;color:#fff;font-weight:600;}
+  #stage,#stageCompare{padding:12px 14px 14px;}
+  .sim{background:transparent;}
+  .simTitle{font-size:15px;font-weight:600;padding:2px 4px 8px;}
+  .simDesc{font-size:12.5px;color:#666;padding:0 4px 8px;line-height:1.6;}
+  .wrap{display:flex;flex-direction:column;gap:10px;}
+  canvas{background:#fff;border:1px solid #d8dde3;border-radius:8px;}
+  .panel{background:#fff;border:1px solid #d8dde3;border-radius:8px;padding:8px 14px;font-size:13px;display:flex;flex-wrap:wrap;gap:6px 24px;align-items:center;align-self:flex-start;max-width:100%;}
+  .controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  button.act{padding:5px 14px;border:1px solid #2c7be5;background:#2c7be5;color:#fff;border-radius:5px;cursor:pointer;font-size:13px;}
+  button.act.ghost{background:#fff;color:#2c7be5;}
+  table.ro{border-collapse:collapse;width:100%;margin-top:6px;}
+  table.ro td{padding:2px 4px;border-bottom:1px dashed #eee;font-variant-numeric:tabular-nums;}
+  table.ro td:first-child{color:#555;width:48%;}
+  .formula{background:#f0f6ff;border:1px solid #cfe2ff;border-radius:6px;padding:7px 9px;margin:8px 0;line-height:1.8;}
+  .conclusion{background:#e9f9ee;border:1px solid #8fd6a4;color:#1c7a35;border-radius:6px;padding:8px 10px;margin-top:8px;font-weight:600;line-height:1.6;}
+  #plist{max-height:180px;overflow:auto;font-family:Consolas,monospace;font-size:12px;background:#fafbfc;border:1px solid #eee;border-radius:6px;padding:6px 8px;margin-top:6px;line-height:1.6;}
+  h3{font-size:13px;margin:10px 0 4px;}
+  .legend{line-height:1.9;font-size:12.5px;}
+  .note{color:#868e96;font-size:12px;margin-top:8px;line-height:1.6;}
+  .cmpRow{display:flex;gap:14px;align-items:flex-start;}
+  .cmpRow .cell h2{font-size:14px;margin:0 0 6px;}
+  .cmpRow .sim{zoom:0.55;}
+  #cmpCaption{background:#fff;border:1px solid #d8dde3;border-radius:8px;padding:10px 14px;font-size:13px;line-height:1.9;margin-top:12px;}
+  #cmpCaption b{color:#2c3e50;}
+</style>
+</head>
+<body>
+<header>
+  <h1>速度的合成与分解：人拉船 与 虫子爬绳</h1>
+</header>
+
+<div id="tabbar">
+  <button data-mode="boat" class="active">人拉船</button>
+  <button data-mode="bug">虫子爬绳</button>
+  <button data-mode="compare">对比</button>
+</div>
+
+<div id="stage">
+  <!-- ============ 人拉船 ============ -->
+  <div id="simboat" class="sim">
+    <div class="simTitle">人拉船：船的真实速度（水平向左）→ 分解为 沿绳 ＋ 垂直绳</div>
+    <div class="wrap">
+      <div class="panel">
+        <div class="controls">
+          <button id="bBtnPlay" class="act">暂停</button>
+          <button id="bBtnReset" class="act ghost">重播</button>
+          <label>播放 <input id="bSpeed" type="range" min="10" max="150" value="50" style="width:80px;vertical-align:middle;"> <span id="bSpeedVal">0.50×</span></label>
+        </div>
+        <div class="controls">
+          <label>人速 u <input id="bU" type="range" min="20" max="100" value="50" style="width:90px;vertical-align:middle;"> <span id="bUVal">0.50 m/s</span></label>
+        </div>
+        <div id="b_conclusion" class="conclusion" hidden></div>
+      </div>
+      <canvas id="bCv"></canvas>
+    </div>
+  </div>
+</div>
+
+<div id="stageCompare" hidden>
+  <div class="cmpRow">
+    <div class="cell" id="cellBoat"></div>
+    <div class="cell" id="cellBug"></div>
+  </div>
+</div>
+
+<!-- ============ 虫子爬绳（初始位于对比栏，切换到该模式时移入主舞台） ============ -->
+<div id="simbug" class="sim">
+  <div class="simTitle">虫子爬绳（秋千）：沿绳分量 ＋ 垂直绳分量 → 合成水平合速度</div>
+  <div class="wrap">
+    <div class="panel">
+      <div class="controls">
+        <button id="btnPlay" class="act">暂停</button>
+        <button id="btnReset" class="act ghost">重播</button>
+        <label>速度 <input id="speed" type="range" min="2" max="50" value="10" style="width:90px;vertical-align:middle;"> <span id="speedVal">0.10×</span></label>
+        <label><input type="checkbox" id="chkPara" checked> 平行四边形</label>
+        <span style="border-left:1px solid #d8dde3;height:20px;"></span>
+        <button id="btnModeComb" class="act">合运动</button>
+        <button id="btnModeBug" class="act ghost">虫子动（绳不动）</button>
+        <button id="btnModeRope" class="act ghost">绳子动（虫不爬）</button>
+      </div>
+    </div>
+    <canvas id="cv"></canvas>
+  </div>
+</div>
+
+<script>
+/* ################################################################
+   模块一：虫子爬绳（秋千）
+   ################################################################ */
+const bugSim = (function(){
+"use strict";
+/* ================= 物理参数 ================= */
+const g  = 9.8;                 // 重力加速度 m/s²
+const L  = 1.0;                 // 摆长 m
+const TH0 = Math.PI/3;          // 初始摆角 60°
+const W  = Math.sqrt(g/L);      // 角频率 ω = √(g/L)
+const T4 = Math.PI/(2*W);       // 从最右端摆到最低点的时间 T/4
+const H  = 0.0002;              // 数值积分步长 s
+const REC_DT = T4/30;           // 位置记录时间间隔（等间隔）
+
+/* ================= 画布 ================= */
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const CW = 1240, CH = 700;      // 画布逻辑尺寸
+const CX = 460, CY = 90;        // 悬点像素位置
+const S  = 560;                 // 比例尺 px/m
+const K  = 110;                 // 速度箭头比例尺 px/(m/s)
+const dpr = window.devicePixelRatio || 1;
+cv.width = CW*dpr; cv.height = CH*dpr;
+cv.style.width = CW+'px'; cv.style.height = CH+'px';
+ctx.setTransform(dpr,0,0,dpr,0,0);
+
+/* ================= 状态 ================= */
+let t, r, x, y, trail, lastRec;
+let playing = true, ended = false, timeScale = 0.1, showPara = true;
+let motionMode = 'combined';    // combined 合运动 | bug 虫子动（绳不动）| rope 绳子动（虫不爬）
+let cur = null;
+
+function reset(){
+  t = 0; r = L;
+  x = L*Math.sin(TH0); y = -L*Math.cos(TH0);   // 虫子初始在摆球处
+  trail = [{t:0, x:x, y:y}]; lastRec = 0; ended = false;
+  cur = compute();
+}
+
+/* 由当前 t、r 计算两个分速度与合速度（世界坐标：x 向右，y 向上，悬点为原点） */
+function compute(){
+  const th = TH0*Math.cos(W*t);       // 绳与竖直方向夹角（右侧为正）
+  const Om = TH0*W*Math.sin(W*t);     // 绳转动角速度大小（顺时针）
+  const u  = r*Om*Math.tan(th);       // 关键条件：沿绳向上爬行速率
+  const v1x = -u*Math.sin(th),  v1y =  u*Math.cos(th);   // v₁：沿绳向上（朝悬点）
+  const v2x = -r*Om*Math.cos(th), v2y = -r*Om*Math.sin(th); // v₂：垂直绳，随绳顺时针转动
+  return {th:th, Om:Om, u:u, v1x:v1x, v1y:v1y, v2x:v2x, v2y:v2y,
+          vx:v1x+v2x, vy:v1y+v2y};
+}
+
+/* 合运动数值积分：用两分速度的矢量和推动虫子（不预设轨迹） */
+function step(h){
+  const c = compute();
+  x += c.vx*h; y += c.vy*h;
+  r = Math.hypot(x, y);
+  t += h;
+}
+
+/* 分运动①：绳子固定在 θ₀ 不动，只有虫子沿绳向上爬（爬行速率与合运动同一时钟） */
+function stepBugOnly(h){
+  const thA = TH0*Math.cos(W*t), OmA = TH0*W*Math.sin(W*t);
+  const u = r*OmA*Math.tan(thA);
+  r -= u*h; t += h;
+  x = r*Math.sin(TH0); y = -r*Math.cos(TH0);
+}
+
+/* 分运动②：虫子不爬（r = L 不变），只随绳子摆动 */
+function stepRopeOnly(h){
+  t += h;
+  const th = TH0*Math.cos(W*t);
+  r = L;
+  x = L*Math.sin(th); y = -L*Math.cos(th);
+}
+
+/* ================= 绘图 ================= */
+function pxX(wx){ return CX + wx*S; }
+function pxY(wy){ return CY - wy*S; }
+
+function drawVector(px, py, vx, vy, color, label, lw){
+  lw = lw || 2;
+  const tx = px + vx*K, ty = py - vy*K;
+  const dx = tx-px, dy = ty-py, len = Math.hypot(dx,dy);
+  if(len < 3) return;
+  ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = lw;
+  ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(tx,ty); ctx.stroke();
+  const a = Math.atan2(dy,dx), ah = 9;
+  ctx.beginPath();
+  ctx.moveTo(tx,ty);
+  ctx.lineTo(tx-ah*Math.cos(a-0.42), ty-ah*Math.sin(a-0.42));
+  ctx.lineTo(tx-ah*Math.cos(a+0.42), ty-ah*Math.sin(a+0.42));
+  ctx.closePath(); ctx.fill();
+  ctx.font = '12px sans-serif';
+  const wtxt = ctx.measureText(label).width;
+  ctx.fillText(label, tx + (dx>=0 ? 6 : -wtxt-6), ty + (dy>=0 ? 14 : -6));
+}
+
+/* 画一只沿绳朝悬点爬的毛毛虫（仅外观，物理位置仍是 px,py） */
+function drawCaterpillar(px, py){
+  let ux = CX-px, uy = CY-py;
+  const d = Math.hypot(ux,uy) || 1; ux/=d; uy/=d;   // 单位向量：指向悬点（爬行方向）
+  const nx = -uy, ny = ux;                          // 垂直于绳的方向
+  const gap = 7.2;                                  // 体节节距
+  const w = performance.now()/1000*6;               // 蠕动相位
+  const OUT = '#558b2f', BODY = ['#9ccc4c','#8fbf3f','#82b234'];
+  ctx.lineWidth = 1;
+
+  /* 身体三节（尾 → 头），带轻微蠕动 */
+  for(let i=0;i<3;i++){
+    const off = (i-1.5)*gap;
+    const wig = Math.sin(w + i*1.3)*0.7;
+    const sx = px + ux*off + nx*wig, sy = py + uy*off + ny*wig;
+    const rr = 3.6 + i*0.3;                         // 尾部略细
+    ctx.fillStyle = BODY[i];
+    ctx.beginPath(); ctx.arc(sx, sy, rr, 0, 7); ctx.fill();
+    ctx.strokeStyle = OUT; ctx.stroke();
+    ctx.beginPath();                                // 体节纹
+    ctx.moveTo(sx-nx*rr, sy-ny*rr); ctx.lineTo(sx+nx*rr, sy+ny*rr); ctx.stroke();
+  }
+
+  /* 头 */
+  const hx = px + ux*1.5*gap, hy = py + uy*1.5*gap;
+  ctx.fillStyle = '#7cb342';
+  ctx.beginPath(); ctx.arc(hx, hy, 4.8, 0, 7); ctx.fill();
+  ctx.strokeStyle = OUT; ctx.stroke();
+
+  /* 眼睛 */
+  for(const s of [1,-1]){
+    const ex = hx + ux*2.2 + nx*2.3*s, ey = hy + uy*2.2 + ny*2.3*s;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(ex, ey, 1.7, 0, 7); ctx.fill();
+    ctx.fillStyle = '#212529';
+    ctx.beginPath(); ctx.arc(ex + ux*0.5, ey + uy*0.5, 0.85, 0, 7); ctx.fill();
+  }
+
+  /* 触角 */
+  ctx.strokeStyle = OUT; ctx.lineWidth = 1.2;
+  for(const s of [1,-1]){
+    const ax = hx + ux*3.5 + nx*1.8*s, ay = hy + uy*3.5 + ny*1.8*s;
+    const tx = hx + ux*9.5 + nx*5.5*s, ty = hy + uy*9.5 + ny*5.5*s;
+    ctx.beginPath(); ctx.moveTo(ax, ay);
+    ctx.quadraticCurveTo(hx + ux*8 + nx*3*s, hy + uy*8 + ny*3*s, tx, ty);
+    ctx.stroke();
+    ctx.fillStyle = OUT;
+    ctx.beginPath(); ctx.arc(tx, ty, 1.4, 0, 7); ctx.fill();
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  const c = cur;
+  const th = (motionMode === 'bug') ? TH0 : TH0*Math.cos(W*t);   // “虫子动”模式绳固定不动
+  const bobx = L*Math.sin(th), boby = -L*Math.cos(th);
+  const bx = pxX(bobx), by = pxY(boby);
+  const px = pxX(x), py = pxY(y);
+
+  /* 当前演示模式标题 */
+  ctx.fillStyle = '#2c3e50'; ctx.font = 'bold 14px sans-serif';
+  ctx.fillText(motionMode === 'combined' ? '合运动：虫子沿绳爬 ＋ 绳子摆动' :
+               motionMode === 'bug'      ? '分运动①：虫子动（绳子固定不动）' :
+                                           '分运动②：绳子动（虫子不爬，随绳运动）', 20, 30);
+
+  /* 参考水平线（过出发点高度），仅在合运动模式显示 */
+  if(motionMode === 'combined'){
+    const refY = pxY(-L*Math.cos(TH0));
+    ctx.save(); ctx.setLineDash([6,6]); ctx.strokeStyle = '#adb5bd'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(20,refY); ctx.lineTo(CW-20,refY); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = '#868e96'; ctx.font = '12px sans-serif';
+    ctx.fillText('参考水平线（过出发点）', 30, refY-6);
+  }
+
+  /* 竖直参考虚线 */
+  ctx.save(); ctx.setLineDash([3,5]); ctx.strokeStyle = '#ced4da';
+  ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(CX,CY+L*S+24); ctx.stroke(); ctx.restore();
+
+  /* 记录点连线与记录点 */
+  if(trail.length > 1){
+    ctx.strokeStyle = 'rgba(224,49,49,0.75)'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for(let i=0;i<trail.length;i++){
+      const X = pxX(trail[i].x), Y = pxY(trail[i].y);
+      i ? ctx.lineTo(X,Y) : ctx.moveTo(X,Y);
+    }
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#e8590c';
+  for(const p of trail){ ctx.beginPath(); ctx.arc(pxX(p.x), pxY(p.y), 3, 0, 7); ctx.fill(); }
+
+  /* 摆角弧线 */
+  ctx.strokeStyle = '#868e96'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(CX,CY,44, Math.PI/2-th, Math.PI/2); ctx.stroke();
+  ctx.fillStyle = '#868e96';
+  ctx.fillText('θ', CX+Math.sin(th/2)*58+3, CY+Math.cos(th/2)*58+3);
+
+  /* 绳与摆球 */
+  ctx.strokeStyle = '#495057'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(CX,CY); ctx.lineTo(bx,by); ctx.stroke();
+  ctx.fillStyle = '#6c757d'; ctx.beginPath(); ctx.arc(bx,by,14,0,7); ctx.fill();
+  ctx.fillStyle = '#495057'; ctx.font = '12px sans-serif';
+  ctx.fillText('摆球', bx+17, by+4);
+
+  /* 悬点 */
+  ctx.fillStyle = '#212529'; ctx.beginPath(); ctx.arc(CX,CY,4,0,7); ctx.fill();
+  ctx.fillText('悬点O', CX+9, CY-8);
+
+  /* 虫子（毛毛虫，头朝悬点） */
+  drawCaterpillar(px, py);
+  ctx.fillStyle = '#558b2f'; ctx.font = '12px sans-serif';
+  ctx.fillText('虫子', px+12, py+18);
+
+  if(motionMode === 'combined'){
+    /* 平行四边形辅助线 */
+    if(showPara){
+      const t1x = px+c.v1x*K, t1y = py-c.v1y*K;
+      const t2x = px+c.v2x*K, t2y = py-c.v2y*K;
+      const tvx = px+c.vx*K,  tvy = py-c.vy*K;
+      ctx.save(); ctx.setLineDash([4,4]); ctx.strokeStyle = '#adb5bd'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(t1x,t1y); ctx.lineTo(tvx,tvy); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(t2x,t2y); ctx.lineTo(tvx,tvy); ctx.stroke();
+      ctx.restore();
+    }
+    /* 三个速度矢量 */
+    drawVector(px,py, c.v1x,c.v1y, '#1a9e4b', 'v₁ 沿绳');
+    drawVector(px,py, c.v2x,c.v2y, '#2166d1', 'v₂ 垂直绳');
+    drawVector(px,py, c.vx, c.vy,  '#e03131', 'v 合速度', 3);
+  }else if(motionMode === 'bug'){
+    /* 分运动①：只画沿绳分速度（绳固定） */
+    const thA = TH0*Math.cos(W*t), OmA = TH0*W*Math.sin(W*t);
+    const uu = r*OmA*Math.tan(thA);
+    drawVector(px,py, -uu*Math.sin(TH0), uu*Math.cos(TH0), '#1a9e4b', 'v₁ 沿绳（爬行）', 3);
+  }else{
+    /* 分运动②：只画垂直绳分速度（随绳摆动） */
+    const Om = TH0*W*Math.sin(W*t);
+    drawVector(px,py, -L*Om*Math.cos(th), -L*Om*Math.sin(th), '#2166d1', 'v₂ 垂直绳（随绳）', 3);
+  }
+}
+
+/* ================= 推进与渲染 ================= */
+function update(dtw){
+  if(playing && !ended){
+    let sim = dtw*timeScale;
+    while(sim > 1e-12 && t < T4){
+      const h = Math.min(H, sim, T4-t);
+      if(motionMode === 'bug') stepBugOnly(h);
+      else if(motionMode === 'rope') stepRopeOnly(h);
+      else step(h);
+      sim -= h;
+      if(t - lastRec >= REC_DT - 1e-12){
+        trail.push({t:t, x:x, y:y}); lastRec = t;   // 记录轨迹点（画布上的橙色点与连线）
+      }
+    }
+    cur = compute();
+    if(t >= T4 - 1e-12){
+      ended = true;
+      if(T4 - trail[trail.length-1].t > 1e-6){
+        trail.push({t:T4, x:x, y:y});
+      }
+    }
+  }
+}
+function render(){ draw(); }
+
+/* ================= 控件 ================= */
+const btnPlay = document.getElementById('btnPlay');
+btnPlay.onclick = function(){ playing = !playing; btnPlay.textContent = playing ? '暂停' : '播放'; };
+document.getElementById('btnReset').onclick = function(){
+  reset(); playing = true; btnPlay.textContent = '暂停';
+};
+const speed = document.getElementById('speed');
+speed.oninput = function(){
+  timeScale = speed.value/100;
+  document.getElementById('speedVal').textContent = timeScale.toFixed(2)+'×';
+};
+document.getElementById('chkPara').onchange = function(){ showPara = this.checked; };
+
+/* 三种演示模式：合运动 / 虫子动（绳不动）/ 绳子动（虫不爬） */
+const modeBtns = {
+  combined: document.getElementById('btnModeComb'),
+  bug:      document.getElementById('btnModeBug'),
+  rope:     document.getElementById('btnModeRope')
+};
+function setMode(m){
+  motionMode = m;
+  for(const k in modeBtns) modeBtns[k].classList.toggle('ghost', k !== m);
+  reset(); playing = true; btnPlay.textContent = '暂停';
+}
+modeBtns.combined.onclick = function(){ setMode('combined'); };
+modeBtns.bug.onclick      = function(){ setMode('bug'); };
+modeBtns.rope.onclick     = function(){ setMode('rope'); };
+
+reset();
+return {update:update, render:render};
+})();
+
+/* ################################################################
+   模块二：人拉船
+   ################################################################ */
+const boatSim = (function(){
+"use strict";
+/* ================= 物理参数 ================= */
+const S = 430;                          // 比例尺 px/m
+const CW = 1240, CH = 700;              // 画布逻辑尺寸
+const CLIFF_X = 460;                    // 崖壁（岸边缘）x
+const TOP_Y = 140;                      // 崖顶地面 y
+const WATER_Y = 470;                    // 水面 y
+const PUL = {x: CLIFF_X, y: 126};       // 定滑轮中心
+const h = (WATER_Y - PUL.y)/S;          // 滑轮距水面高度 m（= 0.8）
+const s0 = 1.5;                         // 船初始到崖壁水平距离 m
+const TH_STOP = 70*Math.PI/180;         // 演示终止角
+const L0 = Math.hypot(s0, h);           // 初始绳长（滑轮→船）
+const L_STOP = h/Math.sin(TH_STOP);     // θ=70° 时的绳长
+const H = 0.0005;                       // 积分步长 s
+const K = 70;                           // 速度箭头比例尺 px/(m/s)
+let u = 0.5, timeScale = 0.5;           // 人速（收绳速率）、播放速度
+
+/* ================= 画布 ================= */
+const cv = document.getElementById('bCv'), ctx = cv.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+cv.width = CW*dpr; cv.height = CH*dpr;
+cv.style.width = CW+'px'; cv.style.height = CH+'px';
+ctx.setTransform(dpr,0,0,dpr,0,0);
+
+/* ================= 状态 ================= */
+let t, L, cur;
+let playing = true, ended = false;
+
+function compute(){
+  const s = Math.sqrt(Math.max(L*L - h*h, 1e-12));   // 船到崖壁距离
+  const th = Math.atan2(h, s);                       // 绳与水面夹角
+  return {s:s, th:th, v:u*L/s, vpar:u, vperp:u*h/s}; // v = u/cosθ，v⊥ = u·tanθ
+}
+
+function reset(){
+  t = 0; L = L0; ended = false; cur = compute();
+  document.getElementById('b_conclusion').hidden = true;
+}
+
+/* 约束驱动：dL/dt = −u（解析意义下严格），s = √(L²−h²) */
+function update(dtw){
+  if(playing && !ended){
+    let sim = dtw*timeScale;
+    while(sim > 1e-12 && !ended){
+      const hh = Math.min(H, sim);
+      L -= u*hh; t += hh; sim -= hh;
+      if(L <= L_STOP){ L = L_STOP; ended = true; }
+    }
+    cur = compute();
+    if(ended){
+      const cc = document.getElementById('b_conclusion');
+      cc.innerHTML = '✓ θ 达到 70°：船速 v = u/cosθ ≈ '+cur.v.toFixed(2)+
+        ' m/s，已是人速的 '+(1/Math.cos(cur.th)).toFixed(1)+' 倍；θ→90° 时 v→∞，故到此停止。';
+      cc.hidden = false;
+    }
+  }
+}
+
+/* ================= 绘图 ================= */
+function arrow(x1,y1,x2,y2,color,lw){
+  const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy);
+  if(len<3) return;
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lw||2.5;
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+  const a=Math.atan2(dy,dx), ah=9;
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-ah*Math.cos(a-0.42), y2-ah*Math.sin(a-0.42));
+  ctx.lineTo(x2-ah*Math.cos(a+0.42), y2-ah*Math.sin(a+0.42));
+  ctx.closePath(); ctx.fill();
+}
+
+function draw(){
+  ctx.clearRect(0,0,CW,CH);
+  const c = cur;
+  const bx = CLIFF_X + c.s*S;                 // 船中心 x
+  const bowX = bx - 48, bowY = WATER_Y + 2;   // 船头（系绳处）
+
+  /* 湖水（平静） */
+  ctx.fillStyle = '#cfeef9'; ctx.fillRect(CLIFF_X, WATER_Y, CW-CLIFF_X, CH-WATER_Y);
+  ctx.strokeStyle = '#8fd0e8'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(CLIFF_X, WATER_Y); ctx.lineTo(CW, WATER_Y); ctx.stroke();
+  ctx.strokeStyle = 'rgba(127,188,212,0.7)'; ctx.lineWidth = 1;
+  for(let i=0;i<6;i++){
+    const wy = WATER_Y + 34 + i*26;
+    ctx.beginPath();
+    for(let x = CLIFF_X + 18 + (i*13)%40; x < CW-30; x += 90){
+      ctx.moveTo(x, wy); ctx.quadraticCurveTo(x+14, wy-6, x+28, wy);
+    }
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#5b8fa8'; ctx.font = '13px sans-serif';
+  ctx.fillText('湖水（平静）', CLIFF_X+22, WATER_Y+30);
+
+  /* 悬崖（岸） */
+  ctx.fillStyle = '#cbb79e'; ctx.fillRect(0, TOP_Y, CLIFF_X, CH-TOP_Y);
+  ctx.fillStyle = '#b3a288'; ctx.fillRect(CLIFF_X-6, TOP_Y, 6, CH-TOP_Y);
+  ctx.fillStyle = '#7fae5a'; ctx.fillRect(0, TOP_Y-4, CLIFF_X, 6);
+  ctx.fillStyle = '#5d5346'; ctx.font = '13px sans-serif';
+  ctx.fillText('悬崖', CLIFF_X-58, TOP_Y+44);
+
+  /* 绳：人手 → 滑轮 → 船头（深灰色，与绿色 v∥ 箭头明显区分） */
+  const personX = CLIFF_X - (0.03 + (L0 - L))*S;   // 人向左走，位移 = 收绳长度
+  const hand = {x: personX + 16, y: TOP_Y - 26};
+  ctx.strokeStyle = '#495057'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(hand.x, hand.y); ctx.lineTo(PUL.x, PUL.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(PUL.x, PUL.y); ctx.lineTo(bowX, bowY); ctx.stroke();
+
+  /* 定滑轮（支架 + 轮） */
+  ctx.strokeStyle = '#495057'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(CLIFF_X-2, TOP_Y); ctx.lineTo(PUL.x, PUL.y+9); ctx.stroke();
+  ctx.fillStyle = '#dee2e6'; ctx.beginPath(); ctx.arc(PUL.x, PUL.y, 9, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#343a40'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#343a40'; ctx.beginPath(); ctx.arc(PUL.x, PUL.y, 2.5, 0, 7); ctx.fill();
+  ctx.fillStyle = '#343a40'; ctx.font = '12px sans-serif';
+  ctx.fillText('定滑轮', PUL.x+14, PUL.y-4);
+
+  /* 人（简笔画，面朝滑轮，向左行走） */
+  const walked = (L0 - L)*S, swing = 7*Math.sin(walked/16);
+  const hipY = TOP_Y-30, shY = TOP_Y-62, headY = TOP_Y-76;
+  ctx.strokeStyle = '#212529'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(personX, headY, 10, 0, 7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(personX, headY+10); ctx.lineTo(personX, hipY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(personX, hipY); ctx.lineTo(personX-8+swing, TOP_Y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(personX, hipY); ctx.lineTo(personX+8-swing, TOP_Y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(personX, shY); ctx.lineTo(hand.x, hand.y); ctx.stroke();
+  ctx.fillStyle = '#212529'; ctx.font = '12px sans-serif';
+  ctx.fillText('人（向左走）', personX-26, TOP_Y-94);
+
+  /* 小船 */
+  ctx.fillStyle = '#a9713d';
+  ctx.beginPath();
+  ctx.moveTo(bx-48, WATER_Y+2); ctx.lineTo(bx+48, WATER_Y+2);
+  ctx.lineTo(bx+33, WATER_Y+26); ctx.lineTo(bx-33, WATER_Y+26);
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle = '#6f4a24'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#6f4a24'; ctx.fillRect(bx-34, WATER_Y-6, 68, 8);
+  ctx.fillStyle = '#495057'; ctx.font = '12px sans-serif';
+  ctx.fillText('小船', bx-14, WATER_Y+46);
+
+  /* ==== 速度平行四边形（随船实时变化）：v∥、v⊥ 为邻边，v 为对角线 ==== */
+  const O = {x: bowX, y: bowY};                 // 矢量起点：绳与船的接触点（船头）
+  let dx = PUL.x - O.x, dy = PUL.y - O.y;       // 沿绳指向滑轮（单位向量）
+  const dl = Math.hypot(dx, dy); dx/=dl; dy/=dl;
+  const qx = dy, qy = -dx;                      // 垂直绳方向（v⊥ 一侧）
+  const Ax = O.x + dx*c.vpar*K,  Ay = O.y + dy*c.vpar*K;    // v∥ 终点
+  const Cx = O.x + qx*c.vperp*K, Cy = O.y + qy*c.vperp*K;   // v⊥ 终点
+  const Bx = O.x - c.v*K, By = O.y;                         // v  终点（水平向左）
+  /* 平行四边形辅助线 */
+  ctx.save(); ctx.setLineDash([4,4]); ctx.strokeStyle = '#adb5bd'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(Ax, Ay); ctx.lineTo(Bx, By); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(Cx, Cy); ctx.lineTo(Bx, By); ctx.stroke();
+  ctx.restore();
+  /* 三个矢量同起点 */
+  arrow(O.x, O.y, Ax, Ay, '#1a9e4b', 3.5);      // v∥ 沿绳（加粗绿色，与深灰绳区分）
+  arrow(O.x, O.y, Cx, Cy, '#2166d1');           // v⊥ 垂直绳
+  arrow(O.x, O.y, Bx, By, '#e03131', 3);        // v  船速（真实速度）
+  ctx.font = '12px sans-serif';
+  ctx.fillStyle = '#1a9e4b'; ctx.fillText('v∥ 沿绳=人速', (O.x+Ax)/2-20, (O.y+Ay)/2-10);
+  ctx.fillStyle = '#2166d1'; ctx.fillText('v⊥ 垂直绳', Cx-12, Cy+16);
+  ctx.fillStyle = '#e03131'; ctx.fillText('v 船速', Bx-6, By+16);
+}
+
+/* ================= 读数与渲染 ================= */
+function setTxt(id, txt){ document.getElementById(id).textContent = txt; }
+function render(){
+  draw();
+}
+
+/* ================= 控件 ================= */
+const bBtnPlay = document.getElementById('bBtnPlay');
+bBtnPlay.onclick = function(){ playing = !playing; bBtnPlay.textContent = playing ? '暂停' : '移动'; };
+document.getElementById('bBtnReset').onclick = function(){
+  reset(); playing = true; bBtnPlay.textContent = '暂停';
+};
+const bSpeed = document.getElementById('bSpeed');
+bSpeed.oninput = function(){
+  timeScale = bSpeed.value/100;
+  setTxt('bSpeedVal', timeScale.toFixed(2)+'×');
+};
+const bU = document.getElementById('bU');
+bU.oninput = function(){
+  u = bU.value/100;
+  setTxt('bUVal', u.toFixed(2)+' m/s');
+  cur = compute();
+};
+
+reset();
+return {update:update, render:render};
+})();
+
+/* ################################################################
+   模式切换与主循环
+   ################################################################ */
+let mode = 'boat';
+const stage = document.getElementById('stage');
+const stageCompare = document.getElementById('stageCompare');
+const simbugEl = document.getElementById('simbug');
+const simboatEl = document.getElementById('simboat');
+
+function showMode(m){
+  mode = m;
+  const tabs = document.querySelectorAll('#tabbar button');
+  for(const b of tabs) b.classList.toggle('active', b.dataset.mode === m);
+  if(m === 'compare'){
+    stage.hidden = true; stageCompare.hidden = false;
+    document.getElementById('cellBoat').appendChild(simboatEl);
+    document.getElementById('cellBug').appendChild(simbugEl);
+  }else{
+    stageCompare.hidden = true; stage.hidden = false;
+    const showEl = m === 'bug' ? simbugEl : simboatEl;
+    const hideEl = m === 'bug' ? simboatEl : simbugEl;
+    stage.appendChild(showEl);
+    hideEl.remove();          // 把另一个动画从 DOM 摘除，保证同一时刻只显示指定页面
+  }
+}
+const tabBtns = document.querySelectorAll('#tabbar button');
+for(const b of tabBtns) b.onclick = function(){ showMode(b.dataset.mode); };
+
+let prev = performance.now();
+function frame(now){
+  const dtw = Math.min((now-prev)/1000, 0.05); prev = now;
+  if(mode !== 'boat'){ bugSim.update(dtw);  bugSim.render();  }
+  if(mode !== 'bug' ){ boatSim.update(dtw); boatSim.render(); }
+  requestAnimationFrame(frame);
+}
+
+/* 初始：虫子爬绳模块挂到对比栏的右格（隐藏），人拉船已在主舞台 */
+document.getElementById('cellBug').appendChild(simbugEl);
+showMode('boat');
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
