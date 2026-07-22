@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>曲线运动中速度的方向：割线 → 切线</title>
+<style>
+  body {
+    margin: 0; min-height: 100vh; background: #eef1f5;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h2 { margin: 14px 0 4px; color: #2c3e50; font-size: 20px; }
+  #flow { margin: 0 0 10px; font-size: 15px; color: #7f8c8d; }
+  #flow .blue { color: #2980b9; font-weight: bold; }
+  #flow .red { color: #c0392b; font-weight: bold; }
+  #main {
+    display: flex; gap: 14px; align-items: flex-start; justify-content: center;
+    flex-wrap: wrap; max-width: 98vw;
+  }
+  canvas {
+    background: #fdfdfd; border-radius: 12px; max-width: 96vw;
+    box-shadow: 0 4px 18px rgba(0,0,0,.12);
+  }
+  button {
+    padding: 7px 20px; border: none; border-radius: 18px; cursor: pointer;
+    background: #2980b9; color: #fff; font-size: 14px;
+  }
+  button:hover { background: #3498db; }
+  /* ---- 右侧解释面板 ---- */
+  #right {
+    width: 360px; background: #fff; border-radius: 12px; padding: 12px 16px;
+    box-shadow: 0 2px 10px rgba(0,0,0,.08); color: #34495e; font-size: 14px;
+  }
+  #right h3 { margin: 2px 0 10px; font-size: 16px; color: #2c3e50; }
+  #calc { background: #f6f8fa; border-radius: 8px; padding: 10px 14px; }
+  #dxShow { font-size: 19px; margin-bottom: 6px; }
+  #dxShow b { color: #2980b9; font-size: 26px; }
+  #dyShow { font-size: 17px; margin-bottom: 8px; }
+  #dyShow span { color: #2980b9; font-weight: bold; }
+  #fracRow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 16px; }
+  .frac { display: inline-flex; flex-direction: column; text-align: center; }
+  .frac .num { border-bottom: 2px solid #34495e; padding: 0 6px 2px; }
+  .frac .den { padding: 2px 6px 0; }
+  #fracRow .eq { font-size: 18px; }
+  #cRes { font-size: 24px; font-weight: bold; color: #c0392b; }
+  @keyframes flash { 0% { background: #ffeaa7; } 100% { background: transparent; } }
+  .flash { animation: flash .7s ease-out; border-radius: 6px; }
+  #series { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13.5px; }
+  #series th, #series td { border: 1px solid #e8edf1; padding: 4px 6px; text-align: center; }
+  #series th { background: #f6f8fa; color: #2c3e50; }
+  #series tbody tr { cursor: pointer; }
+  #series tbody tr:hover { background: #f2f7fb; }
+  #series tr.cur { background: #eaf4fd; font-weight: bold; }
+  #series tr.last { color: #c0392b; font-weight: bold; }
+  #seqBtns { margin-top: 10px; display: flex; align-items: center; gap: 10px; }
+  #seqBtns .tip { font-size: 12px; color: #95a5a6; }
+</style>
+</head>
+<body>
+<h2>曲线运动中速度的方向：割线 → 切线（x = t²）</h2>
+<p id="flow"><span class="blue">割线的斜率（表示平均速度）</span> → <span class="red">切线的斜率（瞬时速度）</span></p>
+<div id="main">
+  <canvas id="cv" width="740" height="660"></canvas>
+  <div id="right">
+    <h3>Δx / Δt：从平均速度到瞬时速度</h3>
+    <div id="calc">
+      <div id="dxShow">Δt = t<sub>B</sub> − t<sub>A</sub> = <b id="cDx">2</b></div>
+      <div id="dyShow">Δx = <span id="cDy">(1+2)² − 1² = 9 − 1 = 8</span></div>
+      <div id="fracRow">
+        <span>Δx/Δt =</span>
+        <span class="frac">
+          <span class="num" id="cNum1">(1+2)² − 1²</span>
+          <span class="den" id="cDen1">2</span>
+        </span>
+        <span class="eq">=</span>
+        <span class="frac">
+          <span class="num" id="cNum2">8</span>
+          <span class="den" id="cDen2">2</span>
+        </span>
+        <span class="eq">=</span>
+        <span id="cRes">4</span>
+      </div>
+    </div>
+    <table id="series">
+      <thead><tr><th>Δt</th><th>Δx = (1+Δt)² − 1²</th><th>Δx / Δt</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="seqBtns">
+      <button id="btnSeq">▶ 自动演示</button>
+      <span class="tip">点击表格任意行，B 跳到对应位置</span>
+    </div>
+  </div>
+</div>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const $ = id => document.getElementById(id);
+
+// ---- 坐标变换（数学坐标 → 像素坐标）----
+const SCALE = 62;            // 1 个单位 = 62 像素
+const OX = W / 2;            // 原点 O 的像素 x
+const OY = H - 60;           // 原点 O 的像素 y
+const X_MIN = -2.7, X_MAX = 3.0;   // B 点允许的活动范围（横坐标 t）
+
+const XA = 1, YA = 1;        // 固定点 A(1, 1)，即 t=1 时位移 x=1
+const EPS = 0.03;            // |tB - tA| 小于此值判定为 A、B 重合
+
+let xB = 3;                  // B 点横坐标 t（初始对应表格第一行 Δt=2）
+let dragging = false;        // 是否正在拖拽 B
+let lastDir = null;          // 重合前割线的方向，用于画"消失"的虚线
+let seqTimer = null, seqIdx = 0;   // Δt 序列自动演示
+
+const f = x => x * x;
+const px = x => OX + x * SCALE;
+const py = y => OY - y * SCALE;
+const mx = X => (X - OX) / SCALE;
+const fmt = v => String(parseFloat(v.toFixed(4)));   // 数值显示：最多 4 位小数并去尾零
+
+// ---- Δt 递减序列（最后一项 0 表示取极限）----
+const STEPS = [2, 1, 0.5, 0.4, 0.3, 0.2, 0.1, 0.05, 0];
+
+// ---- 画一条过点 (x0,y0)、方向 (dx,dy) 的直线（自动裁剪到画布）----
+function lineThrough(x0, y0, dx, dy, color, width, dash) {
+  const p0x = px(x0), p0y = py(y0);
+  const ddx = dx * SCALE, ddy = -dy * SCALE;
+  let tMin = -Infinity, tMax = Infinity;
+  if (Math.abs(ddx) > 1e-9) {
+    const t1 = (0 - p0x) / ddx, t2 = (W - p0x) / ddx;
+    tMin = Math.max(tMin, Math.min(t1, t2));
+    tMax = Math.min(tMax, Math.max(t1, t2));
+  }
+  if (Math.abs(ddy) > 1e-9) {
+    const t1 = (0 - p0y) / ddy, t2 = (H - p0y) / ddy;
+    tMin = Math.max(tMin, Math.min(t1, t2));
+    tMax = Math.min(tMax, Math.max(t1, t2));
+  }
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = width;
+  if (dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  ctx.moveTo(p0x + ddx * tMin, p0y + ddy * tMin);
+  ctx.lineTo(p0x + ddx * tMax, p0y + ddy * tMax);
+  ctx.stroke();
+  ctx.restore();
+}
+
+// ---- 直线上标签的位置：从 A 沿方向 (dx,dy) 延伸到画布边缘附近（远离曲线）----
+function lineLabelPos(dx, dy) {
+  const p0x = px(XA), p0y = py(YA);
+  const ddx = dx * SCALE, ddy = -dy * SCALE;
+  let t = Infinity;
+  if (Math.abs(ddx) > 1e-9) t = Math.min(t, ((ddx > 0 ? W - 60 : 20) - p0x) / ddx);
+  if (Math.abs(ddy) > 1e-9) t = Math.min(t, ((ddy > 0 ? H - 20 : 36) - p0y) / ddy);
+  return [p0x + ddx * t, p0y + ddy * t];
+}
+
+// ---- 网格与坐标轴 ----
+function drawGrid() {
+  const xL = Math.ceil((0 - OX) / SCALE), xR = Math.floor((W - OX) / SCALE);
+  const yLo = Math.ceil((OY - H) / SCALE), yHi = Math.floor(OY / SCALE);
+  ctx.strokeStyle = '#eceff1'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let i = xL; i <= xR; i++) { ctx.moveTo(px(i), 0); ctx.lineTo(px(i), H); }
+  for (let j = yLo; j <= yHi; j++) { ctx.moveTo(0, py(j)); ctx.lineTo(W, py(j)); }
+  ctx.stroke();
+  // 坐标轴
+  ctx.strokeStyle = '#95a5a6'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, py(0)); ctx.lineTo(W - 8, py(0));          // t 轴
+  ctx.lineTo(W - 16, py(0) - 5); ctx.moveTo(W - 8, py(0)); ctx.lineTo(W - 16, py(0) + 5);
+  ctx.moveTo(px(0), H); ctx.lineTo(px(0), 8);              // x 轴
+  ctx.lineTo(px(0) - 5, 16); ctx.moveTo(px(0), 8); ctx.lineTo(px(0) + 5, 16);
+  ctx.stroke();
+  ctx.fillStyle = '#7f8c8d'; ctx.font = '12px "Microsoft YaHei"';
+  ctx.fillText('t', W - 14, py(0) + 18);
+  ctx.fillText('x', px(0) + 10, 16);
+  ctx.fillText('O', px(0) - 16, py(0) + 16);
+  for (let i = xL; i <= xR; i++) if (i !== 0) ctx.fillText(i, px(i) - 3, py(0) + 16);
+  for (let j = Math.max(yLo, 1); j <= yHi; j++) ctx.fillText(j, px(0) - 16, py(j) + 4);
+}
+
+// ---- 曲线 x = t² ----
+function drawCurve() {
+  ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  let started = false;
+  for (let X = 0; X <= W; X += 2) {
+    const x = mx(X), y = f(x);
+    if (py(y) < -4) { started = false; continue; }
+    if (!started) { ctx.moveTo(X, py(y)); started = true; }
+    else ctx.lineTo(X, py(y));
+  }
+  ctx.stroke();
+  ctx.fillStyle = '#2c3e50'; ctx.font = 'italic 15px "Times New Roman", serif';
+  ctx.fillText('x = t²', px(2.15), py(f(2.15)) - 10);
+}
+
+// ---- 点（带标签）----
+function drawPoint(x, y, color, label, lx, ly) {
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(px(x), py(y), 6.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = color; ctx.font = 'bold 16px "Microsoft YaHei"';
+  ctx.fillText(label, px(x) + lx, py(y) + ly);
+}
+
+// ---- A 点速度矢量（沿切线方向）----
+function drawVelArrow() {
+  let vx = 1, vy = 2 * XA;
+  const n = Math.hypot(vx, vy); vx /= n; vy /= n;
+  const L = 1.15;
+  const x1 = px(XA), y1 = py(YA);
+  const x2 = px(XA + vx * L), y2 = py(YA + vy * L);
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - 13 * Math.cos(ang - 0.42), y2 - 13 * Math.sin(ang - 0.42));
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - 13 * Math.cos(ang + 0.42), y2 - 13 * Math.sin(ang + 0.42));
+  ctx.stroke();
+  ctx.fillStyle = '#e74c3c'; ctx.font = 'bold italic 19px "Times New Roman", serif';
+  ctx.fillText('v', x2 + 8, y2 - 6);
+}
+
+// ---- 由 A、B 构成的直角三角形，标注 Δt、Δx ----
+function drawTriangle(xB, yB) {
+  const ax = px(XA), ay = py(YA);
+  const bx = px(xB), by = py(yB);
+  const cx = bx, cy = ay;              // 直角顶点 C = (tB, xA)
+  // 三角形内部浅色填充
+  ctx.fillStyle = 'rgba(230,126,34,.10)';
+  ctx.beginPath();
+  ctx.moveTo(ax, ay); ctx.lineTo(cx, cy); ctx.lineTo(bx, by);
+  ctx.closePath(); ctx.fill();
+  // 两条直角边
+  ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(ax, ay); ctx.lineTo(cx, cy);   // 水平边 = |Δt|
+  ctx.lineTo(bx, by);                        // 竖直边 = |Δx|
+  ctx.stroke();
+  // 直角标记
+  const s = 10;
+  const sx = Math.sign(ax - cx), sy = Math.sign(by - cy);
+  ctx.beginPath();
+  ctx.moveTo(cx + sx * s, cy);
+  ctx.lineTo(cx + sx * s, cy + sy * s);
+  ctx.lineTo(cx, cy + sy * s);
+  ctx.stroke();
+  // 标注（直角边太短时省略文字，避免拥挤）
+  ctx.fillStyle = '#e67e22'; ctx.font = 'bold italic 15px "Times New Roman", serif';
+  if (Math.abs(cx - ax) > 34) ctx.fillText('Δt', (ax + cx) / 2 - 8, ay + (by < ay ? 20 : -8));
+  if (Math.abs(by - cy) > 34) ctx.fillText('Δx', bx + (bx > ax ? 8 : -24), (by + cy) / 2 + 5);
+}
+
+// ---- 圆角矩形（用于重合时的文字底板）----
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// ---- A、B 重合时显示结论文案 ----
+function drawCoincidentText() {
+  const lines = [
+    '当 Δt 无限趋于 0 时，割线变成切线',
+    '斜率的大小无限趋近于一个确定的值，这个值就是瞬时速度的大小'
+  ];
+  ctx.font = '16px "Microsoft YaHei"';
+  let w = 0;
+  for (const s of lines) w = Math.max(w, ctx.measureText(s).width);
+  const bw = w + 32, bh = 60, bx = (W - bw) / 2, by = 12;
+  ctx.fillStyle = 'rgba(255,255,255,.92)';
+  roundRect(bx, by, bw, bh, 10); ctx.fill();
+  ctx.strokeStyle = '#e74c3c'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#c0392b'; ctx.textAlign = 'center';
+  ctx.fillText(lines[0], W / 2, by + 24);
+  ctx.fillText(lines[1], W / 2, by + 46);
+  ctx.textAlign = 'left';
+}
+
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+  drawGrid();
+  drawCurve();
+
+  const yB = f(xB);
+  const dxv = xB - XA, dyv = yB - YA;
+  const coincident = Math.abs(dxv) < EPS;
+  if (!coincident) lastDir = [dxv, dyv];
+
+  // 割线 AB（重合时变为灰色虚线：两点才能确定一条直线，此时它就是切线）
+  if (!coincident) {
+    drawTriangle(xB, yB);
+    lineThrough(XA, YA, dxv, dyv, '#2980b9', 2.5);
+    ctx.fillStyle = '#2980b9'; ctx.font = 'bold 20px "Microsoft YaHei"';
+    const [gx, gy] = lineLabelPos(dxv, dyv);
+    ctx.fillText('割线', gx, gy);
+  } else {
+    const d = lastDir || [1, 2 * XA];
+    lineThrough(XA, YA, d[0], d[1], '#95a5a6', 2.5, [10, 8]);
+    ctx.fillStyle = '#7f8c8d'; ctx.font = 'bold 20px "Microsoft YaHei"';
+    const [tx, ty] = lineLabelPos(d[0], d[1]);
+    ctx.fillText('切线', tx, ty);
+  }
+
+  // 重合瞬间：速度矢量沿割线的极限方向（即切线方向）出现
+  if (coincident) drawVelArrow();
+
+  // 点 A、B
+  drawPoint(XA, YA, '#e74c3c', 'A', 12, 20);
+  if (!coincident) {
+    drawPoint(xB, yB, '#2980b9', 'B', 10, -10);
+  } else {
+    ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(px(XA), py(YA), 13, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = '#c0392b'; ctx.font = 'bold 14px "Microsoft YaHei"';
+    ctx.fillText('A、B 重合', px(XA) - 84, py(YA) - 16);
+  }
+
+  if (coincident) drawCoincidentText();
+}
+
+// ---- 右侧：Δt 序列表格 ----
+const tbody = document.querySelector('#series tbody');
+STEPS.forEach((dx, i) => {
+  const tr = document.createElement('tr');
+  if (dx === 0) {
+    tr.innerHTML = '<td>→ 0</td><td>→ 0</td><td>→ 2（极限）</td>';
+    tr.className = 'last';
+  } else {
+    const dy = (1 + dx) ** 2 - 1;
+    tr.innerHTML = `<td>${fmt(dx)}</td><td>${fmt(dy)}</td><td>${fmt(dy / dx)}</td>`;
+  }
+  tr.addEventListener('click', () => { stopSeq(); applyStep(i); });
+  tbody.appendChild(tr);
+});
+
+function applyStep(i) {
+  seqIdx = i;
+  xB = XA + STEPS[i];
+  // Δt 变化时让分式闪一下，提示数值已更新
+  for (const el of [$('dxShow'), $('dyShow'), $('fracRow')]) {
+    el.classList.remove('flash');
+    void el.offsetWidth;            // 重新触发动画
+    el.classList.add('flash');
+  }
+}
+function stopSeq() {
+  if (seqTimer) {
+    clearInterval(seqTimer);
+    seqTimer = null;
+    $('btnSeq').textContent = '▶ 自动演示';
+  }
+}
+
+// ---- 右侧面板数值与表格高亮 ----
+function updatePanel() {
+  const dxv = xB - XA;
+  const dyv = f(xB) - YA;
+  const coincident = Math.abs(dxv) < EPS;
+
+  if (coincident) {
+    $('cDx').textContent = '0';
+    $('cDy').textContent = '(1+0)² − 1² = 0';
+    $('cNum1').textContent = '(1+0)² − 1²';
+    $('cDen1').textContent = '0';
+    $('cNum2').textContent = '0';
+    $('cDen2').textContent = '0';
+    $('cRes').textContent = '不存在';
+  } else {
+    const term = dxv < 0 ? `(1−${fmt(-dxv)})` : `(1+${fmt(dxv)})`;
+    $('cDx').textContent = fmt(dxv);
+    $('cDy').textContent = `${term}² − 1² = ${fmt((1 + dxv) ** 2)} − 1 = ${fmt(dyv)}`;
+    $('cNum1').textContent = `${term}² − 1²`;
+    $('cDen1').textContent = fmt(dxv);
+    $('cNum2').textContent = fmt(dyv);
+    $('cDen2').textContent = fmt(dxv);
+    $('cRes').textContent = fmt(dyv / dxv);
+  }
+  // 表格行高亮：当前 Δt 与某行一致时
+  for (let i = 0; i < tbody.children.length; i++) {
+    tbody.children[i].classList.toggle('cur', Math.abs(dxv - STEPS[i]) < 1e-9);
+  }
+}
+
+// ---- 交互 ----
+$('btnSeq').onclick = () => {
+  if (seqTimer) { stopSeq(); return; }
+  applyStep(0);
+  $('btnSeq').textContent = '⏸ 暂停';
+  seqTimer = setInterval(() => {
+    if (seqIdx >= STEPS.length - 1) { stopSeq(); return; }
+    applyStep(seqIdx + 1);
+  }, 1600);
+};
+window.addEventListener('pointerup', () => dragging = false);
+
+function evPos(e) {
+  const r = cv.getBoundingClientRect();
+  return [(e.clientX - r.left) * (W / r.width), (e.clientY - r.top) * (H / r.height)];
+}
+function nearB(X, Y) {
+  return Math.hypot(X - px(xB), Y - py(f(xB))) < 18;
+}
+cv.addEventListener('mousedown', e => {
+  const [X, Y] = evPos(e);
+  if (nearB(X, Y)) {
+    stopSeq();
+    dragging = true;
+  }
+});
+cv.addEventListener('mousemove', e => {
+  const [X, Y] = evPos(e);
+  cv.style.cursor = nearB(X, Y) ? 'pointer' : 'default';
+  if (dragging) xB = Math.max(X_MIN, Math.min(X_MAX, mx(X)));
+});
+cv.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  const [X, Y] = evPos(t);
+  if (nearB(X, Y)) {
+    stopSeq();
+    dragging = true;
+    e.preventDefault();
+  }
+}, { passive: false });
+cv.addEventListener('touchmove', e => {
+  if (dragging) {
+    const [X] = evPos(e.touches[0]);
+    xB = Math.max(X_MIN, Math.min(X_MAX, mx(X)));
+    e.preventDefault();
+  }
+}, { passive: false });
+cv.addEventListener('touchend', () => dragging = false);
+
+// ---- 主循环 ----
+function loop() {
+  if (Math.abs(xB - XA) < EPS) xB = XA;  // 吸附重合
+  draw();
+  updatePanel();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
