@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小船过河：速度的合成与分解</title>
+<style>
+  body {
+    margin: 0; min-height: 100vh; background: #eef1f5;
+    font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+  }
+  h2 { margin: 14px 0 2px; color: #2c3e50; font-size: 20px; }
+  .sub { margin: 0 0 8px; color: #7f8c8d; font-size: 13px; }
+  .wrap { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; justify-content: center; }
+  .panel { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+  .canvas-panel { padding: 10px; }
+  canvas { display: block; background: #fdfdfd; border-radius: 8px; max-width: 95vw; }
+  .info { width: 290px; padding: 16px 18px; font-size: 13px; color: #34495e; }
+  .info h3 { margin: 0 0 10px; font-size: 15px; color: #2c3e50; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 0; }
+  .row label { flex: 1; }
+  input[type=range] { vertical-align: middle; width: 120px; }
+  .val { display: inline-block; min-width: 42px; color: #2980b9; font-weight: bold; font-family: Consolas, monospace; text-align: right; }
+  .ck { display: flex; align-items: center; gap: 6px; margin: 7px 0; cursor: pointer; user-select: none; }
+  .ck input { width: 16px; height: 16px; cursor: pointer; }
+  button {
+    padding: 8px 20px; border: none; border-radius: 18px; cursor: pointer;
+    background: #2980b9; color: #fff; font-size: 14px;
+  }
+  button:hover { background: #3498db; }
+  #btnReset { background: #7f8c8d; }
+  #btnReset:hover { background: #95a5a6; }
+  .btns { display: flex; gap: 10px; margin: 12px 0; }
+  hr { border: none; border-top: 1px solid #eceff1; margin: 10px 0; }
+  .phase { color: #c0392b; font-weight: bold; margin: 4px 0; line-height: 1.5; }
+  .note { color: #667; font-size: 12px; line-height: 1.55; margin-top: 6px; }
+  .mono { font-family: Consolas, monospace; }
+</style>
+</head>
+<body>
+<h2>小船过河：速度的合成与分解</h2>
+<p class="sub">水流向右恒定；改变船在静水中的速度大小与船头朝向，点击「过河」观察合运动</p>
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <canvas id="cv" width="880" height="580"></canvas>
+  </div>
+  <div class="panel info">
+    <h3>控制与读数</h3>
+    <div class="row"><label>船速 v<sub>船</sub> <input type="range" id="sVb" min="0.5" max="8" step="0.1" value="3"></label><span class="val" id="vVb">3.0</span>m/s</div>
+    <div class="row"><label>船头朝向 θ <input type="range" id="sTh" min="5" max="175" step="1" value="90"></label><span class="val" id="vTh">90°</span></div>
+    <div class="row"><label>动画速度 <input type="range" id="sSp" min="0.25" max="2" step="0.25" value="1"></label><span class="val" id="vSp">1.0×</span></div>
+    <label class="ck"><input type="checkbox" id="cVel"> 显示速度合成矢量三角形</label>
+    <label class="ck"><input type="checkbox" id="cDis"> 显示位移合成矢量三角形</label>
+    <div class="btns">
+      <button id="btnPlay">过河</button>
+      <button id="btnReset">重置</button>
+    </div>
+    <hr>
+    <div class="row"><span>水流速度 v<sub>水</sub></span><span class="val">2.0 m/s（向右）</span></div>
+    <div class="row"><span>河宽 d</span><span class="val">100 m</span></div>
+    <div class="row"><span>合速度 v<sub>合</sub></span><span class="val" id="rVc">— m/s</span></div>
+    <div class="row"><span>　x 分量 / y 分量</span><span class="val" id="rVxy">— / —</span></div>
+    <div class="row"><span>过河时间 t</span><span class="val" id="rT">— s</span></div>
+    <div class="row"><span>下游漂移 x</span><span class="val" id="rX">— m</span></div>
+    <hr>
+    <div class="phase" id="rPhase">　</div>
+    <p class="note">θ 为船头中心线与河岸（下游方向）的夹角：90° 垂直河岸，&gt;90° 船头偏上游，&lt;90° 船头偏向下游。勾选矢量三角形可直观看到 v水 + v船 = v合（速度图）与对应位移图相似。</p>
+  </div>
+</div>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+const $ = id => document.getElementById(id);
+
+// ---- 物理参数（题目要求固定）----
+const vW = 2.0;        // 水流速度 m/s（向右，恒定）
+const d = 100;         // 河宽 m（固定）
+let vB = 3.0;          // 船在静水中的速度（可调）
+let theta = 90;        // 船头朝向角（度）：船头中心线与河岸（下游方向）的夹角，90°=垂直河岸指向对岸
+
+// ---- 派生量 ----
+let sinT, cosT, vbx, vby, vcx, vcy, vcMag, tCross, xDrift, canCross;
+function recompute() {
+  sinT = Math.sin(theta * Math.PI / 180);
+  cosT = Math.cos(theta * Math.PI / 180);
+  vbx = vB * cosT;     // 船速沿河岸分量（>0 偏下游，<0 偏上游）
+  vby = vB * sinT;     // 船速垂直河岸分量（指向对岸）
+  vcx = vW + vbx;      // 合速度 x 分量
+  vcy = vby;           // 合速度 y 分量
+  vcMag = Math.hypot(vcx, vcy);
+  if (vcy > 1e-6) {    // 必须有指向对岸的速度分量才能过河
+    canCross = true;
+    tCross = d / vcy;
+    xDrift = vcx * tCross;
+  } else {
+    canCross = false;
+    tCross = Infinity;
+    xDrift = NaN;
+  }
+}
+recompute();
+
+// ---- 坐标变换 ----
+const startX = 150;            // 起点像素 x（近岸）
+const nearY = H - 70;          // 近岸水线像素 y
+const farY = 70;               // 远岸水线像素 y
+const waterPx = nearY - farY;  // 河宽对应像素
+const pxPerM = waterPx / d;    // 像素/米
+const X = xm => startX + xm * pxPerM;
+const Y = ym => nearY - ym * pxPerM;
+
+// ---- 状态 ----
+let simT = 0, playing = false, timeScale = 1, lastTs = null;
+let showVel = false, showDis = false;
+
+// 任意时刻状态：返回船的位置（米）
+function stateAt(t) {
+  if (!canCross) return { x: 0, y: 0, done: false };
+  let y = vcy * t;
+  let done = false;
+  if (y >= d) { y = d; done = true; }
+  const x = vcx * t;
+  return { x, y, done };
+}
+
+// ---- 情景分类 ----
+function classify() {
+  if (!canCross) return '船头朝向使船无法指向对岸（sinθ ≤ 0，即 θ ≤ 0° 或 ≥ 180°），请调整 θ';
+  if (Math.abs(theta - 90) < 1e-6) return '① 船头垂直河岸（θ=90°）：过河时间最短（t = d / v船），但被水流冲向下游';
+  if (vB > vW + 1e-6 && Math.abs(cosT + vW / vB) < 0.015) return '② 船头偏上游恰当角度（cosθ = −v水/v船）：合速度垂直河岸，垂直过河、路径最短（x=0）';
+  if (vB < vW - 1e-6) return '③ 船速 < 水速：无法垂直过河，必被冲向下游（x>0）';
+  if (vB > vW + 1e-6 && theta > 90) return '船头偏上游（θ>90°）：可减小下游漂移；当 cosθ = −v水/v船 时恰好垂直过河';
+  return '船头偏向下游（θ<90°）：过河时间变长，下游漂移增大';
+}
+
+// ---- 绘图工具 ----
+function drawArrow(x1, y1, x2, y2, color, label, labelDy) {
+  ctx.strokeStyle = ctx.fillStyle = color;
+  ctx.lineWidth = 2.5;
+  if (Math.hypot(x2 - x1, y2 - y1) < 3) {
+    ctx.beginPath(); ctx.arc(x1, y1, 3, 0, 7); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - 11 * Math.cos(ang - 0.42), y2 - 11 * Math.sin(ang - 0.42));
+    ctx.lineTo(x2 - 11 * Math.cos(ang + 0.42), y2 - 11 * Math.sin(ang + 0.42));
+    ctx.closePath(); ctx.fill();
+  }
+  if (label) {
+    ctx.font = 'bold 13px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText(label, (x1 + x2) / 2, (y1 + y2) / 2 + (labelDy || -10));
+  }
+}
+function dashedLine(x1, y1, x2, y2, color, lw) {
+  ctx.strokeStyle = color; ctx.lineWidth = lw || 1; ctx.setLineDash([5, 4]);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// ---- 主绘制 ----
+function draw() {
+  const st = stateAt(simT);
+  ctx.clearRect(0, 0, W, H);
+
+  // 远岸（对岸）草地
+  ctx.fillStyle = '#d5e8c8';
+  ctx.fillRect(0, 0, W, farY);
+  // 近岸草地
+  ctx.fillStyle = '#d5e8c8';
+  ctx.fillRect(0, nearY, W, H - nearY);
+  // 河水
+  ctx.fillStyle = '#bfe0f5';
+  ctx.fillRect(0, farY, W, nearY - farY);
+
+  // 水流波纹（向右流动）
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 2;
+  const phase = (simT * vW * pxPerM) % 70;
+  for (let yy = farY + 22; yy < nearY - 10; yy += 28) {
+    for (let xx = -70 + phase; xx < W; xx += 70) {
+      ctx.beginPath();
+      ctx.moveTo(xx, yy);
+      ctx.quadraticCurveTo(xx + 18, yy - 5, xx + 36, yy);
+      ctx.stroke();
+    }
+  }
+
+  // 河岸边界线
+  ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(0, farY); ctx.lineTo(W, farY); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, nearY); ctx.lineTo(W, nearY); ctx.stroke();
+
+  // 河宽标注 d（左侧竖直括号）
+  ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(46, farY); ctx.lineTo(38, farY); ctx.lineTo(38, nearY); ctx.lineTo(46, nearY);
+  ctx.stroke();
+  ctx.fillStyle = '#2c3e50'; ctx.font = '13px "Microsoft YaHei"';
+  ctx.textAlign = 'center';
+  ctx.save();
+  ctx.translate(26, (farY + nearY) / 2); ctx.rotate(-Math.PI / 2);
+  ctx.fillText('河宽 d = ' + d + ' m', 0, 0);
+  ctx.restore();
+
+  // 水流速度箭头（水域中部）
+  const flowY = (farY + nearY) / 2;
+  drawArrow(W / 2 - 60, flowY, W / 2 + 60, flowY, '#2980b9', 'v水 = ' + vW.toFixed(1) + ' m/s（恒定向右）', -10);
+
+  // 起点标记
+  const sx = X(0), sy = Y(0);
+  ctx.fillStyle = '#27ae60';
+  ctx.beginPath(); ctx.arc(sx, sy, 6, 0, 7); ctx.fill();
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(sx, sy, 6, 0, 7); ctx.stroke();
+  ctx.fillStyle = '#27ae60'; ctx.font = 'bold 12px "Microsoft YaHei"'; ctx.textAlign = 'center';
+  ctx.fillText('起点', sx, nearY + 30);
+
+  // 出发前标注 θ 角（船头中心线与左侧河岸夹角），出发后不再显示
+  const atStart = simT <= 1e-6;
+  if (atStart && canCross) {
+    // 沿左侧河岸（上游方向）的参考线段
+    const refLen = 70;
+    dashedLine(sx, sy, sx - refLen, sy, '#95a5a6', 1.5);
+    // 角度圆弧（从船头方向扫到左侧河岸方向，经过“朝向对岸”一侧）
+    const r = 36;
+    const headAng = (180 - theta) * Math.PI / 180; // 船头在屏幕坐标的方向（屏幕 y 朝下）
+    const leftAng = Math.PI;                       // 左侧河岸（−x）方向
+    ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(sx, sy, r, headAng, leftAng, true);    // 逆时针从船头扫到左岸，必经过上方
+    ctx.stroke();
+    // 角度标签：放在角平分线方向
+    ctx.fillStyle = '#e67e22'; ctx.font = 'bold 14px "Microsoft YaHei"'; ctx.textAlign = 'center';
+    const labA = (headAng + leftAng) / 2;
+    const lpx = sx + (r + 14) * Math.cos(labA);
+    const lpy = sy + (r + 14) * Math.sin(labA);
+    ctx.fillText('θ=' + theta + '°', lpx, lpy + 5);
+  }
+
+  // 落点标记与辅助线（可过河时）
+  if (canCross) {
+    const ex = X(xDrift), ey = Y(d);
+    dashedLine(ex, farY, ex, nearY, '#e67e22', 1.5);
+    ctx.fillStyle = '#e67e22';
+    ctx.beginPath(); ctx.arc(ex, ey, 6, 0, 7); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(ex, ey, 6, 0, 7); ctx.stroke();
+    ctx.fillStyle = '#e67e22'; ctx.font = 'bold 12px "Microsoft YaHei"'; ctx.textAlign = 'center';
+    ctx.fillText('落点', ex, farY - 18);
+    // 起点→落点 预测航迹（虚线）
+    dashedLine(sx, sy, ex, ey, '#95a5a6', 1.5);
+  }
+
+  // 已走航迹（实线，起点→船位）
+  const bx = X(st.x), by = Y(st.y);
+
+  // 位移合成矢量三角形（默认隐藏，勾选时显示）
+  if (showDis && canCross) {
+    // 位移图：起点 → 水流带动位移(s水=v水·t，沿x) → 实际位移 s合
+    const sWx = vW * simT;          // 水流使船产生的位移 x（米）
+    const sWy = 0;
+    const sBx = vbx * simT;         // 船相对水的位移
+    const sBy = vby * simT;
+    // 用起点为基点画三角形
+    const p0x = sx, p0y = sy;
+    const p1x = X(sWx), p1y = Y(sWy);             // 水流带到的点
+    const p2x = X(sWx + sBx), p2y = Y(sWy + sBy); // 实际位移终点
+    drawArrow(p0x, p0y, p1x, p1y, '#2980b9', 's水 = v水·t', -12);
+    drawArrow(p1x, p1y, p2x, p2y, '#e67e22', 's船 = v船·t', -12);
+    drawArrow(p0x, p0y, p2x, p2y, '#8e44ad', 's合 = v合·t', -22);
+    // 小标题
+    ctx.fillStyle = '#8e44ad'; ctx.font = 'bold 12px "Microsoft YaHei"'; ctx.textAlign = 'left';
+    ctx.fillText('位移合成三角形', sx - 6, sy - 110);
+  }
+
+  // 航迹（实线）
+  ctx.strokeStyle = '#8e44ad'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(bx, by); ctx.stroke();
+
+  // 小船（在船位绘制，带船头指向）
+  drawBoat(bx, by, theta);
+
+  // 速度合成矢量三角形（默认隐藏，勾选时显示）
+  if (showVel) {
+    // 以船位为起点：v水(沿x) + v船(沿船头) = v合
+    const sc = 14; // px / (m/s)
+    const a0x = bx + 26, a0y = by - 30;
+    const a1x = a0x + vW * sc, a1y = a0y;             // 水流速度终点
+    const a2x = a1x + vbx * sc, a2y = a1y - vby * sc; // 合速度终点（v船从a1出发）
+    drawArrow(a0x, a0y, a1x, a1y, '#2980b9', 'v水', -12);
+    drawArrow(a1x, a1y, a2x, a2y, '#e67e22', 'v船', -12);
+    drawArrow(a0x, a0y, a2x, a2y, '#c0392b', 'v合', -22);
+    ctx.fillStyle = '#c0392b'; ctx.font = 'bold 12px "Microsoft YaHei"'; ctx.textAlign = 'left';
+    ctx.fillText('速度合成三角形', a0x, a0y - 36);
+  }
+
+  // 结束提示
+  if (st.done && !playing) {
+    ctx.fillStyle = 'rgba(44,62,80,0.85)';
+    ctx.beginPath(); ctx.roundRect(W / 2 - 170, 24, 340, 40, 10); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 15px "Microsoft YaHei"'; ctx.textAlign = 'center';
+    ctx.fillText('已到达对岸！点击「过河」可重新演示', W / 2, 49);
+  }
+}
+
+// 绘制小船：俯视，船头朝向 angDeg（0°=向上即指向对岸 -y）
+function drawBoat(cx, cy, angDeg) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate((90 - angDeg) * Math.PI / 180); // θ=90° 船头朝上（指向对岸）；<90° 偏向下游，>90° 偏向上游
+
+  // ---- 船壳（深色木船，船头尖、船尾圆）----
+  ctx.fillStyle = '#8b4513'; ctx.strokeStyle = '#3d1c06'; ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(0, -28);                          // 船头尖端
+  ctx.quadraticCurveTo(15, -19, 14, 3);        // 右舷前段
+  ctx.quadraticCurveTo(14, 20, 7, 25);         // 右舷到船尾
+  ctx.quadraticCurveTo(0, 28, -7, 25);         // 船尾弧线
+  ctx.quadraticCurveTo(-14, 20, -14, 3);       // 左舷后段
+  ctx.quadraticCurveTo(-15, -19, 0, -28);      // 左舷前段回船头
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // ---- 船舱内（浅色甲板）----
+  ctx.fillStyle = '#deb887';
+  ctx.beginPath();
+  ctx.moveTo(0, -20);
+  ctx.quadraticCurveTo(9, -13, 8.5, 3);
+  ctx.quadraticCurveTo(8.5, 15, 3.5, 19);
+  ctx.lineTo(-3.5, 19);
+  ctx.quadraticCurveTo(-8.5, 15, -8.5, 3);
+  ctx.quadraticCurveTo(-9, -13, 0, -20);
+  ctx.closePath(); ctx.fill();
+
+  // ---- 船板横向木纹 ----
+  ctx.strokeStyle = 'rgba(93,46,14,0.35)'; ctx.lineWidth = 0.8;
+  for (let yy = -11; yy <= 15; yy += 5) {
+    ctx.beginPath();
+    ctx.moveTo(-8.5, yy); ctx.lineTo(8.5, yy); ctx.stroke();
+  }
+
+  // ---- 座板（横跨船舱的木板）----
+  ctx.fillStyle = '#6b3410'; ctx.strokeStyle = '#3d1c06'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(-9, -1.5, 18, 4, 2);
+  ctx.fill(); ctx.stroke();
+
+  // ---- 船头方向虚线指示 ----
+  ctx.strokeStyle = '#e67e22'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+  ctx.beginPath(); ctx.moveTo(0, -28); ctx.lineTo(0, -52); ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.restore();
+}
+
+// ---- 读数更新 ----
+function updateReadout() {
+  if (!canCross) {
+    $('rVc').textContent = '—';
+    $('rVxy').textContent = '— / —';
+    $('rT').textContent = '∞';
+    $('rX').textContent = '—';
+  } else {
+    $('rVc').textContent = vcMag.toFixed(2) + ' m/s';
+    $('rVxy').textContent = vcx.toFixed(2) + ' / ' + vcy.toFixed(2);
+    $('rT').textContent = tCross.toFixed(2) + ' s';
+    $('rX').textContent = xDrift.toFixed(1) + ' m';
+  }
+  $('rPhase').textContent = classify();
+}
+
+// ---- 控件绑定 ----
+const btnPlay = $('btnPlay'), btnReset = $('btnReset');
+btnPlay.onclick = () => {
+  if (!canCross) { alert('当前船头朝向无法过河（船头不指向对岸），请调整船头朝向！'); return; }
+  if (simT >= tCross) { simT = 0; }
+  playing = true; btnPlay.textContent = '暂停';
+};
+btnReset.onclick = () => { simT = 0; playing = false; btnPlay.textContent = '过河'; };
+function bindSlider(id, vid, fmt, fn) {
+  const s = $(id), v = $(vid);
+  s.oninput = () => { v.textContent = fmt(+s.value); fn(+s.value); };
+}
+bindSlider('sVb', 'vVb', x => x.toFixed(1), x => { vB = x; recompute(); btnReset.onclick(); updateReadout(); });
+bindSlider('sTh', 'vTh', x => x + '°', x => { theta = x; recompute(); btnReset.onclick(); updateReadout(); });
+bindSlider('sSp', 'vSp', x => (x.toFixed(2).replace(/0+$/, '').replace(/\.$/, '.0')) + '×', x => { timeScale = x; });
+$('cVel').onchange = e => { showVel = e.target.checked; };
+$('cDis').onchange = e => { showDis = e.target.checked; };
+
+// ?t= 查询参数定位（可选）
+const qt = parseFloat(new URLSearchParams(location.search).get('t'));
+if (isFinite(qt) && canCross) { simT = Math.min(Math.max(qt, 0), tCross); }
+
+updateReadout();
+
+function frame(ts) {
+  if (lastTs == null) lastTs = ts;
+  const dt = Math.min(0.05, (ts - lastTs) / 1000);
+  lastTs = ts;
+  if (playing) {
+    simT += dt * timeScale;
+    if (canCross && simT >= tCross) { simT = tCross; playing = false; btnPlay.textContent = '过河'; }
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
