@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>力的合成与分解（三个演示）</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;margin:0;padding:16px;color:#222;}
+  h1{font-size:18px;margin:0 0 10px;}
+  .tabbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .tabbar button{font:inherit;font-size:14px;padding:6px 14px;border:1px solid #cdd5df;background:#fff;border-radius:8px;cursor:pointer;}
+  .tabbar button:hover{border-color:#7aa8d8;background:#f3f8ff;}
+  .tabbar button.active{background:#2f6fb2;color:#fff;border-color:#2f6fb2;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .wrap{display:flex;gap:16px;flex-wrap:nowrap;align-items:flex-start;width:100%;max-width:calc(100vw - 32px);}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:10px;}
+  .panel.canvas-panel{flex:1 1 auto;min-width:0;}
+  .cap{text-align:center;font-size:13px;color:#556;margin-bottom:6px;}
+  canvas{display:block;background:#fff;max-width:100%;height:auto;}
+  .info{flex:0 0 300px;width:300px;font-size:13px;line-height:1.9;}
+  .info hr{border:none;border-top:1px dashed #ccd;}
+  .info b{font-size:14px;}
+  button,select,input{font:inherit;padding:4px 12px;cursor:pointer;}
+  .val{font-family:Consolas,monospace;color:#124;font-weight:bold;}
+  .note{font-size:12px;color:#667;}
+  .ctrl{margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px;}
+  .ctrl input[type=range]{flex:1 1 260px;max-width:560px;padding:0;cursor:pointer;}
+  .playBtn{background:#2f6fb2;color:#fff;border:none;border-radius:6px;min-width:76px;}
+  .ok{color:#1e8e3e;font-weight:bold;}
+  .warn{color:#c0392b;font-weight:bold;}
+  .plotbox{text-align:center;margin-top:6px;}
+  .plotbox canvas{border:1px solid #dde3ea;border-radius:6px;display:inline-block;}
+</style>
+</head>
+<body>
+<h1>力的合成与分解</h1>
+<div class="tabbar">
+  <button data-tab="t1" class="active">① 夹角改变，合力改变</button>
+  <button data-tab="t2">② 合力不变，对称两分力</button>
+  <button data-tab="t3">③ 分解的解的讨论（30°）</button>
+</div>
+
+<!-- ============ 演示一：两分力大小不变，改变夹角 ============ -->
+<section id="tab-t1" class="tab active">
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cap">F₁ = 30 N、F₂ = 50 N 大小保持不变，夹角 θ 从 0° 转到 360°：合力大小在 |F₁−F₂| 与 F₁+F₂ 之间变化</div>
+    <canvas id="cv1" width="900" height="500"></canvas>
+    <div class="ctrl">
+      <span>夹角 θ：</span>
+      <input type="range" id="t1Slider" min="0" max="360" step="1" value="90">
+      <span class="val" id="t1Theta">90</span><span>°</span>
+      <button id="t1Play" class="playBtn">▶ 播放</button>
+      <button id="t1Reset">重置</button>
+      <span class="note">θ = 0°（即 360°）时两力同向，合力最大；θ = 180° 时两力反向，合力最小</span>
+    </div>
+  </div>
+  <div class="info panel">
+    <b>合力随夹角的变化</b>
+    <hr>
+    <div>F₁ = <span class="val">30</span> N（蓝色，固定）</div>
+    <div>F₂ = <span class="val">50</span> N（绿色，固定）</div>
+    <div>夹角 θ = <span class="val" id="t1Theta2">90</span>°</div>
+    <hr>
+    <div>合力 R = √(F₁²+F₂²+2F₁F₂cosθ)</div>
+    <div>R = <span class="val" id="t1R">58.3</span> N</div>
+    <div>R 的方向（与 F₁ 夹角）φ = <span class="val" id="t1Phi">59.0</span>°</div>
+    <div id="t1Extreme" class="note"></div>
+    <hr>
+    <div class="note">结论：两分力大小不变时，合力大小只随夹角变化：θ=0°（即360°）时两力同向，R = F₁+F₂ = 80 N 最大；θ=180° 时两力反向，R = |F₁−F₂| = 20 N 最小；|F₁−F₂| ≤ R ≤ F₁+F₂。θ 与 360°−θ 的合力大小相等，方向关于 F₁ 对称。</div>
+    <div class="plotbox">
+      <canvas id="t1Plot" width="260" height="170"></canvas>
+      <div class="note">R 随 θ 变化的曲线（红点为当前状态）</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 演示二：合力固定竖直向下，两个对称分力 ============ -->
+<section id="tab-t2" class="tab">
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cap">合力 F = 60 N 竖直向下且保持不变；两个分力以 F 为轴对称，各与 F 成角 θ。θ 越大，分力越大</div>
+    <canvas id="cv2" width="900" height="500"></canvas>
+    <div class="ctrl">
+      <span>分力与合力的夹角 θ：</span>
+      <input type="range" id="t2Slider" min="0" max="75" step="1" value="30">
+      <span class="val" id="t2Theta">30</span><span>°</span>
+      <button id="t2Play" class="playBtn">▶ 播放</button>
+      <button id="t2Reset">重置</button>
+      <span class="note">两分力夹角为 2θ；θ 接近 90° 时分力趋于无穷大（本演示取 θ ≤ 75°）。播放时每经过 15° 会留下一个灰色历史平行四边形，便于前后对比</span>
+    </div>
+  </div>
+  <div class="info panel">
+    <b>对称分解：分力随夹角变化</b>
+    <hr>
+    <div>合力 F = <span class="val">60</span> N（竖直向下，红色）</div>
+    <div>θ = <span class="val" id="t2Theta2">30</span>°（分力与合力夹角）</div>
+    <div>两分力夹角 2θ = <span class="val" id="t2TwoTheta">60</span>°</div>
+    <hr>
+    <div>由对称性 F₁ = F₂，且 2F₁cosθ = F</div>
+    <div>F₁ = F₂ = F / (2cosθ)</div>
+    <div>F₁ = F₂ = <span class="val" id="t2F">34.6</span> N</div>
+    <hr>
+    <div class="note">结论：合力一定时，两个对称分力的夹角越大，分力就越大；夹角越小，分力越接近合力的一半（F/2 = 30 N）。这就是"晾衣绳绷得越平，绳上拉力越大"的道理。</div>
+    <div class="plotbox">
+      <canvas id="t2Plot" width="260" height="170"></canvas>
+      <div class="note">分力大小随 θ 变化的曲线（红点为当前状态）</div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 演示三：已知合力、一分力方向（30°）、另一分力大小 ============ -->
+<section id="tab-t3" class="tab">
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cap">合力 F = 60 N 大小方向不变；分力 F₂ 方向不变（与 F 夹角 30°）；分力 F₁ 大小可调、方向可变——用滑块改变 |F₁|，看力的三角形与平行四边形的解</div>
+    <canvas id="cv3" width="900" height="540"></canvas>
+    <div class="ctrl">
+      <span>|F₁|：</span>
+      <input type="range" id="t3Slider" min="10" max="100" step="1" value="45">
+      <span class="val" id="t3A">45</span><span>N</span>
+      <button id="t3Play" class="playBtn">▶ 扫描|F₁|</button>
+      <button id="t3Reset">重置</button>
+      <span class="note">以 F 末端为圆心、|F₁| 为半径作圆，圆与 F₂ 方向射线的交点决定解的个数；也可以直接用手（或鼠标）拖动交点的彩色圆点，沿 F₂ 方向滑动来改变 |F₁|</span>
+    </div>
+  </div>
+  <div class="info panel">
+    <b>解的个数讨论</b>
+    <hr>
+    <div>合力 F = <span class="val">60</span> N（水平向右）</div>
+    <div>F₂ 方向：与 F 成 <span class="val">30</span>°（不变）</div>
+    <div>F·sin30° = <span class="val">30</span> N（|F₁| 的最小值）</div>
+    <div>|F₁| = <span class="val" id="t3A2">45</span> N</div>
+    <hr>
+    <div id="t3Status"></div>
+    <div id="t3Sol"></div>
+    <hr>
+    <div class="note">规律：|F₁| &lt; F·sin30° 时无解；|F₁| = F·sin30° 时唯一解（F₁⊥F₂）；F·sin30° &lt; |F₁| &lt; F 时两解；|F₁| ≥ F 时只有一解。绿色箭头为 F₂，蓝色/青色箭头为 F₁，红色为合力 F；细虚线为平行四边形的补线。</div>
+  </div>
+</div>
+</section>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ 通用绘图工具 ============ */
+function arrow(ctx,x1,y1,x2,y2,color,w,label,lx,ly,dash){
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.save();
+  if(dash)ctx.setLineDash(dash);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w||2;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.restore();
+  const hl=9+(w||2)*1.6;
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-hl*Math.cos(ang-0.42),y2-hl*Math.sin(ang-0.42));
+  ctx.lineTo(x2-hl*Math.cos(ang+0.42),y2-hl*Math.sin(ang+0.42));
+  ctx.closePath();ctx.fill();
+  if(label){
+    ctx.font="bold 14px 'Microsoft YaHei'";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(label,lx!==undefined?lx:(x1+x2)/2,ly!==undefined?ly:(y1+y2)/2);
+  }
+}
+function seg(ctx,x1,y1,x2,y2,color,w,dash){
+  ctx.save();
+  if(dash)ctx.setLineDash(dash);
+  ctx.strokeStyle=color;ctx.lineWidth=w||1.5;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.restore();
+}
+function dot(ctx,x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+function txt(ctx,s,x,y,color,size,bold,align){
+  ctx.fillStyle=color;ctx.font=(bold?"bold ":"")+(size||13)+"px 'Microsoft YaHei'";
+  ctx.textAlign=align||"center";ctx.textBaseline="middle";ctx.fillText(s,x,y);
+}
+/* 画夹角弧：数学角（逆时针为正，y轴向上），中心(cx,cy)为屏幕坐标 */
+function angleArc(ctx,cx,cy,r,a1,a2,color,label){
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(cx,cy,r,-a1*Math.PI/180,-a2*Math.PI/180,a2>a1);ctx.stroke();
+  if(label){
+    const mid=(a1+a2)/2*Math.PI/180;
+    txt(ctx,label,cx+(r+16)*Math.cos(mid),cy-(r+16)*Math.sin(mid),color,13,true);
+  }
+}
+const RAD=Math.PI/180;
+
+/* ============ 标签页切换 ============ */
+let curTab="t1";
+const tabBtns=document.querySelectorAll(".tabbar button");
+function setTab(id){
+  curTab=id;
+  tabBtns.forEach(b=>b.classList.toggle("active",b.dataset.tab===id));
+  document.querySelectorAll(".tab").forEach(s=>s.classList.toggle("active",s.id==="tab-"+id));
+}
+tabBtns.forEach(b=>b.addEventListener("click",()=>{setTab(b.dataset.tab);history.replaceState(null,"","#"+b.dataset.tab);}));
+const hashParts=(location.hash||"").replace("#","").split("&");
+const hp={};hashParts.slice(1).forEach(p=>{const kv=p.split("=");if(kv.length===2)hp[kv[0]]=kv[1];});
+if(["t1","t2","t3"].indexOf(hashParts[0])>=0)setTab(hashParts[0]);
+
+/* ============================================================
+   演示一：F₁=30N、F₂=50N 不变，夹角 θ 从 0° 到 180°
+   R = √(F₁²+F₂²+2F₁F₂cosθ)，从 |F₁−F₂|=20N 到 F₁+F₂=80N
+   ============================================================ */
+const t1={
+  cv:document.getElementById("cv1"),ctx:null,
+  slider:document.getElementById("t1Slider"),
+  theta:90,playing:false,
+  F1:30,F2:50,K:4.2,                    /* K: 1N 对应 4.2 px */
+  OX:320,OY:260,                        /* 原点 O 居中，便于 F₂ 转满 360° */
+  init(){
+    this.ctx=this.cv.getContext("2d");
+    const self=this;
+    this.slider.addEventListener("input",()=>{self.theta=+self.slider.value;self.playing=false;self.playBtn().textContent="▶ 播放";});
+    this.playBtn().addEventListener("click",()=>{self.playing=!self.playing;this.textContent=self.playing?"⏸ 暂停":"▶ 播放";});
+    document.getElementById("t1Reset").addEventListener("click",()=>{self.theta=90;self.playing=false;self.playBtn().textContent="▶ 播放";});
+  },
+  playBtn(){return document.getElementById("t1Play");},
+  update(dt){
+    if(!this.playing)return;
+    this.theta+=45*dt;                            /* 每秒转 45°，满 360° 循环 */
+    if(this.theta>=360)this.theta-=360;
+    this.slider.value=Math.round(this.theta);
+  },
+  render(){
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.clearRect(0,0,W,H);
+    const th=this.theta*RAD,K=this.K,ox=this.OX,oy=this.OY;
+    /* F1 沿 0°（向右）；F2 与 F1 成 θ（逆时针，向上偏） */
+    const ax=ox+this.F1*K,ay=oy;                                   /* F1 末端 */
+    const bx=ox+this.F2*K*Math.cos(th),by=oy-this.F2*K*Math.sin(th);/* F2 末端 */
+    const px=ax+(bx-ox),py=ay+(by-oy);                             /* 合力末端 = F1+F2 */
+    /* 网格底色 */
+    ctx.strokeStyle="#eef1f5";ctx.lineWidth=1;
+    for(let x=0;x<=W;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<=H;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+    /* 平行四边形补线（虚线） */
+    seg(ctx,ax,ay,px,py,"#9aa7b5",1.5,[6,5]);
+    seg(ctx,bx,by,px,py,"#9aa7b5",1.5,[6,5]);
+    /* 夹角弧 */
+    if(this.theta>2)angleArc(ctx,ox,oy,52,0,this.theta,"#7a8794","θ");
+    else txt(ctx,"θ = 0°（同向）",ox+150,oy-70,"#7a8794",13,true);
+    /* 三个力 */
+    arrow(ctx,ox,oy,ax,ay,"#2980b9",3,"F₁ = 30 N",(ox+ax)/2,ay+20);
+    arrow(ctx,ox,oy,bx,by,"#27ae60",3,"F₂ = 50 N",(ox+bx)/2-8,(oy+by)/2-16);
+    arrow(ctx,ox,oy,px,py,"#e74c3c",3.5,"",0,0);
+    /* 合力标签放在末端附近 */
+    const Rv=this.R();
+    txt(ctx,"R = "+Rv.toFixed(1)+" N",px,py-16,"#e74c3c",14,true);
+    dot(ctx,ox,oy,5,"#333");
+    txt(ctx,"O",ox-14,oy+14,"#333",13,true);
+    /* 同步信息面板 */
+    document.getElementById("t1Theta").textContent=Math.round(this.theta);
+    document.getElementById("t1Theta2").textContent=Math.round(this.theta);
+    document.getElementById("t1R").textContent=Rv.toFixed(1);
+    document.getElementById("t1Phi").textContent=this.phi().toFixed(1);
+    const ex=document.getElementById("t1Extreme");
+    if(this.theta<=3||this.theta>=357){ex.innerHTML="<span class='ok'>θ = 0°（360°）：两力同向，R = F₁+F₂ = 80 N，最大！</span>";}
+    else if(Math.abs(this.theta-180)<=3){ex.innerHTML="<span class='warn'>θ = 180°：两力反向，R = |F₁−F₂| = 20 N，最小！</span>";}
+    else ex.textContent="";
+    this.plot();
+  },
+  R(){const c=Math.cos(this.theta*RAD);return Math.sqrt(this.F1*this.F1+this.F2*this.F2+2*this.F1*this.F2*c);},
+  phi(){ /* 合力与 F1 的夹角（度） */
+    const th=this.theta*RAD;
+    let y=this.F2*Math.sin(th),x=this.F1+this.F2*Math.cos(th);
+    let a=Math.atan2(y,x)/RAD;if(a<0)a+=360;return a;
+  },
+  plot(){
+    const pc=document.getElementById("t1Plot"),c=pc.getContext("2d");
+    const W=pc.width,H=pc.height,padL=34,padB=26,padT=10,padR=14;
+    c.clearRect(0,0,W,H);
+    const xOf=t=>padL+(W-padL-padR)*t/360, yOf=r=>H-padB-(H-padT-padB)*r/85;
+    c.strokeStyle="#aab";c.lineWidth=1;
+    c.beginPath();c.moveTo(padL,padT);c.lineTo(padL,H-padB);c.lineTo(W-padR,H-padB);c.stroke();
+    c.fillStyle="#667";c.font="11px sans-serif";c.textAlign="center";
+    for(let t=0;t<=360;t+=90)c.fillText(t+"°",xOf(t),H-padB+14);
+    c.textAlign="right";
+    for(let r=0;r<=80;r+=20)c.fillText(r,padL-5,yOf(r)+4);
+    c.save();c.translate(12,70);c.rotate(-Math.PI/2);c.textAlign="center";c.fillText("R / N",0,0);c.restore();
+    /* 最大、最小参考虚线 */
+    c.setLineDash([4,4]);c.strokeStyle="#ccc";
+    c.beginPath();c.moveTo(padL,yOf(80));c.lineTo(W-padR,yOf(80));c.stroke();
+    c.beginPath();c.moveTo(padL,yOf(20));c.lineTo(W-padR,yOf(20));c.stroke();
+    c.setLineDash([]);
+    c.fillStyle="#999";c.textAlign="left";
+    c.fillText("F₁+F₂=80",padL+4,yOf(80)-7);
+    c.fillText("|F₁−F₂|=20",padL+4,yOf(20)-7);
+    /* 曲线 */
+    c.strokeStyle="#e74c3c";c.lineWidth=2;c.beginPath();
+    for(let t=0;t<=360;t+=2){
+      const r=Math.sqrt(900+2500+3000*Math.cos(t*RAD));
+      const x=xOf(t),y=yOf(r);
+      t===0?c.moveTo(x,y):c.lineTo(x,y);
+    }
+    c.stroke();
+    /* 当前点 */
+    const r=this.R();
+    c.fillStyle="#c0392b";c.beginPath();c.arc(xOf(this.theta),yOf(r),5,0,7);c.fill();
+  }
+};
+t1.init();
+
+/* ============================================================
+   演示二：合力 F = 60N 竖直向下不变；两个分力关于 F 对称，
+   各与 F 成角 θ（0~75°）。F₁ = F₂ = F/(2cosθ)，θ 越大分力越大
+   ============================================================ */
+const t2={
+  cv:document.getElementById("cv2"),ctx:null,
+  slider:document.getElementById("t2Slider"),
+  theta:30,playing:false,dir:1,
+  snaps:[],                             /* 播放时记录的历史平行四边形（对比用） */
+  F:60,K:3.0,                        /* 1N = 3 px */
+  OX:450,OY:110,                     /* 作用点 O 在上方，合力向下 */
+  init(){
+    this.ctx=this.cv.getContext("2d");
+    const self=this;
+    this.slider.addEventListener("input",()=>{self.theta=+self.slider.value;self.playing=false;self.playBtn().textContent="▶ 播放";});
+    this.playBtn().addEventListener("click",()=>{self.playing=!self.playing;this.textContent=self.playing?"⏸ 暂停":"▶ 播放";if(self.playing)self.recordNow();});
+    document.getElementById("t2Reset").addEventListener("click",()=>{self.theta=30;self.playing=false;self.playBtn().textContent="▶ 播放";self.snaps=[];});
+  },
+  playBtn(){return document.getElementById("t2Play");},
+  update(dt){
+    if(!this.playing)return;
+    const prev=this.theta;
+    this.theta+=this.dir*22*dt;
+    if(this.theta>=75){this.theta=75;this.dir=-1;}
+    if(this.theta<=0){this.theta=0;this.dir=1;}
+    this.slider.value=Math.round(this.theta);
+    /* 播放经过 0°/15°/.../75° 时记录当前平行四边形，留作对比（跨点检测，与帧率无关） */
+    const cps=[0,15,30,45,60,75];
+    for(const c of cps){
+      const crossed=(prev<c&&this.theta>=c)||(prev>c&&this.theta<=c)||Math.abs(this.theta-c)<1e-6;
+      if(crossed&&!this.snaps.some(s=>s.th===c))this.snaps.push({th:c});
+    }
+  },
+  /* 点击播放时立即记录当前位置（若与已有记录不重复） */
+  recordNow(){
+    const th=Math.round(this.theta);
+    if(!this.snaps.some(s=>Math.abs(s.th-th)<2))this.snaps.push({th:th});
+  },
+  Fc(){return this.F/(2*Math.cos(this.theta*RAD));},   /* 每个分力大小 */
+  render(){
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.clearRect(0,0,W,H);
+    const th=this.theta*RAD,K=this.K,ox=this.OX,oy=this.OY;
+    const L=this.Fc()*K;                                /* 分力箭头长度 px */
+    /* 合力竖直向下：数学角 -90°；分力方向：-90°±θ */
+    const gx=ox,gy=oy+this.F*K;                         /* 合力末端 */
+    const ltx=ox-L*Math.sin(th),lty=oy+L*Math.cos(th);  /* 左分力末端 */
+    const rtx=ox+L*Math.sin(th),rty=oy+L*Math.cos(th);  /* 右分力末端 */
+    /* 网格 */
+    ctx.strokeStyle="#eef1f5";ctx.lineWidth=1;
+    for(let x=0;x<=W;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<=H;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+    /* 历史平行四边形（灰色对比：合力不变，θ 越大分力越长） */
+    this.snaps.forEach(s=>{
+      const sa=s.th*RAD,sL=(this.F/(2*Math.cos(sa)))*K;
+      const slx=ox-sL*Math.sin(sa),sly=oy+sL*Math.cos(sa);
+      const srx=ox+sL*Math.sin(sa),sry=oy+sL*Math.cos(sa);
+      ctx.save();ctx.globalAlpha=0.32;
+      seg(ctx,ox,oy,slx,sly,"#5b7ba0",2);
+      seg(ctx,ox,oy,srx,sry,"#5b7ba0",2);
+      seg(ctx,slx,sly,gx,gy,"#5b7ba0",1.5,[4,4]);
+      seg(ctx,srx,sry,gx,gy,"#5b7ba0",1.5,[4,4]);
+      ctx.restore();
+    });
+    /* 合力延长参考虚线（对称轴） */
+    seg(ctx,ox,oy-40,ox,Math.min(gy+70,H-10),"#c5cdd6",1,[4,5]);
+    /* 菱形（平行四边形）补线 */
+    seg(ctx,ltx,lty,gx,gy,"#9aa7b5",1.5,[6,5]);
+    seg(ctx,rtx,rty,gx,gy,"#9aa7b5",1.5,[6,5]);
+    /* 夹角弧：合力(向下)与两个分力各成 θ */
+    if(this.theta>2){
+      angleArc(ctx,ox,oy,56,-90,-90-this.theta,"#7a8794","θ");
+      angleArc(ctx,ox,oy,70,-90,-90+this.theta,"#7a8794","θ");
+    }
+    /* 三个力 */
+    arrow(ctx,ox,oy,ltx,lty,"#2980b9",3,"F₁",ltx-26,lty-10);
+    arrow(ctx,ox,oy,rtx,rty,"#27ae60",3,"F₂",rtx+26,rty-10);
+    arrow(ctx,ox,oy,gx,gy,"#e74c3c",3.5,"F（不变）",gx+66,gy-4);
+    dot(ctx,ox,oy,5,"#333");
+    txt(ctx,"O",ox-16,oy-6,"#333",13,true);
+    /* 信息面板（画布上不再标注夹角与力的大小，数值集中在这里） */
+    const Fv=this.Fc();
+    /* 信息面板 */
+    document.getElementById("t2Theta").textContent=Math.round(this.theta);
+    document.getElementById("t2Theta2").textContent=Math.round(this.theta);
+    document.getElementById("t2TwoTheta").textContent=Math.round(2*this.theta);
+    document.getElementById("t2F").textContent=Fv.toFixed(1);
+    this.plot();
+  },
+  plot(){
+    const pc=document.getElementById("t2Plot"),c=pc.getContext("2d");
+    const W=pc.width,H=pc.height,padL=36,padB=26,padT=10,padR=10;
+    c.clearRect(0,0,W,H);
+    const maxF=this.F/(2*Math.cos(75*RAD));             /* θ=75° 时的分力 ≈115.9N */
+    const xOf=t=>padL+(W-padL-padR)*t/75, yOf=f=>H-padB-(H-padT-padB)*f/(maxF*1.06);
+    c.strokeStyle="#aab";c.lineWidth=1;
+    c.beginPath();c.moveTo(padL,padT);c.lineTo(padL,H-padB);c.lineTo(W-padR,H-padB);c.stroke();
+    c.fillStyle="#667";c.font="11px sans-serif";c.textAlign="center";
+    for(let t=0;t<=75;t+=25)c.fillText(t+"°",xOf(t),H-padB+14);
+    c.textAlign="right";
+    for(let f=0;f<=100;f+=25)c.fillText(f,padL-5,yOf(f)+4);
+    c.save();c.translate(12,70);c.rotate(-Math.PI/2);c.textAlign="center";c.fillText("F₁ / N",0,0);c.restore();
+    /* F/2 参考线 */
+    c.setLineDash([4,4]);c.strokeStyle="#ccc";
+    c.beginPath();c.moveTo(padL,yOf(30));c.lineTo(W-padR,yOf(30));c.stroke();
+    c.setLineDash([]);c.fillStyle="#999";c.textAlign="left";
+    c.fillText("F/2 = 30（θ=0° 时最小）",padL+4,yOf(30)-7);
+    /* 曲线 */
+    c.strokeStyle="#2980b9";c.lineWidth=2;c.beginPath();
+    for(let t=0;t<=75;t+=1){
+      const f=30/Math.cos(t*RAD),x=xOf(t),y=yOf(f);
+      t===0?c.moveTo(x,y):c.lineTo(x,y);
+    }
+    c.stroke();
+    c.fillStyle="#c0392b";c.beginPath();c.arc(xOf(this.theta),yOf(this.Fc()),5,0,7);c.fill();
+  }
+};
+t2.init();
+
+/* ============================================================
+   演示三：F = 60N 水平向右不变；F₂ 方向不变（与 F 成 30°）；
+   F₁ 大小可调（10~100N）、方向可变。
+   以 F 末端 P 为圆心、|F₁| 为半径作圆，与 F₂ 射线求交点：
+   t = F·cos30° ± √(|F₁|² − (F·sin30°)²)   （t 即 F₂ 的大小）
+   |F₁|<30 无解；|F₁|=30 唯一解(F₁⊥F₂)；30<|F₁|<60 两解；|F₁|≥60 一解
+   ============================================================ */
+const t3={
+  cv:document.getElementById("cv3"),ctx:null,
+  slider:document.getElementById("t3Slider"),
+  A:45,playing:false,dir:1,dragging:false,
+  F:60,K:2.8,
+  OX:300,OY:300,
+  init(){
+    this.ctx=this.cv.getContext("2d");
+    const self=this;
+    this.slider.addEventListener("input",()=>{self.A=+self.slider.value;self.playing=false;self.playBtn().textContent="▶ 扫描|F₁|";});
+    this.playBtn().addEventListener("click",()=>{self.playing=!self.playing;this.textContent=self.playing?"⏸ 暂停":"▶ 扫描|F₁|";});
+    document.getElementById("t3Reset").addEventListener("click",()=>{self.A=45;self.playing=false;self.playBtn().textContent="▶ 扫描|F₁|";});
+    /* ===== 拖动交点 Q（F₁ 与 F₂ 的相接点）：沿 F₂ 方向拖动即改变 |F₁| ===== */
+    const cvEl=this.cv;
+    function pos(ev){
+      const r=cvEl.getBoundingClientRect();
+      const p=ev.touches?ev.touches[0]:ev;
+      return [(p.clientX-r.left)*cvEl.width/r.width,(p.clientY-r.top)*cvEl.height/r.height];
+    }
+    function nearQ(m){
+      const sols=self.solve();
+      for(const s of sols){
+        const q=self.qPos(s);
+        if(Math.hypot(m[0]-q[0],m[1]-q[1])<24)return true;
+      }
+      return false;
+    }
+    function down(ev){
+      const m=pos(ev);
+      if(nearQ(m)){self.dragging=true;self.playing=false;self.playBtn().textContent="▶ 扫描|F₁|";cvEl.style.cursor="grabbing";ev.preventDefault();}
+    }
+    function move(ev){
+      const m=pos(ev);
+      if(self.dragging){
+        const ux=Math.cos(30*RAD),uy=-Math.sin(30*RAD);
+        const tpx=Math.max(0,(m[0]-self.OX)*ux+(m[1]-self.OY)*uy);  /* 手指在 F₂ 方向上的投影 */
+        const tN=tpx/self.K;
+        const a=Math.sqrt(self.F*self.F+tN*tN-2*self.F*tN*Math.cos(30*RAD));
+        self.A=Math.max(10,Math.min(100,a));
+        self.slider.value=Math.round(self.A);
+        ev.preventDefault();
+      }else{
+        cvEl.style.cursor=nearQ(m)?"grab":"default";
+      }
+    }
+    function up(){self.dragging=false;cvEl.style.cursor="default";}
+    cvEl.addEventListener("mousedown",down);
+    cvEl.addEventListener("mousemove",move);
+    window.addEventListener("mouseup",up);
+    cvEl.addEventListener("touchstart",down,{passive:false});
+    cvEl.addEventListener("touchmove",move,{passive:false});
+    window.addEventListener("touchend",up);
+  },
+  playBtn(){return document.getElementById("t3Play");},
+  update(dt){
+    if(!this.playing)return;
+    this.A+=this.dir*16*dt;
+    if(this.A>=100){this.A=100;this.dir=-1;}
+    if(this.A<=10){this.A=10;this.dir=1;}
+    this.slider.value=Math.round(this.A);
+  },
+  /* 交点 Q（F₁ 与 F₂ 的相接点）的屏幕坐标 */
+  qPos(s){const ux=Math.cos(30*RAD),uy=-Math.sin(30*RAD);return [this.OX+s.t*this.K*ux,this.OY+s.t*this.K*uy];},
+  /* 返回解数组：每个解 {t: F₂的大小(N)} */
+  solve(){
+    const Fsin=this.F*Math.sin(30*RAD),Fcos=this.F*Math.cos(30*RAD);
+    const d2=this.A*this.A-Fsin*Fsin;
+    if(d2<-1e-9)return[];
+    const d=Math.sqrt(Math.max(0,d2));
+    const out=[];
+    [Fcos+d,Fcos-d].forEach(t=>{
+      if(t>0.5)out.push({t:t});        /* t≤0.5 视为退化/无效（F₂≈0 或 F₂ 反向） */
+    });
+    return out;
+  },
+  render(){
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.clearRect(0,0,W,H);
+    const K=this.K,ox=this.OX,oy=this.OY;
+    const ux=Math.cos(30*RAD),uy=-Math.sin(30*RAD);     /* B 方向单位向量（屏幕） */
+    const px=ox+this.F*K,py=oy;                          /* F 末端 P */
+    /* 网格 */
+    ctx.strokeStyle="#eef1f5";ctx.lineWidth=1;
+    for(let x=0;x<=W;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<=H;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+    /* B 方向射线（灰色虚线） */
+    seg(ctx,ox,oy,ox+640*ux,oy+640*uy,"#b8c0ca",1.5,[7,6]);
+    txt(ctx,"F₂ 的方向（与 F 夹角 30°，不变）",ox+400,oy-150,"#7a8794",13,true);
+    /* 30° 角弧 */
+    angleArc(ctx,ox,oy,64,0,30,"#7a8794","30°");
+    /* 圆：以 P 为圆心，|A| 为半径 */
+    ctx.save();ctx.setLineDash([6,5]);
+    ctx.strokeStyle="#7fa8d0";ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(px,py,this.A*K,0,7);ctx.stroke();ctx.restore();
+    txt(ctx,"圆半径 |F₁|",px,Math.max(14,py-this.A*K-12),"#7fa8d0",12,true);
+    /* 合力 F */
+    arrow(ctx,ox,oy,px,py,"#e74c3c",3.5,"F = 60 N（大小方向不变）",(ox+px)/2,py+20);
+    dot(ctx,ox,oy,5,"#333");txt(ctx,"O",ox-14,oy+14,"#333",13,true);
+    dot(ctx,px,py,4,"#e74c3c");txt(ctx,"P",px+14,py+14,"#e74c3c",13,true);
+    /* 解 */
+    const sols=this.solve();
+    const colors=[{a:"#2980b9",b:"#27ae60",pa:"#a9cbe8",la:"F₁′",lb:"F₂′"},
+                  {a:"#16a085",b:"#e67e22",pa:"#a3d9cd",la:"F₁″",lb:"F₂″"}];
+    sols.forEach((s,i)=>{
+      const c=colors[i];
+      const qx=ox+s.t*K*ux,qy=oy+s.t*K*uy;               /* B 末端 Q */
+      const avx=px-qx,avy=py-qy;                          /* A 向量（屏幕） */
+      /* 平行四边形：A 平移到 O 点（浅色细箭头），补线虚线 */
+      arrow(ctx,ox,oy,ox+avx,oy+avy,c.pa,2,c.la,ox+avx+12,oy+avy+16);
+      seg(ctx,ox+avx,oy+avy,px,py,"#9aa7b5",1.5,[5,5]);
+      /* 三角形：B（O→Q）、A（Q→P） */
+      arrow(ctx,ox,oy,qx,qy,c.b,3,c.lb,qx+6,qy-17);
+      arrow(ctx,qx,qy,px,py,c.a,3,c.la,(qx+px)/2+10,(qy+py)/2-20);
+      dot(ctx,qx,qy,7,c.b);
+      ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(qx,qy,7,0,7);ctx.stroke();
+      /* A=30N 时 A⊥B，画直角符号 */
+      if(Math.abs(this.A-30)<=0.5&&sols.length===1){
+        const bx2=qx+12*ux,by2=qy+12*uy;
+        const anx=avx/Math.hypot(avx,avy),any=avy/Math.hypot(avx,avy);
+        const cx2=qx+12*anx,cy2=qy+12*any;
+        seg(ctx,bx2,by2,bx2+12*anx,by2+12*any,"#c0392b",1.5);
+        seg(ctx,cx2,cy2,cx2+12*ux,cy2+12*uy,"#c0392b",1.5);
+        txt(ctx,"F₁⊥F₂",qx+34,qy+30,"#c0392b",12,true);
+      }
+    });
+    /* 无解提示 */
+    if(sols.length===0){
+      txt(ctx,"圆与 F₂ 方向射线没有交点：|F₁| 太小，无解",ox+300,oy+150,"#c0392b",16,true);
+    }
+    /* 信息面板 */
+    document.getElementById("t3A").textContent=Math.round(this.A);
+    document.getElementById("t3A2").textContent=Math.round(this.A);
+    const st=document.getElementById("t3Status"),so=document.getElementById("t3Sol");
+    let html="";
+    sols.forEach((s,i)=>{
+      const tag=i===0?"′":"″";
+      const amx=this.F-s.t*Math.cos(30*RAD),amy=-s.t*Math.sin(30*RAD); /* F₁ 向量（数学坐标） */
+      let ang=Math.atan2(amy,amx)/RAD;if(ang<0)ang+=360;
+      html+="<div>F₁"+tag+" 方向与 F 成 <span class='val'>"+ang.toFixed(1)+"</span>°，"
+           +"F₂"+tag+" = <span class='val'>"+s.t.toFixed(1)+"</span> N</div>";
+    });
+    if(this.A<29.5){
+      st.innerHTML="当前状态：<span class='warn'>无解</span>（|F₁| &lt; F·sin30° = 30 N）";
+      so.innerHTML="";
+    }else if(this.A<=30.5){
+      st.innerHTML="当前状态：<span class='ok'>唯一解</span>（|F₁| = 30 N，F₁ 恰好与 F₂ 垂直）";
+      so.innerHTML=html;
+    }else if(this.A<59.5){
+      st.innerHTML="当前状态：<span class='ok'>两个解</span>（圆与射线有两个交点）";
+      so.innerHTML=html;
+    }else if(this.A<=60.5){
+      st.innerHTML="当前状态：<span class='ok'>一个有效解</span>（|F₁| = F = 60 N，另一解 F₂ = 0 退化）";
+      so.innerHTML=html;
+    }else{
+      st.innerHTML="当前状态：<span class='ok'>唯一解</span>（|F₁| &gt; F，另一个交点在射线反向上，舍去）";
+      so.innerHTML=html;
+    }
+  }
+};
+t3.init();
+
+/* hash 参数定位：#t1&th=270、#t2&th=60&play=1、#t3&F1=25（便于截图与讲解） */
+if(hashParts[0]==="t1"&&hp.th!==undefined&&!isNaN(+hp.th)){t1.theta=Math.max(0,Math.min(360,+hp.th));t1.slider.value=Math.round(t1.theta);}
+if(hashParts[0]==="t2"&&hp.th!==undefined&&!isNaN(+hp.th)){t2.theta=Math.max(0,Math.min(75,+hp.th));t2.slider.value=Math.round(t2.theta);}
+if(hashParts[0]==="t2"&&hp.play==="1"){t2.playing=true;t2.recordNow();document.getElementById("t2Play").textContent="⏸ 暂停";}
+const t3av=hp.F1!==undefined?hp.F1:hp.A;
+if(hashParts[0]==="t3"&&t3av!==undefined&&!isNaN(+t3av)){t3.A=Math.max(10,Math.min(100,+t3av));t3.slider.value=Math.round(t3.A);}
+
+/* ============ 主循环 ============ */
+let lastT=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-lastT)/1000);lastT=now;
+  if(curTab==="t1"){t1.update(dt);t1.render();}
+  else if(curTab==="t2"){t2.update(dt);t2.render();}
+  else{t3.update(dt);t3.render();}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

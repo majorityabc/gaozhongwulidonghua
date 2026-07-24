@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>力的平衡条件——任意一力与其余各力合力的关系</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;margin:0;padding:16px;color:#222;}
+  h1{font-size:18px;margin:0 0 6px;}
+  .topcap{font-size:13px;color:#556;margin-bottom:10px;}
+  .nbar{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}
+  .nbar button{font:inherit;font-size:14px;padding:6px 14px;border:1px solid #cdd5df;background:#fff;border-radius:8px;cursor:pointer;}
+  .nbar button:hover{border-color:#7aa8d8;background:#f3f8ff;}
+  .nbar button.active{background:#2f6fb2;color:#fff;border-color:#2f6fb2;}
+  .wrap{display:flex;gap:16px;flex-wrap:nowrap;align-items:flex-start;width:100%;max-width:calc(100vw - 32px);}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:10px;}
+  .panel.canvas-panel{flex:1 1 auto;min-width:0;}
+  canvas{display:block;background:#fff;max-width:100%;height:auto;}
+  .cbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;font-size:14px;}
+  .cbar .caseBtn{font:inherit;font-size:13px;padding:4px 10px;border:1px solid #cdd5df;background:#fff;border-radius:8px;cursor:pointer;}
+  .cbar .caseBtn:hover{border-color:#7aa8d8;background:#f3f8ff;}
+  .cbar .caseBtn.active{background:#e74c3c;color:#fff;border-color:#e74c3c;}
+  .playBtn{background:#2f6fb2;color:#fff;border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font:inherit;}
+  .info{flex:0 0 300px;width:300px;font-size:13px;line-height:1.9;}
+  .info hr{border:none;border-top:1px dashed #ccd;}
+  .info b{font-size:14px;}
+  .val{font-family:Consolas,monospace;color:#124;font-weight:bold;}
+  .note{font-size:12px;color:#667;}
+  .chip{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:5px;vertical-align:-1px;}
+  .ok{color:#1e8e3e;font-weight:bold;}
+  .ctrl{margin-top:8px;font-size:13px;color:#556;}
+</style>
+</head>
+<body>
+<h1>力的平衡条件</h1>
+<div class="topcap">物体在 N 个力作用下保持静止（ΣF = 0）。依次演示每一种情况：任意一个力，与其余各力的合力等大、反向、共线。</div>
+<div class="nbar" id="nbar">
+  <button data-n="2">二力平衡</button>
+  <button data-n="3">三力平衡</button>
+  <button data-n="4">四力平衡</button>
+  <button data-n="5">五力平衡</button>
+</div>
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cbar">
+      <span>选择情况：</span><span id="caseBtns"></span>
+      <button id="playBtn" class="playBtn">▶ 重播动画</button>
+      <label style="font-size:13px;"><input type="checkbox" id="autoCyc"> 自动循环各情况</label>
+    </div>
+    <canvas id="cv" width="900" height="560"></canvas>
+    <div class="ctrl">动画演示：把"其余各力"按多边形定则（首尾相接）依次加起来，它们的合力从 O 指向终点，正好与被考察的力大小相等、方向相反。</div>
+  </div>
+  <div class="info panel">
+    <b id="infoTitle"></b>
+    <hr>
+    <div id="forceList"></div>
+    <hr>
+    <div id="caseInfo"></div>
+    <div id="resultInfo"></div>
+    <hr>
+    <div class="note" id="conclusion"></div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ 通用绘图工具 ============ */
+function arrow(ctx,x1,y1,x2,y2,color,w,label,lx,ly,dash){
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.save();
+  if(dash)ctx.setLineDash(dash);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w||2;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.restore();
+  const hl=9+(w||2)*1.6;
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-hl*Math.cos(ang-0.42),y2-hl*Math.sin(ang-0.42));
+  ctx.lineTo(x2-hl*Math.cos(ang+0.42),y2-hl*Math.sin(ang+0.42));
+  ctx.closePath();ctx.fill();
+  if(label){
+    ctx.font="bold 14px 'Microsoft YaHei'";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(label,lx!==undefined?lx:(x1+x2)/2,ly!==undefined?ly:(y1+y2)/2);
+  }
+}
+function seg(ctx,x1,y1,x2,y2,color,w,dash){
+  ctx.save();if(dash)ctx.setLineDash(dash);
+  ctx.strokeStyle=color;ctx.lineWidth=w||1.5;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function txt(ctx,s,x,y,color,size,bold,align){
+  ctx.fillStyle=color;ctx.font=(bold?"bold ":"")+(size||13)+"px 'Microsoft YaHei'";
+  ctx.textAlign=align||"center";ctx.textBaseline="middle";ctx.fillText(s,x,y);
+}
+const RAD=Math.PI/180;
+const SUB=["₁","₂","₃","₄","₅"];
+const COLORS=["#d63031","#0984e3","#00b894","#6c5ce7","#e17055"];
+
+/* ============ 力系数据（数学坐标：x向右，y向上，单位 N） ============
+   每组力之和恰为零；最后一个力由前面各力取反合成，保证严格平衡 */
+function buildSet(list){ /* list: [[mag,angleDeg],...] 最后一项自动取反闭合 */
+  const vs=list.map(a=>[a[0]*Math.cos(a[1]*RAD),a[0]*Math.sin(a[1]*RAD)]);
+  let sx=0,sy=0;vs.forEach(v=>{sx+=v[0];sy+=v[1];});
+  vs.push([-sx,-sy]);
+  return vs.map(v=>({x:v[0],y:v[1],mag:Math.hypot(v[0],v[1]),ang:(Math.atan2(v[1],v[0])/RAD+360)%360}));
+}
+const SETS={
+  2:[{x:0,y:60,mag:60,ang:90},{x:0,y:-60,mag:60,ang:270}],
+  3:buildSet([[30,90],[40,180]]),            /* 闭合项 = 50 N，约 323.1° */
+  4:buildSet([[50,80],[40,170],[30,265]]),   /* 闭合项 ≈ 42.5 N */
+  5:buildSet([[50,90],[40,162],[35,216],[45,288]]) /* 闭合项 ≈ 52.5 N */
+};
+const TITLES={2:"二力平衡",3:"三力平衡",4:"四力平衡",5:"五力平衡"};
+
+/* ============ 状态 ============ */
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+const OX=450,OY=300,K=3;                     /* 作用点 O；1N = 3px */
+let N=3,curCase=0,caseStart=performance.now();
+const T_INTRO=0.8,T_MOVE=0.6,T_R=0.7,T_HOLD=2.6;
+
+function chainOrder(){const o=[];for(let i=0;i<N;i++)if(i!==curCase)o.push(i);return o;}
+function animTotal(){return T_INTRO+(N-1)*T_MOVE+T_R;}
+
+/* ============ 界面构建 ============ */
+function buildNBar(){
+  document.querySelectorAll("#nbar button").forEach(b=>{
+    b.classList.toggle("active",+b.dataset.n===N);
+    b.onclick=()=>{N=+b.dataset.n;curCase=0;rebuild();};
+  });
+}
+function buildCaseBtns(){
+  const box=document.getElementById("caseBtns");box.innerHTML="";
+  for(let i=0;i<N;i++){
+    const btn=document.createElement("button");
+    btn.className="caseBtn"+(i===curCase?" active":"");
+    btn.innerHTML="情况"+["①","②","③","④","⑤"][i]+"：F"+SUB[i];
+    btn.title="F"+SUB[i]+" 与其余 "+(N-1)+" 个力的合力";
+    btn.onclick=()=>{curCase=i;replay();buildCaseBtns();updateInfo();};
+    box.appendChild(btn);
+  }
+}
+function replay(){caseStart=performance.now();}
+document.getElementById("playBtn").onclick=replay;
+
+function updateInfo(){
+  const F=SETS[N];
+  document.getElementById("infoTitle").textContent=TITLES[N]+"（ΣF = 0）";
+  let fl="";
+  for(let i=0;i<N;i++){
+    fl+="<div><span class='chip' style='background:"+COLORS[i]+"'></span>F"+SUB[i]
+       +" = <span class='val'>"+F[i].mag.toFixed(1)+"</span> N，方向 <span class='val'>"+F[i].ang.toFixed(1)+"</span>°</div>";
+  }
+  document.getElementById("forceList").innerHTML=fl;
+  const others=chainOrder().map(i=>"F"+SUB[i]).join("、");
+  document.getElementById("caseInfo").innerHTML=
+    "当前情况：考察 <b>F"+SUB[curCase]+"</b>（"+F[curCase].mag.toFixed(1)+" N）<br>"
+    +"其余 "+(N-1)+" 个力："+others;
+  /* 其余力的合力 = -F[curCase]（理论），数值验证 */
+  let rx=0,ry=0;chainOrder().forEach(i=>{rx+=F[i].x;ry+=F[i].y;});
+  const rm=Math.hypot(rx,ry),ra=(Math.atan2(ry,rx)/RAD+360)%360;
+  let dang=Math.abs(ra-F[curCase].ang)%360;if(dang>180)dang=360-dang;
+  document.getElementById("resultInfo").innerHTML=
+    "其余力的合力 R = <span class='val'>"+rm.toFixed(1)+"</span> N，方向 <span class='val'>"+ra.toFixed(1)+"</span>°<br>"
+    +"F"+SUB[curCase]+" = <span class='val'>"+F[curCase].mag.toFixed(1)+"</span> N，方向 <span class='val'>"+F[curCase].ang.toFixed(1)+"</span>°<br>"
+    +"方向相差 <span class='val'>"+Math.abs(ra-F[curCase].ang).toFixed(1)+"</span>° → "
+    +"<span class='ok'>等大、反向、共线 ✓</span>";
+  const concl={2:"结论（二力平衡条件）：作用在同一物体上的两个力，若大小相等、方向相反、且作用在同一直线上，物体平衡。也就是说，每一个力都是另一个力的平衡力。",
+               3:"结论：三个力平衡时，其中任意一个力都与另外两个力的合力等大、反向、共线。三种情况都成立——这正是力的三角形定则的体现：三力首尾相接恰成封闭三角形。",
+               4:"结论：四个力平衡时，其中任意一个力都与另外三个力的合力等大、反向、共线。四种情况都成立。",
+               5:"结论：五个力平衡时，其中任意一个力都与另外四个力的合力等大、反向、共线。五种情况都成立。推而广之：N 个力平衡时，任意一个力都是其余 N−1 个力合力的平衡力。"};
+  document.getElementById("conclusion").textContent=concl[N];
+}
+function rebuild(){buildNBar();buildCaseBtns();updateInfo();replay();}
+
+/* 支持 #n=4&c=2&t=4.5 直接定位（n=力数，c=情况序号，t=跳到动画第几秒） */
+const hashParams={};
+location.hash.replace("#","").split("&").forEach(p=>{const kv=p.split("=");if(kv.length===2)hashParams[kv[0]]=kv[1];});
+if(hashParams.n&&SETS[+hashParams.n])N=+hashParams.n;
+if(hashParams.c!==undefined&&+hashParams.c>=0&&+hashParams.c<N)curCase=+hashParams.c;
+rebuild();
+if(hashParams.t!==undefined&&!isNaN(+hashParams.t))caseStart=performance.now()-(+hashParams.t)*1000;
+
+/* ============ 动画渲染 ============ */
+function ease(u){u=Math.max(0,Math.min(1,u));return u*u*(3-2*u);}
+function sx(vx){return OX+vx*K;}
+function sy(vy){return OY-vy*K;}          /* 数学坐标 → 屏幕坐标 */
+
+function drawObject(){
+  ctx.fillStyle="#f8e3a1";ctx.strokeStyle="#8a6d1d";ctx.lineWidth=2;
+  ctx.beginPath();ctx.arc(OX,OY,15,0,7);ctx.fill();ctx.stroke();
+  txt(ctx,"物体",OX,OY+30,"#8a6d1d",12,true);
+}
+
+function render(now){
+  const t=(now-caseStart)/1000;
+  const F=SETS[N],chain=chainOrder();
+  /* 链上各槽位的首尾点（屏幕坐标） */
+  const pts=[[OX,OY]];
+  chain.forEach(i=>{const p=pts[pts.length-1];pts.push([p[0]+F[i].x*K,p[1]-F[i].y*K]);});
+  const tip=pts[pts.length-1];
+
+  /* 阶段计算 */
+  let placed=0,moveFrac=0;
+  const mt=t-T_INTRO;
+  if(mt>=0){
+    if(N===2){placed=(mt>=T_MOVE)?1:0;moveFrac=(mt>=T_MOVE)?0:ease(mt/T_MOVE);}
+    else{
+      const idx=Math.floor(mt/T_MOVE);
+      if(idx>=chain.length){placed=chain.length;}
+      else{placed=idx;moveFrac=ease((mt-idx*T_MOVE)/T_MOVE);}
+    }
+  }
+  const rt=t-T_INTRO-chain.length*T_MOVE;         /* 合力生长进度 */
+  const rProg=rt>0?ease(Math.min(1,rt/T_R)):0;
+  const total=animTotal();
+  const comparing=t>total;
+
+  ctx.clearRect(0,0,cv.width,cv.height);
+  /* 网格 */
+  ctx.strokeStyle="#eef1f5";ctx.lineWidth=1;
+  for(let x=0;x<=cv.width;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cv.height);ctx.stroke();}
+  for(let y=0;y<=cv.height;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cv.width,y);ctx.stroke();}
+
+  /* 阶段提示文字 */
+  let hint="";
+  if(t<T_INTRO)hint="物体在 "+N+" 个力的作用下保持静止（ΣF = 0）";
+  else if(placed<chain.length)hint="多边形定则：把 "+(chain[placed]!==undefined?"F"+SUB[chain[placed]]:"")+" 平移到前一个力的末端，首尾相接";
+  else if(rProg<1)hint="从 O 指向终点，得到其余 "+(N-1)+" 个力的合力 R";
+  else hint="R 与 F"+SUB[curCase]+"：等大、反向、共线";
+  txt(ctx,hint,cv.width/2,26,"#2f4b6e",15,true);
+
+  /* 共线参考虚线（比较阶段） */
+  const fi=F[curCase];
+  if(comparing){
+    const dl=(Math.max(fi.mag,Math.hypot(tip[0]-OX,tip[1]-OY)/K))*K+46;
+    const ux=fi.x/fi.mag,uy=fi.y/fi.mag;
+    seg(ctx,OX-ux*dl,OY+uy*dl,OX+ux*dl,OY-uy*dl,"#c3ccd6",1.5,[5,6]);
+  }
+
+  /* 画各力 */
+  for(let i=0;i<N;i++){
+    const v=F[i],col=COLORS[i],lab="F"+SUB[i];
+    const tipX=sx(v.x),tipY=sy(v.y);
+    if(i===curCase){
+      /* 被考察的力：始终从 O 画出，比较阶段加粗脉冲 */
+      const pulse=comparing?(0.7+0.3*Math.sin(t*7)):1;
+      ctx.save();ctx.globalAlpha=pulse;
+      arrow(ctx,OX,OY,tipX,tipY,col,comparing?5:3.5,"",0,0);
+      ctx.restore();
+      txt(ctx,lab+"（被考察）",tipX+(tipX>=OX?18:-18),tipY-14,col,14,true,tipX>=OX?"left":"right");
+    }else{
+      const ci=chain.indexOf(i);
+      if(ci<placed){
+        /* 已放入链中 */
+        const p0=pts[ci],p1=pts[ci+1];
+        arrow(ctx,p0[0],p0[1],p1[0],p1[1],col,3,"",0,0);
+        txt(ctx,lab,(p0[0]+p1[0])/2+14,(p0[1]+p1[1])/2-10,col,13,true);
+      }else if(ci===placed&&moveFrac>0){
+        /* 正在平移：从 O 滑向链上槽位 */
+        const dx=(pts[ci][0]-OX)*moveFrac,dy=(pts[ci][1]-OY)*moveFrac;
+        arrow(ctx,OX+dx,OY+dy,tipX+dx,tipY+dy,col,3,"",0,0);
+        txt(ctx,lab,tipX+dx+14,tipY+dy-10,col,13,true);
+        /* 原位置残影 */
+        ctx.save();ctx.globalAlpha=0.25;
+        arrow(ctx,OX,OY,tipX,tipY,col,2,"",0,0,[4,4]);
+        ctx.restore();
+      }else{
+        /* 尚未取用：留在 O */
+        arrow(ctx,OX,OY,tipX,tipY,col,3,"",0,0);
+        txt(ctx,lab,tipX+(tipX>=OX?16:-16),tipY-12,col,13,true,tipX>=OX?"left":"right");
+      }
+    }
+  }
+
+  /* 合力 R：从 O 指向链终点，生长动画 */
+  if(rProg>0){
+    const rx=OX+(tip[0]-OX)*rProg,ry=OY+(tip[1]-OY)*rProg;
+    const pulse=comparing?(0.7+0.3*Math.sin(t*7)):1;
+    ctx.save();ctx.globalAlpha=pulse;
+    arrow(ctx,OX,OY,rx,ry,"#2d3436",4.5,"",0,0,[10,7]);
+    ctx.restore();
+    if(rProg>=1)txt(ctx,"R（其余力的合力）",(OX+tip[0])/2+70,(OY+tip[1])/2+18,"#2d3436",14,true);
+  }
+
+  /* 比较阶段横幅 */
+  if(comparing){
+    ctx.save();
+    ctx.fillStyle="rgba(30,142,62,0.12)";
+    ctx.strokeStyle="#1e8e3e";ctx.lineWidth=1.5;
+    const bw=520,bh=40,bx=(cv.width-bw)/2,by=44;
+    ctx.beginPath();ctx.rect(bx,by,bw,bh);ctx.fill();ctx.stroke();
+    txt(ctx,"R = −F"+SUB[curCase]+"：大小相等（"+fi.mag.toFixed(1)+" N）、方向相反、作用在同一直线上",
+        cv.width/2,by+bh/2+1,"#1e8e3e",15,true);
+    ctx.restore();
+  }
+
+  drawObject();
+}
+
+/* ============ 主循环与自动循环 ============ */
+function loop(now){
+  const t=(now-caseStart)/1000;
+  if(document.getElementById("autoCyc").checked&&t>animTotal()+T_HOLD){
+    curCase=(curCase+1)%N;
+    replay();buildCaseBtns();updateInfo();
+  }
+  render(now);
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
