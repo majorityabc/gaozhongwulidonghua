@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>小船过河：速度的合成与分解</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;margin:0;padding:16px;color:#222;}
+  h1{font-size:18px;margin:0 0 12px;}
+  .wrap{display:flex;gap:16px;flex-wrap:nowrap;align-items:flex-start;width:100%;max-width:calc(100vw - 32px);}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:10px;}
+  .panel.canvas-panel{flex:1 1 auto;min-width:0;}    /* 画布面板可伸缩 */
+  .cap{text-align:center;font-size:13px;color:#556;margin-bottom:6px;}
+  canvas{display:block;background:#fff;max-width:100%;height:auto;}   /* 窄屏时画布按比例缩放 */
+  #tri{margin:4px auto 0;}
+  .info{flex:0 0 270px;width:270px;font-size:13px;line-height:1.9;}  /* 信息面板固定宽，永远在右边 */
+  .info hr{border:none;border-top:1px dashed #ccd;}
+  button,select,input{font:inherit;padding:4px 12px;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:default;}
+  input[type=range]{padding:0;}
+  input[type=checkbox]{padding:0;}
+  .btns{margin-top:8px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px;}
+  #goBtn{background:#c0392b;color:#fff;border:none;border-radius:6px;font-weight:bold;}
+  .val{font-family:Consolas,monospace;color:#124;}
+  .note{font-size:12px;color:#667;}
+  .triCap{text-align:center;font-size:12px;color:#556;}
+
+  /* ===== 档位切换按钮 ===== */
+  .gearBtns{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+  .gearBtns button{
+    flex:1;min-width:150px;padding:8px 14px;font-size:14px;font-weight:bold;
+    border:2px solid #cdd5df;background:#fff;color:#445;border-radius:8px;
+    transition:all .15s;cursor:pointer;
+  }
+  .gearBtns button:hover{border-color:#7aa8d8;background:#f3f8ff;}
+  .gearBtns button.active{background:#2f7fe0;color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+
+  /* ===== 出发记录表 ===== */
+  table.rec{border-collapse:collapse;margin-top:6px;font-size:13px;width:100%;}
+  .rec th,.rec td{border:1px solid #dde3ea;padding:4px 8px;text-align:center;}
+  .rec th{background:#f0f4f9;}
+  .rec tr.best td{background:#e8f6ec;font-weight:bold;}
+</style>
+</head>
+<body>
+<h1>小船过河：速度的合成与分解</h1>
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="gearBtns" id="gearBtns">
+      <button type="button" data-v="5" class="active">快艇（v船 = 5 m/s &gt; v水）</button>
+      <button type="button" data-v="2">慢船（v船 = 2 m/s &lt; v水）</button>
+    </div>
+    <div class="cap">θ 是船在静水中速度方向与水平向左（逆流方向）的夹角：θ = 90° 船头正对对岸，θ &lt; 90° 偏逆流，θ &gt; 90° 偏顺流</div>
+    <canvas id="view"></canvas>
+    <div class="btns">
+      <button id="goBtn">出发</button>
+      <button id="pauseBtn" disabled>暂停</button>
+      <button id="resetBtn">重置</button>
+      <span>船头方向 θ：<input type="range" id="thetaSlider" min="5" max="175" step="1" value="90" style="width:170px;vertical-align:middle"> <span class="val" id="thetaEcho">90°</span></span>
+      <label><input type="checkbox" id="showVel" checked> 显示速度矢量图</label>
+      <label><input type="checkbox" id="showDisp" checked> 显示位移矢量图</label>
+    </div>
+    <div class="note" style="margin-top:10px">出发记录</div>
+    <table class="rec">
+      <thead><tr><th>序号</th><th>档位</th><th>θ</th><th>t (s)</th></tr></thead>
+      <tbody id="recBody"></tbody>
+    </table>
+  </div>
+  <div class="info panel">
+    <div class="triCap">速度三角形（首尾相接，可拖动橙色箭头尖端改变 θ）</div>
+    <canvas id="tri"></canvas>
+    <hr>
+    <div class="note">说明：船的实际速度是静水速度与水流的合速度。过河时间只由垂直河岸方向的分速度决定：t = d/(v船·sinθ)，所以船头正对对岸（θ=90°）时过河最快，t_min = d/v船，与水速无关——水速只决定你漂向下游多远。当 v船 &gt; v水 时，把船头偏向逆流（cosθ = v水/v船）可以让合速度垂直河岸、垂直到达对岸（位移最短，但用时更长）；当 v船 &lt; v水 时无法垂直到达，cosθ = v船/v水 时顺流偏移最小（此时 v船 恰好与合速度垂直）。</div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= 物理参数（任务书给定，不许改） ================= */
+const D = 120;                 // 河宽 d (m)
+const VW = 3;                  // 水速 v水 (m/s)，水平向右（顺流为正）
+const PX_M = 3;                // 主画布比例：3 px = 1 m（河宽 120 m = 360 px）
+const SPEED = 4;               // 动画加速倍率（面板显示的 t、x 均为真实物理值）
+
+/* ================= 场景布局 ================= */
+const W = 1200, H = 480;       // 主画布
+const YT = 60, YB = 420;       // 上方岸 / 下方岸 的 y 坐标（间距 360 px = 120 m）
+const X0_DEF = 300;            // 出发点默认 x 坐标
+let X0 = X0_DEF;               // 出发点 x 坐标（未出发前可用鼠标水平拖动小船改变）
+
+/* ================= 画布 ================= */
+function setupCanvas(cv, w, hgt){
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = hgt * dpr;
+  cv.style.width = w + 'px'; cv.style.height = hgt + 'px';
+  const c = cv.getContext('2d');
+  c.scale(dpr, dpr);
+  return c;
+}
+const ctx  = setupCanvas(document.getElementById('view'), W, H);
+const tctx = setupCanvas(document.getElementById('tri'), 250, 230);
+
+/* ================= 状态 ================= */
+let vB = 5;                    // 船速档：5 = 快艇，2 = 慢船
+let theta = 90;                // 船头方向 θ（度）：静水速度矢量与水平向左（逆流）方向的夹角
+let phase = 'wait';            // wait 等待出发 / run 渡河进行中 / pause 已暂停 / done 已到达对岸
+let simT = 0;                  // 本次出发已经过的真实物理时间 (s)
+let runStart = 0;              // 本次出发的 performance.now() 时间戳（simT 由它解析得出，与帧率无关）
+let waveT = 0;                 // 水波相位（墙钟时间，河水一直在流）
+const records = [];            // 出发记录 {n, gear, theta, t}
+
+const $ = id => document.getElementById(id);
+const FONT = '"Microsoft YaHei",sans-serif';
+
+/* 由当前档位与 θ 解析计算运动学量（严格按公式，不做数值积分） */
+function kin(){
+  const r = theta * Math.PI / 180;
+  const vx = VW - vB * Math.cos(r);      // 合速度水平分量（顺流为正）
+  const vy = vB * Math.sin(r);           // 合速度垂直分量（指向对岸）
+  const t  = D / vy;                     // 过河总时间
+  return {vx:vx, vy:vy, t:t, x:vx * t, v:Math.hypot(vx, vy)};
+}
+/* 船当前位置（画布坐标），解析式：出发点 + 合速度 × t */
+function boatPos(){
+  const k = kin();
+  const tt = phase === 'wait' ? 0 : simT;
+  return {x: X0 + k.vx * tt * PX_M, y: YB - k.vy * tt * PX_M};
+}
+function fmtTheta(){ return theta % 1 === 0 ? theta.toFixed(0) + '°' : theta.toFixed(2) + '°'; }
+function f2(v){ const s = v.toFixed(2); return s === '-0.00' ? '0.00' : s; }  // 避免显示 -0.00
+function norm(x, y){ const l = Math.hypot(x, y); return {x:x / l, y:y / l}; }
+
+/* 通用箭头（可选虚线） */
+function arrow(c, x1, y1, x2, y2, color, lw, dashed){
+  c.save();
+  c.strokeStyle = color; c.fillStyle = color; c.lineWidth = lw;
+  if(dashed) c.setLineDash([6, 5]);
+  c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke();
+  c.setLineDash([]);
+  const ang = Math.atan2(y2 - y1, x2 - x1), hl = 8 + lw;
+  c.beginPath();
+  c.moveTo(x2, y2);
+  c.lineTo(x2 - hl * Math.cos(ang - 0.42), y2 - hl * Math.sin(ang - 0.42));
+  c.lineTo(x2 - hl * Math.cos(ang + 0.42), y2 - hl * Math.sin(ang + 0.42));
+  c.closePath(); c.fill();
+  c.restore();
+}
+
+/* ================= 主画布绘制 ================= */
+function drawMain(){
+  const k = kin();
+  const bp = boatPos();
+  const landX = X0 + k.x * PX_M;         // 落点 x（画布坐标，可能超出画面）
+  const rT = theta * Math.PI / 180;
+
+  ctx.clearRect(0, 0, W, H);
+
+  /* 陆地与水面 */
+  ctx.fillStyle = '#eef2e4'; ctx.fillRect(0, 0, W, YT); ctx.fillRect(0, YB, W, H - YB);
+  ctx.fillStyle = '#e2f1fc'; ctx.fillRect(0, YT, W, YB - YT);
+
+  /* 水波纹（随时间向右漂，表示水流方向） */
+  ctx.strokeStyle = 'rgba(110,165,215,.5)'; ctx.lineWidth = 1.5;
+  const lam = 95, amp = 4, shift = waveT * VW * PX_M * SPEED;
+  for(let row = 0; row < 6; row++){
+    const y0 = 100 + row * 54;
+    ctx.beginPath();
+    for(let x = 0; x <= W; x += 12){
+      const y = y0 + amp * Math.sin((x - shift) * 2 * Math.PI / lam + row * 1.3);
+      x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  /* 河岸线与岸名 */
+  ctx.strokeStyle = '#8a97a5'; ctx.lineWidth = 2.5;
+  ctx.beginPath(); ctx.moveTo(0, YT); ctx.lineTo(W, YT); ctx.moveTo(0, YB); ctx.lineTo(W, YB); ctx.stroke();
+  ctx.fillStyle = '#7a8694'; ctx.font = '13px ' + FONT;
+  ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+  ctx.fillText('对岸', 16, YT - 10);
+  ctx.fillText('出发岸', 16, YB + 24);
+
+  /* 水速标注 */
+  ctx.fillStyle = '#2f7fe0'; ctx.font = 'bold 13px ' + FONT;
+  ctx.fillText('v水 = 3 m/s', 18, YT + 28);
+  arrow(ctx, 112, YT + 23, 152, YT + 23, '#2f7fe0', 2, false);
+
+  /* 右侧竖向尺寸线：河宽 d = 120 m */
+  const DX = W - 48;
+  ctx.strokeStyle = '#5a6672'; ctx.fillStyle = '#5a6672'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(DX - 6, YT); ctx.lineTo(DX + 6, YT);
+  ctx.moveTo(DX - 6, YB); ctx.lineTo(DX + 6, YB);
+  ctx.moveTo(DX, YT + 6); ctx.lineTo(DX, YB - 6);
+  ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(DX, YT); ctx.lineTo(DX - 4, YT + 9); ctx.lineTo(DX + 4, YT + 9); ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.moveTo(DX, YB); ctx.lineTo(DX - 4, YB - 9); ctx.lineTo(DX + 4, YB - 9); ctx.closePath(); ctx.fill();
+  ctx.save();
+  ctx.translate(DX + 24, (YT + YB) / 2); ctx.rotate(Math.PI / 2);
+  ctx.font = '13px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('河宽 d = 120 m', 0, 0);
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+
+  /* 出发点标记（画在岸线下方一侧，避免被船挡住） */
+  ctx.fillStyle = '#2e9e4f';
+  ctx.beginPath(); ctx.arc(X0, YB + 5, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.font = '12px ' + FONT; ctx.textAlign = 'center';
+  ctx.fillText('出发点', X0, YB + 24);
+
+  /* ---- 位移矢量图（平行四边形画法：d、x 两分量从出发点同一起点画出，s 为对角线） ---- */
+  if($('showDisp').checked){
+    const A = {x: X0, y: YT};              // d 分量端点（正对岸）
+    const Bp = {x: landX, y: YB};          // x 分量端点（出发岸上）
+    const C = {x: landX, y: YT};           // 对角线端点 = 落点
+    const hasX = Math.abs(landX - X0) > 1; // x ≈ 0 时平行四边形退化为直线
+    /* 平行四边形虚线对边 */
+    if(hasX){
+      ctx.save();
+      ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.lineTo(C.x, C.y); ctx.lineTo(Bp.x, Bp.y); ctx.stroke();
+      ctx.restore();
+    }
+    /* d 分量：出发点 → 正对岸（绿色实线箭头）；标注放在与落点相反的一侧 */
+    arrow(ctx, X0, YB, A.x, A.y, '#2e9e4f', 2, false);
+    ctx.fillStyle = '#2e9e4f'; ctx.font = '12px ' + FONT;
+    if(landX >= X0){ ctx.textAlign = 'right'; ctx.fillText('d = 120 m', X0 - 8, (YT + YB) / 2); }
+    else{ ctx.textAlign = 'left'; ctx.fillText('d = 120 m', X0 + 8, (YT + YB) / 2); }
+    /* x 分量：出发点 → 沿河岸位移（紫色实线箭头，沿出发岸画出） */
+    if(hasX){
+      arrow(ctx, X0, YB, Bp.x, Bp.y, '#8e44ad', 2, false);
+      const dir = landX >= X0 ? 1 : -1;
+      const mx = (X0 + landX) / 2;
+      ctx.fillStyle = '#8e44ad';
+      if(Math.abs(landX - X0) < 120){        // 太短：标注放到箭头末端外侧，避免与“出发点”相撞
+        ctx.textAlign = dir > 0 ? 'left' : 'right';
+        ctx.fillText('x = ' + f2(k.x) + ' m', landX + dir * 8, YB + 16);
+      } else if(mx > 50 && mx < W - 60){
+        ctx.textAlign = 'center';
+        ctx.fillText('x = ' + f2(k.x) + ' m', mx, YB + 16);
+      }
+    }
+    /* s：出发点 → 落点（红色对角线箭头；匀速直线运动，船始终在这条对角线上） */
+    arrow(ctx, X0, YB, C.x, C.y, '#c0392b', 2.5, false);
+    if(landX > 8 && landX < W - 56){
+      const sAll = k.v * k.t;
+      const side = landX >= X0 ? 1 : -1;     // 标注偏向落点一侧
+      /* 沿对角线垂直方向偏移，避免船经过中点时压住标注 */
+      const dvx = landX - X0, dvy = YT - YB, dl = Math.hypot(dvx, dvy) || 1;
+      const px = -dvy / dl * side, py = dvx / dl * side;
+      ctx.fillStyle = '#c0392b'; ctx.textAlign = side > 0 ? 'left' : 'right';
+      ctx.fillText('s = ' + f2(sAll) + ' m', (X0 + landX) / 2 + px * 18, (YB + YT) / 2 + py * 18);
+    }
+  }
+
+  /* 轨迹虚线（出发后） */
+  if(phase !== 'wait'){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(192,57,43,.6)'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 5]);
+    ctx.beginPath(); ctx.moveTo(X0, YB); ctx.lineTo(bp.x, bp.y); ctx.stroke();
+    ctx.restore();
+  }
+
+  /* 落点标记 */
+  if(landX > 8 && landX < W - 56){
+    if(phase === 'done'){
+      ctx.fillStyle = '#c0392b';
+      ctx.beginPath(); ctx.arc(landX, YT, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.font = 'bold 13px ' + FONT;
+      /* 标注放在落点侧边（背离开船一侧），避免被船体挡住 */
+      if(landX >= X0){
+        ctx.textAlign = 'right';
+        ctx.fillText('顺流偏移 x = ' + f2(k.x) + ' m', Math.max(175, landX - 14), YT + 18);
+      } else {
+        ctx.textAlign = 'left';
+        ctx.fillText('顺流偏移 x = ' + f2(k.x) + ' m', Math.min(W - 200, landX + 14), YT + 18);
+      }
+    } else {
+      ctx.save();
+      ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.arc(landX, YT, 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /* ---- 小船（船头按 θ 旋转） ---- */
+  ctx.save();
+  ctx.translate(bp.x, bp.y);
+  ctx.rotate(rT - Math.PI / 2);          // 使船头指向 (−cosθ, −sinθ)
+  const g = ctx.createLinearGradient(-9, 0, 9, 0);
+  g.addColorStop(0, '#2f7fe0'); g.addColorStop(1, '#7ec3ff');
+  ctx.beginPath();
+  ctx.moveTo(0, -24);                    // 船头
+  ctx.quadraticCurveTo(9, -10, 9, 6);    // 右舷
+  ctx.quadraticCurveTo(9, 18, 0, 18);    // 船尾
+  ctx.quadraticCurveTo(-9, 18, -9, 6);   // 左舷
+  ctx.quadraticCurveTo(-9, -10, 0, -24);
+  ctx.closePath();
+  ctx.fillStyle = g; ctx.fill();
+  ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(20,60,120,.6)'; ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  ctx.beginPath(); ctx.roundRect(-4.5, -6, 9, 12, 3); ctx.fill();
+  ctx.restore();
+
+  /* θ 夹角弧：水平向左（逆流）方向 → 船头方向 */
+  ctx.save();
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 1.2; ctx.setLineDash([4, 4]);
+  ctx.beginPath(); ctx.moveTo(bp.x - 58, bp.y); ctx.lineTo(bp.x, bp.y); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = '#34495e'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(bp.x, bp.y, 40, -Math.PI, rT - Math.PI, false); ctx.stroke();
+  const mid = -Math.PI + rT / 2;
+  ctx.fillStyle = '#34495e'; ctx.font = '12px ' + FONT; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  const tlx = Math.max(70, Math.min(W - 70, bp.x + 56 * Math.cos(mid)));   // 钳在画面内，避免与岸名等文字相撞
+  const tly = Math.max(16, bp.y + 56 * Math.sin(mid));
+  ctx.fillText('θ=' + fmtTheta(), tlx, tly);
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+
+  /* ---- 速度矢量图（以船心为公共起点；等待/进行中/到达后都显示） ---- */
+  if($('showVel').checked){
+    /* 靠近对岸时按比例整体缩小（三条矢量同一比例，平行四边形形状不变），
+       保证到达顶岸后箭头仍完整可见 */
+    const kv = Math.min(16, (bp.y - 20) / k.vy);
+    const wTip = {x: bp.x + VW * kv, y: bp.y};
+    const bTip = {x: bp.x - vB * kv * Math.cos(rT), y: bp.y - vB * kv * Math.sin(rT)};
+    const rTip = {x: bp.x + k.vx * kv, y: bp.y - k.vy * kv};
+    /* 平行四边形辅助虚线 */
+    ctx.save();
+    ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(wTip.x, wTip.y); ctx.lineTo(rTip.x, rTip.y); ctx.lineTo(bTip.x, bTip.y); ctx.stroke();
+    ctx.restore();
+    arrow(ctx, bp.x, bp.y, wTip.x, wTip.y, '#2f7fe0', 2.5, false);
+    arrow(ctx, bp.x, bp.y, bTip.x, bTip.y, '#f08c1a', 2.5, false);
+    arrow(ctx, bp.x, bp.y, rTip.x, rTip.y, '#c0392b', 3.5, false);
+    ctx.font = 'bold 12px ' + FONT;
+    ctx.fillStyle = '#2f7fe0'; ctx.textAlign = 'left';   ctx.fillText('v水', wTip.x + 6, wTip.y - 6);
+    ctx.fillStyle = '#f08c1a'; ctx.textAlign = 'center'; ctx.fillText('v船', bTip.x, bTip.y - 10);
+    ctx.fillStyle = '#c0392b'; ctx.textAlign = 'left';   ctx.fillText('v合', rTip.x + 8, rTip.y - 4);
+
+    /* 图例（含数值） */
+    const lx = W - 262, ly = YT + 10;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,.88)'; ctx.strokeStyle = '#dde3ea'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.roundRect(lx, ly, 178, 70, 6); ctx.fill(); ctx.stroke();
+    const rows = [
+      ['#2f7fe0', 'v水 = 3.00 m/s'],
+      ['#f08c1a', 'v船 = ' + vB.toFixed(2) + ' m/s'],
+      ['#c0392b', 'v合 = ' + k.v.toFixed(2) + ' m/s']
+    ];
+    ctx.font = '12px ' + FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    rows.forEach(function(r, i){
+      const yy = ly + 16 + i * 20;
+      ctx.strokeStyle = r[0]; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(lx + 10, yy); ctx.lineTo(lx + 30, yy); ctx.stroke();
+      ctx.fillStyle = r[0]; ctx.fillText(r[1], lx + 38, yy);
+    });
+    ctx.restore();
+    ctx.textBaseline = 'alphabetic';
+  }
+}
+
+/* ================= 速度三角形小画布 ================= */
+/* 布局：O 点 → 水平向右 v水 → 端点 T；T → 沿 θ 方向 v船 → 端点 P；O → P 为 v合 */
+function triGeom(){
+  const s = vB > VW ? 21 : 36;           // 比例 px/(m/s)，按档位自适应
+  const O = {x: 125 - VW * s, y: 195};
+  const T = {x: 125, y: 195};            // = O + v水·s，恰在画面中央
+  const rT = theta * Math.PI / 180;
+  const P = {x: T.x - vB * s * Math.cos(rT), y: T.y - vB * s * Math.sin(rT)};
+  return {s:s, O:O, T:T, P:P};
+}
+
+function drawTri(){
+  const gm = triGeom(), O = gm.O, T = gm.T, P = gm.P, s = gm.s;
+  const k = kin();
+  tctx.clearRect(0, 0, 250, 230);
+
+  if(vB < VW){
+    /* 慢船：v合 端点轨迹圆（以 T 为圆心、v船 为半径，只画有效的上半圆） */
+    tctx.save();
+    tctx.strokeStyle = '#7aa8d8'; tctx.lineWidth = 1.2; tctx.setLineDash([5, 4]);
+    tctx.beginPath(); tctx.arc(T.x, T.y, vB * s, Math.PI, Math.PI * 2); tctx.stroke();
+    tctx.restore();
+    /* 最小偏移位置：cosθ* = v船/v水，此时 v合 与圆相切、v船⊥v合 */
+    const ts = Math.acos(vB / VW);
+    const M = {x: T.x - vB * s * Math.cos(ts), y: T.y - vB * s * Math.sin(ts)};
+    tctx.save();
+    tctx.strokeStyle = '#999'; tctx.lineWidth = 1; tctx.setLineDash([4, 4]);
+    tctx.beginPath(); tctx.moveTo(O.x, O.y); tctx.lineTo(M.x, M.y); tctx.stroke();
+    tctx.beginPath(); tctx.moveTo(T.x, T.y); tctx.lineTo(M.x, M.y); tctx.stroke();
+    tctx.restore();
+    /* 直角符号（v船⊥v合） */
+    const u1 = norm(O.x - M.x, O.y - M.y), u2 = norm(T.x - M.x, T.y - M.y);
+    tctx.strokeStyle = '#888'; tctx.lineWidth = 1.2;
+    tctx.beginPath();
+    tctx.moveTo(M.x + u1.x * 8, M.y + u1.y * 8);
+    tctx.lineTo(M.x + u1.x * 8 + u2.x * 8, M.y + u1.y * 8 + u2.y * 8);
+    tctx.lineTo(M.x + u2.x * 8, M.y + u2.y * 8);
+    tctx.stroke();
+    tctx.fillStyle = '#c0392b';
+    tctx.beginPath(); tctx.arc(M.x, M.y, 3.5, 0, Math.PI * 2); tctx.fill();
+    tctx.fillStyle = '#556'; tctx.font = '11px ' + FONT; tctx.textAlign = 'right';
+    tctx.fillText('最小偏移', M.x - 6, M.y - 7);
+    tctx.fillText('cosθ=v船/v水', M.x + 38, M.y + 16);
+    tctx.fillStyle = '#99a'; tctx.textAlign = 'left';
+    tctx.fillText('虚线圆：v合 端点轨迹', 8, 32);
+  } else {
+    /* 快艇：垂直到达位置（x = 0，cosθ* = v水/v船，v合 竖直） */
+    const ts = Math.acos(VW / vB);
+    const Q = {x: T.x - vB * s * Math.cos(ts), y: T.y - vB * s * Math.sin(ts)};
+    tctx.save();
+    tctx.strokeStyle = '#999'; tctx.lineWidth = 1; tctx.setLineDash([4, 4]);
+    tctx.beginPath(); tctx.moveTo(O.x, O.y); tctx.lineTo(Q.x, Q.y); tctx.stroke();
+    tctx.beginPath(); tctx.moveTo(T.x, T.y); tctx.lineTo(Q.x, Q.y); tctx.stroke();
+    tctx.restore();
+    tctx.fillStyle = '#c0392b';
+    tctx.beginPath(); tctx.arc(Q.x, Q.y, 3.5, 0, Math.PI * 2); tctx.fill();
+    tctx.fillStyle = '#556'; tctx.font = '11px ' + FONT; tctx.textAlign = 'center';
+    tctx.fillText('垂直到达(x=0)', Q.x, Q.y - 20);
+    tctx.fillText('cosθ=v水/v船', Q.x, Q.y - 8);
+  }
+
+  /* 三条速度矢量（首尾相接） */
+  arrow(tctx, O.x, O.y, T.x, T.y, '#2f7fe0', 2.5, false);   // v水
+  arrow(tctx, T.x, T.y, P.x, P.y, '#f08c1a', 2.5, false);   // v船
+  arrow(tctx, O.x, O.y, P.x, P.y, '#c0392b', 3.5, false);   // v合
+
+  /* 拖动手柄（v船 箭头尖端） */
+  tctx.fillStyle = '#fff'; tctx.strokeStyle = '#f08c1a'; tctx.lineWidth = 2;
+  tctx.beginPath(); tctx.arc(P.x, P.y, 6, 0, Math.PI * 2); tctx.fill(); tctx.stroke();
+
+  /* 数值标签 */
+  tctx.font = '11px ' + FONT;
+  tctx.fillStyle = '#2f7fe0'; tctx.textAlign = 'center';
+  tctx.fillText('v水 3.00', (O.x + T.x) / 2, O.y + 15);
+  tctx.fillStyle = '#f08c1a'; tctx.textAlign = 'left';
+  tctx.fillText('v船 ' + vB.toFixed(2), (T.x + P.x) / 2 + 10, (T.y + P.y) / 2);
+  tctx.fillStyle = '#c0392b'; tctx.textAlign = 'left';
+  tctx.fillText('v合 ' + k.v.toFixed(2), (O.x + P.x) / 2 + 6, (O.y + P.y) / 2 + 11);
+  tctx.fillStyle = '#667'; tctx.textAlign = 'center';
+  tctx.fillText('O', O.x, O.y + 15);
+  tctx.fillStyle = '#333'; tctx.textAlign = 'left'; tctx.font = '12px ' + FONT;
+  tctx.fillText('θ = ' + fmtTheta(), 8, 16);
+  tctx.fillStyle = '#99a'; tctx.textAlign = 'center'; tctx.font = '11px ' + FONT;
+  tctx.fillText('拖动橙色箭头尖端改变 θ', 125, 222);
+}
+
+/* 小画布拖动：v船 箭头尖端 → 改变 θ（与滑块双向同步） */
+let dragging = false;
+const triCv = $('tri');
+function triMouse(e){
+  const r = triCv.getBoundingClientRect();
+  return {x: (e.clientX - r.left) * 250 / r.width, y: (e.clientY - r.top) * 230 / r.height};
+}
+triCv.addEventListener('pointerdown', function(e){
+  const gm = triGeom(), m = triMouse(e);
+  if(Math.hypot(m.x - gm.P.x, m.y - gm.P.y) <= 16){
+    dragging = true; e.preventDefault();
+  }
+});
+window.addEventListener('pointermove', function(e){
+  if(!dragging) return;
+  const gm = triGeom(), m = triMouse(e);
+  let deg = Math.atan2(-(m.y - gm.T.y), -(m.x - gm.T.x)) * 180 / Math.PI;
+  setTheta(Math.max(5, Math.min(175, Math.round(deg))));
+});
+window.addEventListener('pointerup', function(){ dragging = false; });
+triCv.addEventListener('pointermove', function(e){
+  if(dragging){ triCv.style.cursor = 'grabbing'; return; }
+  const gm = triGeom(), m = triMouse(e);
+  triCv.style.cursor = Math.hypot(m.x - gm.P.x, m.y - gm.P.y) <= 16 ? 'pointer' : 'default';
+});
+
+/* 主画布拖动：未出发前可水平拖动小船改变出发位置（与小画布速度三角形的拖拽互不相干） */
+let boatDrag = false;
+const viewCv = $('view');
+function viewMouse(e){
+  const r = viewCv.getBoundingClientRect();
+  return {x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height};
+}
+function nearBoat(m){
+  const bp = boatPos();
+  return Math.hypot(m.x - bp.x, m.y - bp.y) <= 34;
+}
+viewCv.addEventListener('pointerdown', function(e){
+  if(phase !== 'wait') return;               // 出发后禁用拖动
+  const m = viewMouse(e);
+  if(nearBoat(m)){ boatDrag = true; e.preventDefault(); }
+});
+window.addEventListener('pointermove', function(e){
+  if(!boatDrag) return;
+  const m = viewMouse(e);
+  X0 = Math.max(60, Math.min(W - 80, m.x));  // 贴出发岸水平平移
+});
+window.addEventListener('pointerup', function(){ boatDrag = false; });
+viewCv.addEventListener('pointermove', function(e){
+  if(boatDrag){ viewCv.style.cursor = 'grabbing'; return; }
+  viewCv.style.cursor = (phase === 'wait' && nearBoat(viewMouse(e))) ? 'grab' : 'default';
+});
+
+/* ================= 按钮状态（信息面板数值行已按老师要求删除，只剩控件状态刷新） ================= */
+function updateUI(){
+  $('goBtn').disabled = phase === 'run' || phase === 'pause';
+  $('pauseBtn').disabled = !(phase === 'run' || phase === 'pause');
+  $('pauseBtn').textContent = phase === 'pause' ? '继续' : '暂停';
+}
+
+/* ================= 出发记录表 ================= */
+function addRecord(){
+  const k = kin();
+  records.push({n: records.length + 1, gear: vB, theta: theta, t: k.t});
+  renderTable();
+}
+function renderTable(){
+  const tb = $('recBody');
+  if(records.length === 0){
+    tb.innerHTML = '<tr><td colspan="4" class="note">暂无记录：调好 θ 后点击【出发】，到达对岸自动记录</td></tr>';
+    return;
+  }
+  const cur = records.filter(function(r){ return r.gear === vB; });
+  const minT = cur.length ? Math.min.apply(null, cur.map(function(r){ return r.t; })) : Infinity;
+  tb.innerHTML = records.map(function(r){
+    const best = r.gear === vB && Math.abs(r.t - minT) < 0.005;
+    const thS = r.theta % 1 === 0 ? r.theta.toFixed(0) + '°' : r.theta.toFixed(2) + '°';
+    return '<tr class="' + (best ? 'best' : '') + '"><td>' + r.n + '</td><td>' +
+      (r.gear === 5 ? '快艇' : '慢船') + '</td><td>' + thS + '</td><td>' + f2(r.t) + '</td></tr>';
+  }).join('');
+}
+
+/* ================= 控件 ================= */
+function setTheta(deg){
+  theta = Math.max(5, Math.min(175, deg));
+  $('thetaSlider').value = Math.round(theta);
+  $('thetaEcho').textContent = fmtTheta();
+  resetRun();
+}
+function setGear(v){
+  vB = v;
+  document.querySelectorAll('#gearBtns button').forEach(function(b){
+    b.classList.toggle('active', parseFloat(b.dataset.v) === vB);
+  });
+  resetRun();
+  renderTable();               // 切换档位后刷新“最短用时”高亮（按当前档位统计）
+}
+function resetRun(){ phase = 'wait'; simT = 0; }
+
+$('thetaSlider').addEventListener('input', function(e){ setTheta(parseInt(e.target.value, 10)); });
+$('goBtn').onclick = function(){
+  if(phase === 'run' || phase === 'pause') return;
+  runStart = performance.now(); simT = 0; phase = 'run';   // 到达后再按【出发】= 重新跑一次并追加记录
+};
+$('pauseBtn').onclick = function(){
+  if(phase === 'run'){
+    phase = 'pause';                                     // 暂停：船和计时都停（simT 冻结）
+  } else if(phase === 'pause'){
+    runStart = performance.now() - simT / SPEED * 1000;  // 继续：从冻结时刻接着走
+    phase = 'run';
+  }
+};
+$('resetBtn').onclick = function(){ X0 = X0_DEF; resetRun(); };   // 重置同时回默认出发位置
+document.querySelectorAll('#gearBtns button').forEach(function(b){
+  b.onclick = function(){ setGear(parseFloat(b.dataset.v)); };
+});
+
+/* ================= 主循环 ================= */
+let last = performance.now();
+function frame(now){
+  const wall = Math.min(0.05, (now - last) / 1000); last = now;
+  waveT += wall;                                 // 河水一直在流
+  if(phase === 'run'){
+    const k = kin();
+    /* simT 由出发时间戳解析得出（动画加速 SPEED 倍，但显示的是真实物理时间），
+       与帧率无关，低帧率下数值依然严格等于公式值 */
+    simT = Math.min(k.t, Math.max(0, (now - runStart) / 1000) * SPEED);
+    if(simT >= k.t){                             // 到达对岸即停
+      simT = k.t; phase = 'done';
+      addRecord();
+    }
+  }
+  drawMain();
+  drawTri();
+  updateUI();
+  requestAnimationFrame(frame);
+}
+
+/* ================= 初始化 ================= */
+/* 支持 URL 参数预设（课堂快捷演示 / 自检用）：?v=5&theta=90&go=1
+   t=秒：从“已出发 t 秒”的状态开始；pause=1：直接进入暂停态；x0=像素：预设出发位置
+   （以上均为无头截图自检钩子，正常双击打开无影响） */
+(function init(){
+  const qp = new URLSearchParams(location.search);
+  if(qp.has('v')){
+    const v = parseFloat(qp.get('v'));
+    if(v === 5 || v === 2) setGear(v);
+  }
+  if(qp.has('theta')){
+    const d = parseFloat(qp.get('theta'));
+    if(isFinite(d)) setTheta(d);
+  }
+  if(qp.has('x0')){
+    const xv = parseFloat(qp.get('x0'));
+    if(isFinite(xv)) X0 = Math.max(60, Math.min(W - 80, xv));
+  }
+  setGear(vB);
+  $('thetaEcho').textContent = fmtTheta();
+  renderTable();
+  updateUI();
+  if(qp.get('go') === '1' || qp.has('t')){
+    let off = 0;
+    if(qp.has('t')){
+      const ts = parseFloat(qp.get('t'));
+      if(isFinite(ts) && ts > 0) off = ts;
+    }
+    runStart = performance.now() - off / SPEED * 1000;
+    simT = 0; phase = 'run';
+    if(qp.get('pause') === '1'){ simT = off; phase = 'pause'; }   // 自检：直接停在 t=off 的暂停态
+  }
+  requestAnimationFrame(frame);
+})();
+})();
+</script>
+</body>
+</html>

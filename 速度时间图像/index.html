@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>v–t 图线与时间轴围成的面积 = 位移</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;margin:0;padding:16px;color:#222;}
+  h1{font-size:18px;margin:0 0 12px;}
+  .wrap{display:flex;gap:16px;flex-wrap:nowrap;align-items:flex-start;width:100%;max-width:calc(100vw - 32px);}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:10px;}
+  .panel.canvas-panel{flex:1 1 auto;min-width:0;}    /* 画布面板可伸缩 */
+  .cap{text-align:center;font-size:13px;color:#556;margin-bottom:6px;}
+  canvas{display:block;background:#fff;max-width:100%;height:auto;}   /* 窄屏时画布按比例缩放 */
+  .info{flex:0 0 270px;width:270px;font-size:13px;line-height:1.9;}  /* 信息面板固定宽，永远在右边 */
+  .info hr{border:none;border-top:1px dashed #ccd;}
+  .phase{font-weight:bold;color:#c0392b;}
+  button,select,input{font:inherit;padding:4px 12px;cursor:pointer;}
+  .btns{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:13px;}
+  .btns input[type=range]{padding:0;vertical-align:middle;}
+  #demoBtn{background:#c0392b;color:#fff;border:none;border-radius:6px;}  /* 关键按钮红底白字 */
+  .val{font-family:Consolas,monospace;color:#124;}
+  .note{font-size:12px;color:#667;}
+  .radio-box{display:flex;gap:10px;align-items:center;}
+  .radio-box label{cursor:pointer;}
+  .radio-box input{padding:0;margin-right:3px;}
+</style>
+</head>
+<body>
+<h1>v–t 图线与时间轴围成的面积 = 位移（矩形逼近演示）</h1>
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cap">匀加速直线运动：v(t) = v₀ + a·t，v₀ = 2 m/s，a = 0.5 m/s²，0 ≤ t ≤ 10 s　——　红色曲线下的面积 = 真实位移 45.00 m</div>
+    <canvas id="view"></canvas>
+    <div class="btns">
+      <span>分段数 N = <span class="val" id="nVal">12</span></span>
+      <input type="range" id="nSlider" min="2" max="300" step="1" value="12" style="width:180px">
+      <input type="number" id="nInput" min="2" max="300" step="1" value="12" style="width:64px">
+      <span>宽度一致性 λ = <span class="val" id="lamVal">0%</span></span>
+      <input type="range" id="lamSlider" min="0" max="100" step="1" value="0" style="width:120px">
+      <button id="rerollBtn">🎲 重新随机</button>
+    </div>
+    <div class="btns">
+      <span class="radio-box">取高方式：
+        <label><input type="radio" name="endpoint" value="right" checked>右端点（高估）</label>
+        <label><input type="radio" name="endpoint" value="left">左端点（低估）</label>
+      </span>
+      <button id="demoBtn">▶ 演示：N 自动增大</button>
+    </div>
+  </div>
+  <div class="info panel">
+    <div>当前状态：<span class="phase" id="phase"></span></div>
+    <hr>
+    <div>分段数 N = <span class="val" id="iN"></span></div>
+    <div>矩形面积总和 Σ = <span class="val" id="iSum"></span> m</div>
+    <div>真实面积（位移）= <span class="val" id="iTrue">45.00</span> m</div>
+    <div>误差 Δ = Σ − 45 = <span class="val" id="iErr"></span> m</div>
+    <div>相对误差 = <span class="val" id="iPct"></span></div>
+    <hr>
+    <div class="note" id="note">说明：匀加速直线运动的位移等于 v–t 图线与时间轴围成的面积。把总时间切成 N 小段，每小段近似看成匀速，位移 ≈ 速度 × 时长 = 一个矩形的面积。N 越大，每段越窄，近似越准。无论分段是否均匀、矩形高取左端点还是右端点，只要 N 足够大，所有矩形面积之和都无限趋近图线与时间轴围成的真实面积——这就是"面积表示位移"的道理，也是微积分中"分割、近似、求和、取极限"的思想。</div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ================= 物理参数（任务书给定，不许改） ================= */
+const V0 = 2;            // 初速度 v0 = 2 m/s
+const A  = 0.5;          // 加速度 a = 0.5 m/s²
+const T  = 10;           // 总时间 T = 10 s
+const VMAX = 8;          // 纵轴量程 0–8 m/s
+const vOf = t => V0 + A * t;                          // v(t) 解析式
+const TRUE_AREA = V0 * T + 0.5 * A * T * T;           // 真实位移 = 45.00 m（梯形面积）
+
+/* ================= 状态 ================= */
+let N = 12;              // 分段数（2–300）
+let lambda = 0;          // 宽度一致性 0–100（%）
+let endpoint = 'right';  // 取高方式：右端点 / 左端点
+let randW = [];          // 归一化随机宽度（总和 = T）
+let demoOn = false, demoTime = 0;   // N 自动演示
+const DEMO_DUR = 8;      // 约 8 秒从 N=2 扫到 N=300
+
+/* 生成 N 个随机正数，归一化后 × T（保证总和 = T、无零宽段） */
+function genRandomWidths(){
+  const r = [];
+  let s = 0;
+  for(let i = 0; i < N; i++){ r.push(Math.random() + 0.05); s += r[i]; }  // +0.05 避免零宽
+  randW = r.map(x => x / s * T);
+}
+
+/* 实际宽度 = (1−λ)·rand_i + λ·(T/N)，任何 λ 下总和都 = T */
+function widths(){
+  const eq = T / N, f = lambda / 100;
+  return randW.map(w => (1 - f) * w + f * eq);
+}
+
+/* 矩形面积总和：每段速度（端点）× 段时长 */
+function sumArea(ws){
+  let sum = 0, t = 0;
+  for(let i = 0; i < N; i++){
+    const tR = t + ws[i];                 // 本段右端时刻
+    sum += ws[i] * vOf(endpoint === 'right' ? tR : t);
+    t = tR;
+  }
+  return sum;
+}
+
+/* ================= 画布 ================= */
+const PW = 1200, PH = 500;                       // 画布逻辑尺寸
+const ML = 70, MR = 40, MT = 30, MB = 60;        // 绘图区边距
+const plotW = PW - ML - MR, plotH = PH - MT - MB;
+const xOf = t => ML + t / T * plotW;
+const yOf = v => MT + plotH - v / VMAX * plotH;
+
+function setupCanvas(cv, w, hgt){
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = w * dpr; cv.height = hgt * dpr;
+  cv.style.width = w + 'px'; cv.style.height = hgt + 'px';
+  const c = cv.getContext('2d');
+  c.scale(dpr, dpr);
+  return c;
+}
+const ctx = setupCanvas(document.getElementById('view'), PW, PH);
+
+/* 坐标轴、刻度、单位、轴名 */
+function drawAxes(){
+  ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(ML, MT - 6); ctx.lineTo(ML, MT + plotH); ctx.lineTo(ML + plotW + 8, MT + plotH);
+  ctx.stroke();
+  ctx.fillStyle = '#333'; ctx.font = '12px sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  for(let t = 0; t <= 10; t++){                   // 横轴刻度：每 1 s
+    const x = xOf(t);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, MT + plotH); ctx.lineTo(x, MT + plotH + 5); ctx.stroke();
+    ctx.fillText(String(t), x, MT + plotH + 8);
+    if(t > 0){                                    // 淡网格线
+      ctx.strokeStyle = '#eee';
+      ctx.beginPath(); ctx.moveTo(x, MT); ctx.lineTo(x, MT + plotH); ctx.stroke();
+    }
+  }
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for(let v = 0; v <= 8; v++){                    // 纵轴刻度：每 1 m/s
+    const y = yOf(v);
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ML - 5, y); ctx.lineTo(ML, y); ctx.stroke();
+    ctx.fillText(String(v), ML - 8, y);
+    if(v > 0){
+      ctx.strokeStyle = '#eee';
+      ctx.beginPath(); ctx.moveTo(ML, y); ctx.lineTo(ML + plotW, y); ctx.stroke();
+    }
+  }
+  ctx.fillStyle = '#333'; ctx.font = '13px sans-serif';
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillText('t / s', ML + plotW + 8, MT + plotH - 2);          // 横轴名+单位
+  ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillText('v / (m/s)', ML + 6, MT - 6);                      // 纵轴名+单位
+}
+
+/* 真实面积：图线与时间轴围成的区域，浅红半透明，始终显示 */
+function drawTrueArea(){
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), yOf(0));
+  for(let t = 0; t <= T; t += 0.05) ctx.lineTo(xOf(t), yOf(vOf(t)));
+  ctx.lineTo(xOf(T), yOf(0));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(192,57,43,0.12)';
+  ctx.fill();
+}
+
+/* N 个矩形：半透明蓝填充 + 蓝色描边，高出图线部分清晰可辨 */
+function drawRects(ws){
+  let t = 0;
+  for(let i = 0; i < N; i++){
+    const tR = t + ws[i];
+    const h = vOf(endpoint === 'right' ? tR : t);
+    const x = xOf(t), w = xOf(tR) - x, y = yOf(h);
+    ctx.fillStyle = 'rgba(47,127,224,0.35)';
+    ctx.fillRect(x, y, w, yOf(0) - y);
+    ctx.strokeStyle = '#2f7fe0'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, w, yOf(0) - y);
+    t = tR;
+  }
+}
+
+/* v(t) 图线：红色加粗 */
+function drawCurve(){
+  ctx.strokeStyle = '#c0392b'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(xOf(0), yOf(vOf(0)));
+  for(let t = 0; t <= T; t += 0.05) ctx.lineTo(xOf(t), yOf(vOf(t)));
+  ctx.stroke();
+}
+
+/* ================= 界面信息 ================= */
+const $ = id => document.getElementById(id);
+
+function updateInfo(sum){
+  const err = sum - TRUE_AREA;
+  $('iN').textContent = String(N);
+  $('iSum').textContent = sum.toFixed(2);
+  $('iErr').textContent = (err >= 0 ? '+' : '') + err.toFixed(2);
+  $('iPct').textContent = (Math.abs(err) / TRUE_AREA * 100).toFixed(2) + ' %';
+
+  const ad = Math.abs(err);
+  let ph;
+  if(N >= 100 || ad < 0.15){
+    ph = 'N=' + N + '：误差只剩 ' + ad.toFixed(2) + ' m —— 段数足够多时，不管怎么分段，矩形面积和都逼近图线下方真实面积';
+  } else {
+    ph = 'N=' + N + '：' + N + ' 个矩形的面积和比真实面积' + (err > 0 ? '多 ' : '少 ') + ad.toFixed(2) +
+         ' m（' + (endpoint === 'right' ? '右' : '左') + '端点取高，' + (err > 0 ? '高估' : '低估') + '）';
+  }
+  $('phase').textContent = ph;
+}
+
+/* ================= 主循环 ================= */
+let last = performance.now();
+function frame(now){
+  const wall = Math.min(0.05, (now - last) / 1000); last = now;
+  if(demoOn){                                       // N 自动演示：约 8 秒从 2 扫到 300
+    demoTime += wall;
+    const k = Math.min(1, demoTime / DEMO_DUR);
+    const nNew = Math.round(2 + k * (300 - 2));
+    if(nNew !== N) setN(nNew);                      // 滑块与输入框跟随演示进度
+    if(k >= 1){ demoOn = false; $('demoBtn').textContent = '▶ 演示：N 自动增大'; }
+  }
+
+  const ws = widths();
+  const sum = sumArea(ws);
+
+  ctx.clearRect(0, 0, PW, PH);
+  drawTrueArea();
+  drawRects(ws);
+  drawAxes();
+  drawCurve();
+  updateInfo(sum);
+
+  requestAnimationFrame(frame);
+}
+
+/* ================= 控件 ================= */
+function stopDemo(){
+  if(demoOn){ demoOn = false; $('demoBtn').textContent = '▶ 演示：N 自动增大'; }
+}
+/* 统一设置 N：钳制到 2–300，同步滑块 / 数字输入框 / 回显，并重排随机宽度 */
+function setN(n){
+  N = Math.max(2, Math.min(300, Math.round(n)));
+  $('nSlider').value = String(N);
+  $('nInput').value = String(N);
+  $('nVal').textContent = String(N);
+  genRandomWidths();                                // 每个 N 重新抽一组随机宽度
+}
+$('nSlider').oninput = () => {
+  stopDemo();                                       // 手动拖滑块时退出自动演示
+  setN(parseInt($('nSlider').value, 10));
+};
+$('nInput').onchange = () => {
+  const v = parseFloat($('nInput').value);
+  if(isNaN(v)){ $('nInput').value = String(N); return; }  // 非数字/空输入：回退为当前 N
+  stopDemo();                                       // 演示播放中手动输入：退出演示
+  setN(v);                                          // 超出 2–300 自动钳制并触发重排
+};
+$('lamSlider').oninput = () => {
+  lambda = parseInt($('lamSlider').value, 10);
+  $('lamVal').textContent = lambda + '%';
+};
+$('rerollBtn').onclick = () => genRandomWidths();   // 重新抽一组 rand_i
+document.querySelectorAll('input[name=endpoint]').forEach(r => {
+  r.onchange = () => { endpoint = r.value; };
+});
+$('demoBtn').onclick = () => {
+  if(demoOn){ stopDemo(); return; }                 // 再点一次可中途停止
+  demoOn = true; demoTime = 0;
+  $('demoBtn').textContent = '■ 停止演示';
+};
+
+/* 支持 ?n= &lambda= &auto=1 参数（便于无头截图自检，不影响正常使用） */
+(function initFromURL(){
+  const q = new URLSearchParams(location.search);
+  if(q.has('n')){
+    const v = parseInt(q.get('n'), 10);
+    if(!isNaN(v)) setN(v);
+  }
+  if(q.has('lambda')){
+    lambda = Math.max(0, Math.min(100, parseInt(q.get('lambda'), 10) || 0));
+    $('lamSlider').value = String(lambda); $('lamVal').textContent = lambda + '%';
+  }
+  if(q.get('mode') === 'left'){
+    endpoint = 'left';
+    document.querySelector('input[name=endpoint][value=left]').checked = true;
+  }
+  if(q.get('auto') === '1'){
+    demoOn = true; demoTime = 0;
+    if(q.has('demoT')) demoTime = Math.max(0, Math.min(DEMO_DUR, parseFloat(q.get('demoT')) || 0));  // 预设演示进度（自检用）
+    $('demoBtn').textContent = '■ 停止演示';
+  }
+})();
+
+genRandomWidths();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
