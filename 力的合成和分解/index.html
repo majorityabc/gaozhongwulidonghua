@@ -25,6 +25,8 @@
   .note{font-size:12px;color:#667;}
   .ctrl{margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px;}
   .ctrl input[type=range]{flex:1 1 260px;max-width:560px;padding:0;cursor:pointer;}
+  .ctrl input[type=radio]{padding:0;margin:0 4px 0 0;}
+  .ctrl label{display:inline-flex;align-items:center;cursor:pointer;}
   .playBtn{background:#2f6fb2;color:#fff;border:none;border-radius:6px;min-width:76px;}
   .ok{color:#1e8e3e;font-weight:bold;}
   .warn{color:#c0392b;font-weight:bold;}
@@ -37,7 +39,7 @@
 <div class="tabbar">
   <button data-tab="t1" class="active">① 夹角改变，合力改变</button>
   <button data-tab="t2">② 合力不变，对称两分力</button>
-  <button data-tab="t3">③ 分解的解的讨论（30°）</button>
+  <button data-tab="t3">③ 一个力方向不变，另一个力大小变化</button>
 </div>
 
 <!-- ============ 演示一：两分力大小不变，改变夹角 ============ -->
@@ -123,6 +125,9 @@
       <span class="val" id="t3A">45</span><span>N</span>
       <button id="t3Play" class="playBtn">▶ 扫描|F₁|</button>
       <button id="t3Reset">重置</button>
+      <span style="margin-left:4px">显示：</span>
+      <label><input type="radio" name="t3Mode" value="1">显示一个解</label>
+      <label><input type="radio" name="t3Mode" value="both" checked>两个都显示</label>
       <span class="note">以 F 末端为圆心、|F₁| 为半径作圆，圆与 F₂ 方向射线的交点决定解的个数；也可以直接用手（或鼠标）拖动交点的彩色圆点，沿 F₂ 方向滑动来改变 |F₁|</span>
     </div>
   </div>
@@ -433,7 +438,7 @@ t2.init();
 const t3={
   cv:document.getElementById("cv3"),ctx:null,
   slider:document.getElementById("t3Slider"),
-  A:45,playing:false,dir:1,dragging:false,
+  A:45,playing:false,dir:1,dragging:false,mode:"both",sel:0,   /* mode："1" 显示一个解 / "both" 两个都显示；sel：单解模式显示哪个解（0=远交点，1=近交点，拖动时自动切换） */
   F:60,K:2.8,
   OX:300,OY:300,
   init(){
@@ -441,7 +446,11 @@ const t3={
     const self=this;
     this.slider.addEventListener("input",()=>{self.A=+self.slider.value;self.playing=false;self.playBtn().textContent="▶ 扫描|F₁|";});
     this.playBtn().addEventListener("click",()=>{self.playing=!self.playing;this.textContent=self.playing?"⏸ 暂停":"▶ 扫描|F₁|";});
-    document.getElementById("t3Reset").addEventListener("click",()=>{self.A=45;self.playing=false;self.playBtn().textContent="▶ 扫描|F₁|";});
+    document.getElementById("t3Reset").addEventListener("click",()=>{self.A=45;self.playing=false;self.sel=0;self.playBtn().textContent="▶ 扫描|F₁|";});
+    /* 显示模式切换：仅解1 / 仅解2 / 两个都显示 */
+    document.querySelectorAll("input[name=t3Mode]").forEach(r=>{
+      r.addEventListener("change",()=>{self.mode=r.value;});
+    });
     /* ===== 拖动交点 Q（F₁ 与 F₂ 的相接点）：沿 F₂ 方向拖动即改变 |F₁| ===== */
     const cvEl=this.cv;
     function pos(ev){
@@ -450,9 +459,9 @@ const t3={
       return [(p.clientX-r.left)*cvEl.width/r.width,(p.clientY-r.top)*cvEl.height/r.height];
     }
     function nearQ(m){
-      const sols=self.solve();
-      for(const s of sols){
-        const q=self.qPos(s);
+      const vs=self.visSols();
+      for(const v of vs){
+        const q=self.qPos(v.s);
         if(Math.hypot(m[0]-q[0],m[1]-q[1])<24)return true;
       }
       return false;
@@ -465,8 +474,11 @@ const t3={
       const m=pos(ev);
       if(self.dragging){
         const ux=Math.cos(30*RAD),uy=-Math.sin(30*RAD);
-        const tpx=Math.max(0,(m[0]-self.OX)*ux+(m[1]-self.OY)*uy);  /* 手指在 F₂ 方向上的投影 */
+        const tpx=Math.max(self.K,(m[0]-self.OX)*ux+(m[1]-self.OY)*uy);  /* 手指在 F₂ 方向上的投影（最小 1 N，保证拖到 O 点附近时解仍存在） */
         const tN=tpx/self.K;
+        /* 单解模式：按拖动位置自动切换显示的解——垂足（t = F·cos30°）右侧显示远交点、左侧显示近交点，
+           圆点可从右上方一直拖到 O 点，F₁ 的方向覆盖整条射线 */
+        if(self.mode==="1")self.sel=tN>=self.F*Math.cos(30*RAD)?0:1;
         const a=Math.sqrt(self.F*self.F+tN*tN-2*self.F*tN*Math.cos(30*RAD));
         self.A=Math.max(10,Math.min(100,a));
         self.slider.value=Math.round(self.A);
@@ -505,6 +517,18 @@ const t3={
     });
     return out;
   },
+  /* 按显示模式筛选要画在图上的解："both" 全部画出；"1" 只画 this.sel 指定的一个解
+     （0=远交点 F₁′/F₂′，1=近交点 F₁″/F₂″；所选解不存在时回退到远交点）；
+     无解时两种模式都不画 */
+  visSols(){
+    const sols=this.solve();
+    if(this.mode==="1"){
+      if(sols.length===0)return[];
+      const i=(this.sel===1&&sols.length>1)?1:0;
+      return[{s:sols[i],i:i}];
+    }
+    return sols.map((s,i)=>({s:s,i:i}));
+  },
   render(){
     const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
     ctx.clearRect(0,0,W,H);
@@ -530,10 +554,12 @@ const t3={
     dot(ctx,ox,oy,5,"#333");txt(ctx,"O",ox-14,oy+14,"#333",13,true);
     dot(ctx,px,py,4,"#e74c3c");txt(ctx,"P",px+14,py+14,"#e74c3c",13,true);
     /* 解 */
-    const sols=this.solve();
+    const sols=this.solve();          /* 全部解：状态判断与信息面板用 */
+    const vis=this.visSols();         /* 按显示模式筛出实际要画的解 */
     const colors=[{a:"#2980b9",b:"#27ae60",pa:"#a9cbe8",la:"F₁′",lb:"F₂′"},
                   {a:"#16a085",b:"#e67e22",pa:"#a3d9cd",la:"F₁″",lb:"F₂″"}];
-    sols.forEach((s,i)=>{
+    vis.forEach(v=>{
+      const s=v.s,i=v.i;
       const c=colors[i];
       const qx=ox+s.t*K*ux,qy=oy+s.t*K*uy;               /* B 末端 Q */
       const avx=px-qx,avy=py-qy;                          /* A 向量（屏幕） */
@@ -591,12 +617,13 @@ const t3={
 };
 t3.init();
 
-/* hash 参数定位：#t1&th=270、#t2&th=60&play=1、#t3&F1=25（便于截图与讲解） */
+/* hash 参数定位：#t1&th=270、#t2&th=60&play=1、#t3&F1=25&mode=1（便于截图与讲解；mode：1 显示一个解 / both 两个都显示） */
 if(hashParts[0]==="t1"&&hp.th!==undefined&&!isNaN(+hp.th)){t1.theta=Math.max(0,Math.min(360,+hp.th));t1.slider.value=Math.round(t1.theta);}
 if(hashParts[0]==="t2"&&hp.th!==undefined&&!isNaN(+hp.th)){t2.theta=Math.max(0,Math.min(75,+hp.th));t2.slider.value=Math.round(t2.theta);}
 if(hashParts[0]==="t2"&&hp.play==="1"){t2.playing=true;t2.recordNow();document.getElementById("t2Play").textContent="⏸ 暂停";}
 const t3av=hp.F1!==undefined?hp.F1:hp.A;
 if(hashParts[0]==="t3"&&t3av!==undefined&&!isNaN(+t3av)){t3.A=Math.max(10,Math.min(100,+t3av));t3.slider.value=Math.round(t3.A);}
+if(hashParts[0]==="t3"&&["1","both"].indexOf(hp.mode)>=0){t3.mode=hp.mode;const r=document.querySelector("input[name=t3Mode][value='"+hp.mode+"']");if(r)r.checked=true;}
 
 /* ============ 主循环 ============ */
 let lastT=performance.now();
