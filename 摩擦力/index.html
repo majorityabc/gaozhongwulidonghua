@@ -11,12 +11,12 @@
   .panel.canvas-panel{flex:1 1 auto;min-width:0;}    /* 画布面板可伸缩 */
   .cap{text-align:center;font-size:13px;color:#556;margin-bottom:6px;}
   canvas{display:block;background:#fff;max-width:100%;height:auto;}   /* 窄屏时画布按比例缩放 */
-  .info{flex:0 0 270px;width:270px;font-size:13px;line-height:1.9;}  /* 信息面板固定宽，永远在右边 */
+  .info{flex:0 0 400px;width:400px;font-size:16px;line-height:1.9;}  /* 信息面板固定宽，永远在右边 */
   .info hr{border:none;border-top:1px dashed #ccd;}
   .phase{font-weight:bold;color:#c0392b;}
   button,select,input{font:inherit;padding:4px 12px;cursor:pointer;}
   .val{font-family:Consolas,monospace;color:#124;}
-  .note{font-size:12px;color:#667;}
+  .note{font-size:14px;color:#667;}
   /* ===== 重物按钮组 ===== */
   .wbtns{display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;align-items:center;}
   .wbtns button{border:1px solid #cdd5df;background:#fff;border-radius:8px;padding:6px 10px;font-size:13px;}
@@ -36,14 +36,12 @@
       <button data-i="0">🪨 石块 +10 kg（可重复添加）</button>
       <button id="clearW" class="clear">清空重物</button>
     </div>
-    <div class="cap">空箱 f_max = 60 N 能推动；加一块石块 f_max = 90 N 刚好还能推动；两块石块 f_max = 120 N 就推不动了</div>
     <canvas id="view"></canvas>
     <div class="ctrl">
       <span>推力 F：</span>
-      <input type="range" id="fSlider" min="0" max="100" step="1" value="0">
+      <input type="range" id="fSlider" min="0" max="400" step="1" value="0">
       <span class="val" id="fEcho">0</span><span>N</span>
       <button id="resetBtn">重置</button>
-      <span class="note">小孩最多能使出 100 N 的力气。F ≤ f_max 时箱子纹丝不动；F 一旦超过 f_max，箱子开始匀加速滑动</span>
     </div>
   </div>
   <div class="info panel">
@@ -51,10 +49,10 @@
     <hr>
     <div>最大静摩擦力：<br><span class="val" id="fMaxF"></span></div>
     <div>推力 F = <span class="val" id="fPush"></span> N</div>
-    <div>当前摩擦力 <span id="fName">f静</span> = <span class="val" id="fCur"></span> N<br><span class="note" id="fKind"></span></div>
+    <div>当前摩擦力 <span id="fName">f_静</span> = <span class="val" id="fCur"></span> N<br><span class="note" id="fKind"></span></div>
     <div>状态：<span class="val" id="stateLine"></span></div>
     <hr>
-    <div class="note">说明：静摩擦力是个“被动力”——推力多大它就多大（方向相反），所以推力没超过最大静摩擦力时箱子纹丝不动，二力平衡。最大静摩擦力 f_max = μN = μ·m总·g，箱子越重越难推动。一旦推力超过 f_max，箱子开始滑动，此后滑动摩擦力保持 μ·m总·g 不再随推力增大，多出来的那部分推力成为合力，让箱子加速。往箱子上加东西，压力 N 变大，f_max 跟着变大，就需要更大的推力才能推动了。</div>
+    <div class="note">说明：静摩擦力是个“被动力”——推力多大它就多大（方向相反），所以推力没超过最大静摩擦力时箱子纹丝不动，二力平衡。最大静摩擦力 f_max = μN = μ·m_总·g，箱子越重越难推动。一旦推力超过 f_max，箱子开始滑动，此后滑动摩擦力保持 μ·m_总·g 不再随推力增大，多出来的那部分推力成为合力，让箱子加速。往箱子上加东西，压力 N 变大，f_max 跟着变大，就需要更大的推力才能推动了。</div>
   </div>
 </div>
 
@@ -66,7 +64,7 @@
 const MU = 0.30;          // 最大静摩擦系数 = 滑动摩擦系数
 const G  = 10;            // N/kg
 const M_BOX = 20;         // 空箱质量 kg → 空箱 f_max = 0.30×20×10 = 60 N
-const F_LIMIT = 100;      // 小孩的最大力气 100 N
+const F_LIMIT = 400;      // 高中生的最大水平推力约 400 N（约体重的 1/2~2/3）
 
 /* 可选重物：只保留石块，可重复添加 */
 const ITEMS = [
@@ -74,10 +72,11 @@ const ITEMS = [
 ];
 
 /* ================= 场景布局 ================= */
-const W = 1200, H = 420, GROUND_Y = 330;
-const BW = 150, BH = 95, BX = 640;   // 箱子宽/高/左边缘屏幕x（镜头跟随：箱子固定在屏幕上）
+const W = 820, H = 420, GROUND_Y = 330;
+const BW = 150, BH = 95, BX = 460;   // 箱子宽/高/左边缘屏幕x（镜头跟随：箱子固定在屏幕上）
 const PX_M = 70;                     // 1 米对应 70 px（地面纹理滚动用）
-const ARROW_K = 1.5;                 // 力箭头比例：1 N 对应 1.5 px
+const V_VIS_MAX = 7;                 // 地面/步态的视觉速度上限 m/s（更快时靠速度线表现，防止采样走样"倒卷"）
+const ARROW_K = 0.65;                // 力箭头比例：1 N 对应 0.65 px（画布较窄，保证满推力时箭头与标签不出界）
 
 /* ================= 状态 ================= */
 let F = 0;                 // 推力（滑块）
@@ -85,9 +84,9 @@ let weights = [];          // 已压到箱子上的重物
 let simT = 0;              // 仿真时钟
 let moving = false;        // 箱子是否在滑动
 let v = 0, s = 0;          // 当前速度 / 自启动算起的滑行距离（解析公式求值）
+let sVis = 0;              // 视觉滚动距离：v 超过 V_VIS_MAX 后按上限累积，供地面纹理与步态使用
 let base = {t0:0, v0:0, s0:0, a:0};  // 当前匀加速段的解析基准：v=v0+a·Δt, s=s0+v0·Δt+½a·Δt²
 let bannerT = 0;           // “箱子动了”横幅剩余显示时间
-let walkPhase = 0;         // 小孩迈步相位
 
 const $ = id => document.getElementById(id);
 
@@ -96,7 +95,7 @@ function mTotal(){ return M_BOX + mAdded(); }
 function fMax(){ return MU * mTotal() * G; }
 
 /* ================= 物理：解析精确，不用欧拉积分 ================= */
-/* 牛顿第二定律：滑动时 a = (F − f动) / m总，f动 = f_max = μ·m总·g 恒定 */
+/* 牛顿第二定律：滑动时 a = (F − f_动) / m_总，f_动 = f_max = μ·m_总·g 恒定 */
 /* F 或箱上质量变化时调用：把当前 v、s 固化为新基准，并按最新 f_max 重算加速度 */
 function rebase(){
   if(moving){
@@ -132,7 +131,7 @@ function step(wall){
       s = base.s0 + base.v0 * ts + 0.5 * base.a * ts * ts;
       v = 0; moving = false;
     }
-    walkPhase += v * wall * 3.5;   // 迈步频率随速度
+    sVis += Math.min(v, V_VIS_MAX) * wall;   // 视觉滚动距离限速累积（防高速走样）
   } else {
     v = 0;
   }
@@ -149,28 +148,43 @@ function setupCanvas(cv, w, hgt){
 }
 const ctx = setupCanvas($('view'), W, H);
 
-/* 地面 + hatch 纹理 + 米制刻度（随箱子滑行的距离 s 向左滚动，表现镜头跟随） */
+/* 地面 + 纹理 + 米制刻度（随箱子滑行向左滚动，表现镜头跟随）。
+   滚动使用限速后的视觉距离 sVis：速度过高时逐帧采样会产生"倒着走"的走样错觉，
+   限速保证纹理永远向左平滑滚动，速度感改由"速度线"拉长来表现 */
 function drawGround(){
   ctx.strokeStyle = '#888'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
-  const off = (s * PX_M) % 18;
+  /* 竖直短刻线；速度越大向右拖尾越长（运动模糊的速度线），方向永不倒卷 */
+  const blur = moving ? Math.min(40, v * PX_M / 60) : 0;
+  const off = (sVis * PX_M) % 26;
   ctx.lineWidth = 1; ctx.strokeStyle = '#bbb';
-  for(let x = -18 - off; x < W + 18; x += 18){
-    ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x - 8, GROUND_Y + 8); ctx.stroke();
+  for(let x = -26 - off; x < W + 26; x += 26){
+    ctx.beginPath();
+    ctx.moveTo(x, GROUND_Y + 2); ctx.lineTo(x, GROUND_Y + 9);                 // 刻线
+    if(blur > 0.5){
+      ctx.moveTo(x, GROUND_Y + 3); ctx.lineTo(x + blur, GROUND_Y + 3);        // 速度线（上）
+      ctx.moveTo(x, GROUND_Y + 8); ctx.lineTo(x + blur * 0.6, GROUND_Y + 8);  // 速度线（下）
+    }
+    ctx.stroke();
   }
-  /* 世界坐标刻度：箱子启动点为 0 m，随地面一起滚动 */
-  ctx.fillStyle = '#aab'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
-  ctx.strokeStyle = '#ccd';
-  const kMin = Math.floor(s - BX / PX_M), kMax = Math.ceil(s + (W - BX) / PX_M);
-  for(let k = kMin; k <= kMax; k++){
-    const sx = BX + (k - s) * PX_M;
-    if(sx < -30 || sx > W + 30) continue;
-    ctx.beginPath(); ctx.moveTo(sx, GROUND_Y); ctx.lineTo(sx, GROUND_Y - 7); ctx.stroke();
-    ctx.fillText(k + ' m', sx, GROUND_Y - 11);
+  /* 世界坐标刻度：箱子启动点为 0 m，随地面一起滚动；速度太快时淡出（反正也看不清） */
+  const tickA = Math.max(0, Math.min(1, 1 - (v - 4) / 4));
+  if(tickA > 0.01){
+    ctx.save(); ctx.globalAlpha = tickA;
+    ctx.fillStyle = '#aab'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center';
+    ctx.strokeStyle = '#ccd';
+    const kMin = Math.floor(sVis - BX / PX_M), kMax = Math.ceil(sVis + (W - BX) / PX_M);
+    for(let k = kMin; k <= kMax; k++){
+      const sx = BX + (k - sVis) * PX_M;
+      if(sx < -30 || sx > W + 30) continue;
+      ctx.beginPath(); ctx.moveTo(sx, GROUND_Y); ctx.lineTo(sx, GROUND_Y - 7); ctx.stroke();
+      ctx.fillText(k + ' m', sx, GROUND_Y - 11);
+    }
+    ctx.restore();
   }
 }
 
-/* 简笔画木箱：板条 + 斜撑，中央标 m总 */
+/* 简笔画木箱：板条 + 斜撑，中央标 m_总 */
 function drawBox(){
   const top = GROUND_Y - BH, cx = BX + BW / 2;
   const g = ctx.createLinearGradient(BX, top, BX, GROUND_Y);
@@ -189,7 +203,7 @@ function drawBox(){
   }
   ctx.fillStyle = '#3d2708'; ctx.font = 'bold 15px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText('m总 = ' + mTotal() + ' kg', cx, top + BH / 2);
+  ctx.fillText('m_总 = ' + mTotal() + ' kg', cx, top + BH / 2);
   ctx.textBaseline = 'alphabetic';
 }
 
@@ -225,7 +239,7 @@ function drawWeights(){
   });
 }
 
-/* ============ 写实风卡通小孩：头发、五官、上衣、裤子、鞋子，保留前推姿势 ============ */
+/* ============ 卡通小孩：反戴棒球帽、大眼睛、上衣、裤子、鞋子；姿势随推力变化（五官保持笑脸） ============ */
 const SKIN = '#ffd9b3', SKIN_D = '#eec39a', HAIR = '#3a2417',
       SHIRT = '#e8734a', SHIRT_D = '#c95e38',
       PANTS = '#3b5b7f', PANTS_D = '#2f4a68', SHOE = '#4a3b30';
@@ -244,59 +258,74 @@ function drawLeg(hx, hy, f, pantCol){
   ctx.fillStyle = '#fff';                                    // 鞋底白边
   ctx.fillRect(f.x - 9, f.y - 3, 26, 2.5);
 }
-/* 手臂：袖子（上臂）+ 小臂 + 手，肘部略下垂 */
-function drawArm(sx, sy, hx, hy, sleeveCol, skinCol){
-  const ex = (sx + hx) / 2, ey = (sy + hy) / 2 + 9;         // 肘
+/* 手臂：袖子（上臂）+ 小臂 + 手；越用力肘部越伸直（下垂量随 e 减小） */
+function drawArm(sx, sy, hx, hy, sleeveCol, skinCol, e){
+  const ex = (sx + hx) / 2, ey = (sy + hy) / 2 + 9 * (1 - 0.75 * e);  // 肘
   seg(sx, sy, ex, ey, 10, sleeveCol);
   seg(ex, ey, hx, hy, 7, skinCol);
   ctx.fillStyle = skinCol;                                   // 手
   ctx.beginPath(); ctx.arc(hx, hy, 5, 0, Math.PI * 2); ctx.fill();
 }
 function drawKid(){
-  const hipX = BX - 72, hipY = GROUND_Y - 68;   // 胯
-  const shX  = BX - 40, shY  = GROUND_Y - 134;  // 肩（躯干前倾）
+  /* 用力程度 e = 当前推力 / 最大推力：e 越大，弓步越深、躯干越前倾、表情越吃力 */
+  const e = Math.min(1, F / F_LIMIT);
+  const trb = e > 0.8 ? Math.sin(simT * 25) * 1.2 * (e - 0.8) / 0.2 : 0;  // 接近极限时身体发抖
+  const hipX0 = BX - 72 - 6 * e;                            // 胯基准（不含抖动）：越用力越后坐
+  const hipX = hipX0 + trb, hipY = GROUND_Y - 68 + 6 * e;   // 胯：随用力下沉
+  const shX  = BX - 40 + 14 * e + trb, shY  = GROUND_Y - 134 + 8 * e;  // 肩：随用力前倾下压
   ctx.lineCap = 'round';
 
-  /* 双脚位置：静止时弓步蹬地；箱子滑动时交替迈步跟着走 */
+  /* 双脚位置：静止时弓步蹬地（越用力后腿蹬得越远）；
+     箱子滑动时迈步跟着走——步态相位由视觉滚动距离 sVis 决定：
+     支撑脚与地面严格同步（不溜冰、不倒走），摆动脚快速抬起前迈，含双脚支撑期 */
+  const STEP_A = 40;                             // 步幅半径 px（脚相对髋前后摆的幅度）
+  const SUP = 0.62;                              // 支撑相占整个步态周期的比例（真实走路约 60%）
+  const strideM = 2 * STEP_A / SUP / PX_M;       // 一个完整步态周期对应的世界距离 m
   let f1, f2;
   if(moving && v > 0.01){
-    f1 = {x: hipX + 45 * Math.sin(walkPhase),
-          y: GROUND_Y - 10 * Math.max(0, Math.sin(walkPhase + Math.PI / 2))};
-    f2 = {x: hipX + 45 * Math.sin(walkPhase + Math.PI),
-          y: GROUND_Y - 10 * Math.max(0, Math.sin(walkPhase + Math.PI + Math.PI / 2))};
+    const footAt = k => {
+      const p = ((sVis / strideM) + 0.5 * k) % 1;
+      if(p < SUP) return {x: hipX0 + STEP_A * (1 - 2 * p / SUP), y: GROUND_Y};           // 支撑：贴地、与地面同速后移
+      const q = (p - SUP) / (1 - SUP);
+      return {x: hipX0 + STEP_A * (2 * q - 1), y: GROUND_Y - 12 * Math.sin(q * Math.PI)}; // 摆动：抬起前迈
+    };
+    f1 = footAt(0); f2 = footAt(1);
   } else {
-    f1 = {x: hipX - 46, y: GROUND_Y};
-    f2 = {x: hipX + 44, y: GROUND_Y};
+    f1 = {x: hipX0 - 46 - 16 * e, y: GROUND_Y};
+    f2 = {x: hipX0 + 44 - 4 * e, y: GROUND_Y};
   }
   drawLeg(hipX - 3, hipY, f1, PANTS_D);          // 后腿（深色，显得在远侧）
   drawLeg(hipX + 3, hipY, f2, PANTS);            // 前腿
   seg(hipX, hipY, shX, shY, 26, SHIRT);          // 躯干：上衣
-  drawArm(shX - 4, shY + 6,  BX, GROUND_Y - 92, SHIRT_D, SKIN_D);  // 远侧手臂
-  drawArm(shX + 2, shY + 12, BX, GROUND_Y - 76, SHIRT, SKIN);      // 近侧手臂
+  drawArm(shX - 4, shY + 6,  BX, GROUND_Y - 92, SHIRT_D, SKIN_D, e);  // 远侧手臂
+  drawArm(shX + 2, shY + 12, BX, GROUND_Y - 76, SHIRT, SKIN, e);      // 近侧手臂
 
-  /* 头部：侧脸朝右（朝箱子） */
-  const cx = shX + 8, cy = shY - 26, r = 17;
-  seg(shX + 2, shY - 4, cx - 2, cy + 13, 9, SKIN);                  // 脖子
-  ctx.fillStyle = HAIR;                                             // 头发（后脑 + 头顶）
-  ctx.beginPath(); ctx.arc(cx - 4, cy - 5, r, 0, Math.PI * 2); ctx.fill();
+  /* 头部：卡通小孩 —— 大脑袋、反戴棒球帽、大眼睛，侧脸朝右（朝箱子） */
+  const cx = shX + 8, cy = shY - 30, r = 19;
+  seg(shX + 2, shY - 4, cx - 3, cy + 15, 9, SKIN);                  // 脖子
   ctx.fillStyle = SKIN;                                             // 脸
-  ctx.beginPath(); ctx.arc(cx + 2, cy + 1, r - 2, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = HAIR;                                             // 前额刘海
-  ctx.beginPath(); ctx.arc(cx - 1, cy - 6, r - 4, Math.PI, Math.PI * 1.75); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = SKIN;                                             // 耳朵
-  ctx.beginPath(); ctx.arc(cx - 6, cy + 2, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx - 9, cy + 3, 4.5, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = SKIN_D; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.arc(cx - 6, cy + 2, 2.2, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = '#222';                                           // 眼睛
-  ctx.beginPath(); ctx.arc(cx + 8, cy - 2, 2, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = HAIR; ctx.lineWidth = 1.6;                      // 眉毛
-  ctx.beginPath(); ctx.moveTo(cx + 4, cy - 6.5); ctx.lineTo(cx + 11, cy - 7.5); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx - 9, cy + 3, 2.4, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = 'rgba(240,120,90,.35)';                           // 腮红（固定，不随推力变化）
+  ctx.beginPath(); ctx.arc(cx + 10, cy + 8, 3.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e23b3b';                                        // 反戴的棒球帽
+  ctx.beginPath(); ctx.arc(cx, cy - 6, r + 1, Math.PI, Math.PI * 2); ctx.fill();   // 帽顶
+  ctx.beginPath(); ctx.ellipse(cx - r - 5, cy - 9, 9, 3.5, -0.25, 0, Math.PI * 2); ctx.fill();  // 帽檐朝后
+  ctx.beginPath(); ctx.arc(cx, cy - r - 8, 2.2, 0, Math.PI * 2); ctx.fill();       // 顶扣
+  /* 五官：保持不变的卡通笑脸（不随推力变化） */
+  ctx.fillStyle = '#fff';                                           // 卡通大眼睛：白底 + 黑眼珠
+  ctx.beginPath(); ctx.ellipse(cx + 8, cy + 2, 4.5, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#222';
+  ctx.beginPath(); ctx.arc(cx + 9.5, cy + 2.5, 2.2, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = HAIR; ctx.lineWidth = 2;                        // 眉毛
+  ctx.beginPath(); ctx.moveTo(cx + 4, cy - 4); ctx.lineTo(cx + 12, cy - 5.5); ctx.stroke();
   ctx.strokeStyle = SKIN_D; ctx.lineWidth = 1.5;                    // 鼻子
-  ctx.beginPath(); ctx.arc(cx + 14, cy + 2, 3, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx + 17, cy + 6, 2.5, -Math.PI / 2, Math.PI / 2); ctx.stroke();
   ctx.strokeStyle = '#b5674c'; ctx.lineWidth = 1.6;                 // 微笑
-  ctx.beginPath(); ctx.arc(cx + 8, cy + 5, 5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
-  ctx.fillStyle = 'rgba(240,120,90,.35)';                           // 腮红
-  ctx.beginPath(); ctx.arc(cx + 9, cy + 5, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 8, cy + 9, 4.5, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
 }
 
 function arrow(x1, y1, x2, y2, color){
@@ -310,7 +339,7 @@ function arrow(x1, y1, x2, y2, color){
   ctx.closePath(); ctx.fill();
 }
 
-/* 力箭头：长度与力的大小成正比；静止时 f静 = F 两箭头等长，滑动后 f动 恒等于 f_max 不再变长 */
+/* 力箭头：长度与力的大小成正比；静止时 f_静 = F 两箭头等长，滑动后 f_动 恒等于 f_max 不再变长 */
 function drawForceArrows(){
   const f = moving ? fMax() : F;
   if(F > 0.01){
@@ -324,9 +353,9 @@ function drawForceArrows(){
     const y = GROUND_Y + 22;                       // 箱底与地面接触处
     const x0 = BX + BW / 2;
     arrow(x0, y, x0 - f * ARROW_K, y, '#c0392b');
-    /* f 标签明显加大：静止 f静 / 滑动 f动 */
+    /* f 标签明显加大：静止 f_静 / 滑动 f_动 */
     ctx.fillStyle = '#c0392b'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText((moving ? 'f动' : 'f静') + ' = ' + f.toFixed(0) + ' N', x0 - f * ARROW_K / 2, y + 26);
+    ctx.fillText((moving ? 'f_动' : 'f_静') + ' = ' + f.toFixed(0) + ' N', x0 - f * ARROW_K / 2, y + 26);
   }
 }
 
@@ -349,23 +378,23 @@ function updateInfo(){
   const mA = mAdded(), mT = mTotal(), fm = fMax();
   const f = moving ? fm : F;
   $('fMaxF').textContent = mA > 0
-    ? 'f_max = μ·m总·g = 0.30×(20+' + mA + ')×10 = ' + fm.toFixed(2) + ' N'
-    : 'f_max = μ·m总·g = 0.30×20×10 = ' + fm.toFixed(2) + ' N';
+    ? 'f_max = μ·m_总·g = 0.30×(20+' + mA + ')×10 = ' + fm.toFixed(2) + ' N'
+    : 'f_max = μ·m_总·g = 0.30×20×10 = ' + fm.toFixed(2) + ' N';
   $('fPush').textContent = F.toFixed(2);
-  $('fName').textContent = moving ? 'f动' : 'f静';
+  $('fName').textContent = moving ? 'f_动' : 'f_静';
   $('fCur').textContent = f.toFixed(2);
   $('fKind').textContent = moving
-    ? '（滑动摩擦力，恒等于 μ·m总·g，不随推力增大）'
+    ? '（滑动摩擦力，恒等于 μ·m_总·g，不随推力增大）'
     : '（静摩擦力，与推力等大反向，二力平衡）';
   if(moving){
     const fhe = F - fm, a = fhe / mT;
     /* 牛顿第二定律算式完整显示 */
-    $('stateLine').textContent = '滑动 · F合 = F − f动 = ' + F + ' − ' + fm + ' = ' + fhe.toFixed(2)
-      + ' N，a = F合/m总 = ' + fhe.toFixed(2) + '/' + mT + ' = ' + a.toFixed(2) + ' m/s²';
+    $('stateLine').textContent = '滑动 · F_合 = F − f_动 = ' + F + ' − ' + fm + ' = ' + fhe.toFixed(2)
+      + ' N，a = F_合/m_总 = ' + fhe.toFixed(2) + '/' + mT + ' = ' + a.toFixed(2) + ' m/s²';
     $('phase').textContent = fhe > 0 ? '箱子动了！匀加速滑动中'
                            : (fhe < 0 ? '箱子滑动减速中' : '箱子匀速滑动中');
   } else {
-    $('stateLine').textContent = '静止 · 静摩擦平衡（二力平衡，F合 = 0）';
+    $('stateLine').textContent = '静止 · 静摩擦平衡（二力平衡，F_合 = 0）';
     $('phase').textContent = F > 0.01 ? '推而不动：静摩擦平衡' : '静止';
   }
 }
@@ -399,7 +428,7 @@ document.querySelectorAll('#wbtns button[data-i]').forEach(b => {
 $('clearW').onclick = () => { weights = []; rebase(); };
 $('resetBtn').onclick = () => {
   // 回到初始位置：清空运动状态，保留推力与箱上重物
-  moving = false; v = 0; s = 0; bannerT = 0; walkPhase = 0;
+  moving = false; v = 0; s = 0; sVis = 0; bannerT = 0;
   base = {t0:simT, v0:0, s0:0, a:0};
   rebase();
 };
@@ -424,7 +453,7 @@ $('resetBtn').onclick = () => {
     const t = Math.max(0, parseFloat(q.get('t')) || 0);
     base = {t0: simT - t, v0: 0, s0: 0, a: base.a};
     bannerT = Math.max(0, 3.5 - t);
-    walkPhase = 0.5 * base.a * t * t * 3.5;   // 迈步相位与已走距离匹配
+    sVis = Math.min(0.5 * base.a * t * t, V_VIS_MAX * t);   // 快进时同步视觉滚动距离
   }
   requestAnimationFrame(frame);
 })();
