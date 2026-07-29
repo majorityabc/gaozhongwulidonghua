@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>赤道物体 · 近地卫星 · 同步卫星 — 转速比较</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#f2f5f9;color:#1f2937;min-height:100vh}
+.header{text-align:center;padding:22px 16px 10px}
+.header h1{font-size:1.7rem;color:#0f3d6e}
+.header p{color:#5b6b7d;margin-top:6px;font-size:.95rem}
+.wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;padding:14px 18px 30px;flex-wrap:wrap}
+.stage{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px}
+canvas{display:block;border-radius:8px;max-width:100%;height:auto;margin:0 auto}
+.legend{display:flex;justify-content:center;gap:20px;margin-top:10px;flex-wrap:wrap}
+.li{display:flex;align-items:center;gap:7px;font-size:13px;color:#475569}
+.dot{width:11px;height:11px;border-radius:50%;flex-shrink:0}
+.panel{width:320px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:14px 16px;box-shadow:0 6px 24px rgba(15,61,110,.06)}
+.card h3{font-size:1rem;color:#0f3d6e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5ecf3}
+.data{font-size:.9rem;line-height:2}
+.data b{display:inline-block;min-width:150px;color:#475569;font-weight:600}
+.data span{font-family:"Consolas","Courier New",monospace;color:#0f3d6e}
+.hl{background:#eaf3ff;border:1px solid #bcd8ff;border-radius:10px;padding:10px 12px;font-size:.92rem;line-height:1.9;color:#0b3a6e}
+.footer{text-align:center;color:#8aa0b4;font-size:.8rem;padding:10px 0 24px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>转速比较：赤道物体 · 近地卫星 · 同步卫星</h1>
+  <p>同步卫星与地球自转角速度相同；近地卫星周期最短、线速度最大</p>
+</div>
+<div class="wrap">
+  <div class="stage">
+    <canvas id="cv" width="580" height="360"></canvas>
+    <div class="legend">
+      <div class="li"><div class="dot" style="background:#E24B4A"></div>赤道表面物体</div>
+      <div class="li"><div class="dot" style="background:#1D9E75"></div>近地轨道卫星</div>
+      <div class="li"><div class="dot" style="background:#378ADD"></div>地球同步卫星</div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <h3>数据对比</h3>
+      <div class="data">
+        <div><b><span class="dot" style="display:inline-block;margin-right:6px;vertical-align:middle;background:#E24B4A"></span>赤道表面物体</b><span>0.46 km/s · 24 h</span></div>
+        <div><b><span class="dot" style="display:inline-block;margin-right:6px;vertical-align:middle;background:#1D9E75"></span>近地轨道卫星</b><span>7.9 km/s · 85 min</span></div>
+        <div><b><span class="dot" style="display:inline-block;margin-right:6px;vertical-align:middle;background:#378ADD"></span>地球同步卫星</b><span>3.07 km/s · 24 h</span></div>
+      </div>
+    </div>
+    <div class="card hl">
+      <div><b>结论：</b></div>
+      <div>① 赤道物体与同步卫星<b>角速度相同</b>（同轴转动，周期都是 24 h）；</div>
+      <div>② 由 v = ωr，同步卫星线速度（3.07 km/s）大于赤道物体（0.46 km/s）；</div>
+      <div>③ 近地卫星轨道最低，周期仅约 85 min，线速度 7.9 km/s 最大（第一宇宙速度）。</div>
+    </div>
+  </div>
+</div>
+<div class="footer">高中物理动画 · 宇宙航行</div>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = 580, H = 360, cx = W/2, cy = H/2;
+
+const Ra = 72;
+const Rb = 82;
+const Rc = 200;
+
+const T_sync = 24*60;
+const T_iss  = 85;
+const speed_mult = 6;
+
+const omega_sync = (2*Math.PI / T_sync) * speed_mult;
+const omega_iss  = (2*Math.PI / T_iss)  * speed_mult;
+
+let angA = Math.PI * 0.15;
+let angB = Math.PI * 0.7;
+let angC = Math.PI * 0.15;
+let earthRot = 0;
+let lastTs = null;
+
+const trailB = [];
+const TRAIL = 130;
+
+const landPatches = [
+  {ox:-18, oy:-22, rx:20, ry:12},
+  {ox: 16, oy:-10, rx:14, ry:18},
+  {ox:-26, oy: 10, rx:13, ry: 9},
+  {ox:  6, oy: 20, rx:16, ry: 9},
+  {ox:-8,  oy: 30, rx:11, ry: 6},
+  {ox: 28, oy: 14, rx: 9, ry:12},
+];
+
+function drawEarth(rot, dark) {
+  const earthOuter = dark ? '#185FA5' : '#B5D4F4';
+  const earthInner = dark ? '#0C447C' : '#378ADD';
+  const landColor  = dark ? '#27500A' : '#97C459';
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, Ra, 0, Math.PI*2);
+  ctx.fillStyle = earthOuter;
+  ctx.fill();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, Ra, 0, Math.PI*2);
+  ctx.clip();
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, Ra*0.72, 0, Math.PI*2);
+  ctx.fillStyle = earthInner;
+  ctx.fill();
+
+  ctx.fillStyle = landColor;
+  landPatches.forEach(p => {
+    const lx = cx + p.ox*Math.cos(rot) - p.oy*Math.sin(rot);
+    const ly = cy + p.ox*Math.sin(rot) + p.oy*Math.cos(rot);
+    ctx.beginPath();
+    ctx.ellipse(lx, ly, p.rx, p.ry, rot + p.ox*0.04, 0, Math.PI*2);
+    ctx.fill();
+  });
+
+  const atmo = ctx.createRadialGradient(cx,cy,Ra*0.85,cx,cy,Ra);
+  atmo.addColorStop(0,'rgba(100,180,255,0)');
+  atmo.addColorStop(1,'rgba(100,180,255,0.22)');
+  ctx.fillStyle = atmo;
+  ctx.fillRect(cx-Ra, cy-Ra, Ra*2, Ra*2);
+
+  ctx.restore();
+}
+
+function draw(ts) {
+  if (!lastTs) lastTs = ts;
+  const dt = Math.min(ts - lastTs, 40) / 1000;
+  lastTs = ts;
+
+  angA     += omega_sync * dt;
+  angC     += omega_sync * dt;
+  angB     += omega_iss  * dt;
+  earthRot += omega_sync * dt;
+
+  ctx.clearRect(0, 0, W, H);
+
+  const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const orbitClr = dark ? 'rgba(180,178,169,0.15)' : 'rgba(136,135,128,0.25)';
+  const lineClr  = dark ? 'rgba(228,75,74,0.45)'   : 'rgba(228,75,74,0.38)';
+  const textClr  = dark ? '#D3D1C7' : '#444441';
+  const labelBg  = dark ? 'rgba(30,30,28,0.78)'     : 'rgba(255,255,255,0.84)';
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rc+2, 0, Math.PI*2);
+  ctx.strokeStyle = orbitClr;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([5,5]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, Rb, 0, Math.PI*2);
+  ctx.strokeStyle = orbitClr;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3,4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  const xA = cx + Ra * Math.cos(angA);
+  const yA = cy + Ra * Math.sin(angA);
+  const xC = cx + Rc * Math.cos(angC);
+  const yC = cy + Rc * Math.sin(angC);
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(xC, yC);
+  ctx.strokeStyle = lineClr;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  drawEarth(earthRot, dark);
+
+  const xB = cx + Rb * Math.cos(angB);
+  const yB = cy + Rb * Math.sin(angB);
+  trailB.push({x:xB, y:yB});
+  if (trailB.length > TRAIL) trailB.shift();
+  if (trailB.length > 1) {
+    for (let i=1; i<trailB.length; i++) {
+      const alpha = i/trailB.length;
+      ctx.beginPath();
+      ctx.moveTo(trailB[i-1].x, trailB[i-1].y);
+      ctx.lineTo(trailB[i].x, trailB[i].y);
+      ctx.strokeStyle = `rgba(29,158,117,${alpha*0.72})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+
+  const drawBody = (x, y, r, color, label, period) => {
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI*2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    const anchor = x > cx ? 'left' : 'right';
+    const lx = x + (x > cx ? 10 : -10);
+    const ly = y - 14;
+    ctx.font = '500 12px "Microsoft YaHei",sans-serif';
+    const tw = ctx.measureText(label).width;
+    const pw = ctx.measureText(period).width;
+    const bw = Math.max(tw, pw) + 16;
+    const bh = 34;
+    const bx = anchor === 'left' ? lx - 4 : lx - bw + 4;
+    ctx.fillStyle = labelBg;
+    ctx.beginPath();
+    ctx.roundRect(bx, ly-14, bw, bh, 4);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.textAlign = anchor;
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, anchor==='left'?lx+4:lx-4, ly-2);
+    ctx.fillStyle = textClr;
+    ctx.font = '11px "Microsoft YaHei",sans-serif';
+    ctx.fillText(period, anchor==='left'?lx+4:lx-4, ly+12);
+  };
+
+  drawBody(xA, yA, 6, '#E24B4A', '赤道物体', 'T = 24 h');
+  drawBody(xB, yB, 5, '#1D9E75', '近地卫星', 'T = 85 min');
+  drawBody(xC, yC, 6, '#378ADD', '同步卫星', 'T = 24 h');
+
+  ctx.font = '11px "Microsoft YaHei",sans-serif';
+  ctx.fillStyle = dark ? 'rgba(180,178,169,0.4)' : 'rgba(136,135,128,0.55)';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('* 动画转速已加快，角速度比例真实还原', 12, H-6);
+
+  requestAnimationFrame(draw);
+}
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

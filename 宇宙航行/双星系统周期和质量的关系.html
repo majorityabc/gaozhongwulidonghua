@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双星系统：周期与总质量的关系（间距固定）</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#f2f5f9;color:#1f2937;min-height:100vh}
+.header{text-align:center;padding:22px 16px 10px}
+.header h1{font-size:1.7rem;color:#0f3d6e}
+.header p{color:#5b6b7d;margin-top:6px;font-size:.95rem}
+.wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;padding:14px 18px 30px;flex-wrap:wrap}
+.stage{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px}
+canvas{display:block;border-radius:8px;max-width:100%;height:auto}
+.panel{width:320px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:14px 16px;box-shadow:0 6px 24px rgba(15,61,110,.06)}
+.card h3{font-size:1rem;color:#0f3d6e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5ecf3}
+.row{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:.92rem}
+.row label{color:#374151;white-space:nowrap}
+input[type=range]{flex:1;accent-color:#2563eb}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.sval{font-size:.85rem;font-weight:600;min-width:64px;text-align:right;color:#0f3d6e;font-family:"Consolas",monospace}
+.data{font-size:.9rem;line-height:2}
+.data b{display:inline-block;min-width:96px;color:#475569;font-weight:600}
+.data span{font-family:"Consolas","Courier New",monospace;color:#0f3d6e}
+.hl{background:#eaf3ff;border:1px solid #bcd8ff;border-radius:10px;padding:10px 12px;font-size:.92rem;line-height:1.9;color:#0b3a6e}
+.formula{font-family:"Consolas","Courier New",monospace;font-weight:700;margin:2px 0 6px}
+.footer{text-align:center;color:#8aa0b4;font-size:.8rem;padding:10px 0 24px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>双星系统：周期与总质量的关系</h1>
+  <p>两星间距 L 固定不变，拖动滑块改变质量 m₁、m₂，观察周期 T 的变化</p>
+</div>
+<div class="wrap">
+  <div class="stage"><canvas id="c" width="640" height="320"></canvas></div>
+  <div class="panel">
+    <div class="card">
+      <h3>控制</h3>
+      <div class="row">
+        <label><span class="dot" style="background:#378ADD"></span>m₁ 质量</label>
+        <input type="range" id="sl1" min="5" max="50" value="10" step="1">
+        <span class="sval" id="sv1">1.0 M☉</span>
+      </div>
+      <div class="row">
+        <label><span class="dot" style="background:#D85A30"></span>m₂ 质量</label>
+        <input type="range" id="sl2" min="5" max="50" value="10" step="1">
+        <span class="sval" id="sv2">1.0 M☉</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>实时数据</h3>
+      <div class="data">
+        <div><b>m₁</b><span><span id="dm1">1.0</span> M☉</span></div>
+        <div><b>m₂</b><span><span id="dm2">1.0</span> M☉</span></div>
+        <div><b>总质量 M</b><span><span id="dM">2.0</span> M☉</span></div>
+        <div><b>周期 T</b><span><span id="dT">1.00</span> T₀</span></div>
+      </div>
+    </div>
+    <div class="card hl">
+      <div><b>结论（L 固定）：</b></div>
+      <div class="formula">T = 2π·√( L³ / G(m₁+m₂) )</div>
+      <div>即 <b>T ∝ 1/√M</b>：总质量越大，周期越短、转得越快。</div>
+      <div>另有 r₁m₁ = r₂m₂：质量大的星轨道半径更小，质心位置不变。</div>
+    </div>
+  </div>
+</div>
+<div class="footer">高中物理动画 · 宇宙航行</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W=cv.width, H=cv.height, cx=W/2, cy=H/2;
+
+// L fixed, normalize: G=1, L=1 => omega = sqrt(M), T = 2π/sqrt(M)
+const L_FIXED = 190; // pixels, fixed
+const SPEED = 0.9;
+const M0 = 2.0; // reference total mass (m1=m2=1)
+const T0 = 2*Math.PI/Math.sqrt(M0);
+
+let m1=1.0, m2=1.0;
+let angle=0, last=null;
+const TLEN=130;
+let tr1=[], tr2=[];
+
+// bg stars (deterministic)
+const bgs = Array.from({length:65},(_,i)=>({
+  x:(Math.sin(i*137.508)*0.5+0.5)*W,
+  y:(Math.cos(i*97.31)*0.5+0.5)*H,
+  r:0.35+(i%4)*0.35,
+  a:0.12+(i%6)*0.06
+}));
+
+const sl1=document.getElementById('sl1');
+const sl2=document.getElementById('sl2');
+
+function update(){
+  m1=parseInt(sl1.value)/10;
+  m2=parseInt(sl2.value)/10;
+  document.getElementById('sv1').textContent=m1.toFixed(1)+' M☉';
+  document.getElementById('sv2').textContent=m2.toFixed(1)+' M☉';
+  tr1=[]; tr2=[];
+}
+sl1.addEventListener('input',update);
+sl2.addEventListener('input',update);
+
+function drawBG(){
+  ctx.fillStyle='#080b12';
+  ctx.fillRect(0,0,W,H);
+  bgs.forEach(s=>{
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(210,225,255,${s.a})`;
+    ctx.fill();
+  });
+}
+
+function drawRing(r,alpha){
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.strokeStyle=`rgba(255,255,255,${alpha})`;
+  ctx.lineWidth=0.5;
+  ctx.setLineDash([3,7]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawTrail(trail,hex){
+  for(let i=1;i<trail.length;i++){
+    const a=(i/trail.length)*0.5;
+    ctx.beginPath();
+    ctx.moveTo(trail[i-1].x,trail[i-1].y);
+    ctx.lineTo(trail[i].x,trail[i].y);
+    ctx.strokeStyle=hex+Math.floor(a*255).toString(16).padStart(2,'0');
+    ctx.lineWidth=1.8;
+    ctx.stroke();
+  }
+}
+
+// Draw a labeled mass indicator bar at bottom
+function drawMassBar(){
+  const M=m1+m2;
+  const barW=200, barH=6, bx=cx-barW/2, by=H-28;
+  const f1=m1/M;
+  ctx.fillStyle='rgba(255,255,255,0.08)';
+  ctx.beginPath();
+  ctx.roundRect(bx,by,barW,barH,3);
+  ctx.fill();
+  ctx.fillStyle='#378ADD';
+  ctx.beginPath();
+  ctx.roundRect(bx,by,barW*f1,barH,3);
+  ctx.fill();
+  ctx.fillStyle='#D85A30';
+  ctx.beginPath();
+  ctx.roundRect(bx+barW*f1,by,barW*(1-f1),barH,3);
+  ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  ctx.font='10px monospace';
+  ctx.textAlign='center';
+  ctx.fillText('质心位置',cx,by-4);
+  ctx.textAlign='start';
+}
+
+function frame(ts){
+  if(!last) last=ts;
+  const dt=Math.min((ts-last)/1000,0.05);
+  last=ts;
+
+  const M=m1+m2;
+  // omega proportional to sqrt(M) since L is fixed and G·L³=1 (normalized)
+  const omega=SPEED*Math.sqrt(M);
+  angle+=omega*dt;
+
+  const r1_px=(m2/M)*L_FIXED;
+  const r2_px=(m1/M)*L_FIXED;
+
+  const x1=cx+r1_px*Math.cos(angle+Math.PI);
+  const y1=cy+r1_px*Math.sin(angle+Math.PI);
+  const x2=cx+r2_px*Math.cos(angle);
+  const y2=cy+r2_px*Math.sin(angle);
+
+  tr1.push({x:x1,y:y1}); if(tr1.length>TLEN) tr1.shift();
+  tr2.push({x:x2,y:y2}); if(tr2.length>TLEN) tr2.shift();
+
+  drawBG();
+  drawRing(r1_px,0.13);
+  drawRing(r2_px,0.13);
+
+  // connecting line
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x2,y2);
+  ctx.strokeStyle='rgba(255,255,255,0.06)';
+  ctx.lineWidth=0.8;
+  ctx.stroke();
+
+  // CoM to each star dashed segment
+  ctx.save();
+  ctx.setLineDash([2,4]);
+  ctx.strokeStyle='rgba(255,255,255,0.12)';
+  ctx.lineWidth=0.6;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x1,y1); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x2,y2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  drawTrail(tr1,'#5a9fd4');
+  drawTrail(tr2,'#d87a5a');
+
+  // star sizes scale with mass^(1/3)
+  const sz1=Math.max(7, Math.cbrt(m1)*9);
+  const sz2=Math.max(7, Math.cbrt(m2)*9);
+
+  ctx.beginPath();
+  ctx.arc(x1,y1,sz1,0,Math.PI*2);
+  ctx.fillStyle='#378ADD';
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(x2,y2,sz2,0,Math.PI*2);
+  ctx.fillStyle='#D85A30';
+  ctx.fill();
+
+  // CoM dot
+  ctx.beginPath();
+  ctx.arc(cx,cy,3.5,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.65)';
+  ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.45)';
+  ctx.font='11px monospace';
+  ctx.fillText('CoM',cx+6,cy-6);
+
+  // mass labels near stars
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.font='11px monospace';
+  ctx.textAlign='center';
+  ctx.fillText('m₁='+m1.toFixed(1),x1, y1-sz1-5);
+  ctx.fillText('m₂='+m2.toFixed(1),x2, y2-sz2-5);
+  ctx.textAlign='start';
+
+  drawMassBar();
+
+  // update metric cards
+  const T_cur=2*Math.PI/Math.sqrt(M);
+  document.getElementById('dm1').textContent=m1.toFixed(1);
+  document.getElementById('dm2').textContent=m2.toFixed(1);
+  document.getElementById('dM').textContent=(M).toFixed(1);
+  document.getElementById('dT').textContent=(T_cur/T0).toFixed(2);
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>卫星变轨 — 霍曼转移轨道</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#f2f5f9;color:#1f2937;min-height:100vh}
+.header{text-align:center;padding:22px 16px 10px}
+.header h1{font-size:1.7rem;color:#0f3d6e}
+.header p{color:#5b6b7d;margin-top:6px;font-size:.95rem}
+.wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;padding:14px 18px 30px;flex-wrap:wrap}
+.stage{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px;position:relative}
+canvas{display:block;border-radius:8px;max-width:100%;height:auto}
+.panel{width:320px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:14px 16px;box-shadow:0 6px 24px rgba(15,61,110,.06)}
+.card h3{font-size:1rem;color:#0f3d6e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5ecf3}
+.btns{display:flex;gap:10px}
+button{border:none;cursor:pointer;padding:9px 14px;border-radius:10px;font-size:.92rem;font-weight:600;transition:all .15s}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.data{font-size:.9rem;line-height:2}
+.data b{display:inline-block;min-width:96px;color:#475569;font-weight:600}
+.data span{font-family:"Consolas","Courier New",monospace;color:#0f3d6e}
+.hl{background:#eaf3ff;border:1px solid #bcd8ff;border-radius:10px;padding:10px 12px;font-size:.92rem;line-height:1.9;color:#0b3a6e}
+.note{font-size:.88rem;color:#475569;line-height:1.9}
+.steps{font-size:.9rem;line-height:2.1;color:#374151}
+.steps i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px}
+.footer{text-align:center;color:#8aa0b4;font-size:.8rem;padding:10px 0 24px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>卫星变轨：霍曼转移轨道</h1>
+  <p>小圆轨道 → 近地点点火加速 → 霍曼转移椭圆（绕行一圈半）→ 远地点点火加速 → 大圆轨道</p>
+</div>
+<div class="wrap">
+  <div class="stage">
+    <canvas id="hc" width="680" height="540"></canvas>
+    <div style="position:absolute;right:20px;bottom:20px;">
+      <button id="hbtn" onclick="hRestart()" style="display:none;background:rgba(37,99,235,.92);color:#fff;box-shadow:0 4px 14px rgba(37,99,235,.35);">↺ 重新播放</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <h3>控制</h3>
+      <div class="btns"><button class="btn-primary" onclick="hRestart()">↺ 重新播放</button></div>
+      <p class="note" style="margin-top:10px">动画自动播放完整变轨过程，播放结束后可点击按钮重新播放。</p>
+    </div>
+    <div class="card">
+      <h3>实时数据</h3>
+      <div class="data">
+        <div><b>当前阶段</b><span id="dPhase">小圆轨道  匀速圆周运动</span></div>
+        <div><b>当前速度</b><span id="dSpd">1.00 v₁</span></div>
+        <div><b>半径比 r₂/r₁</b><span>≈ 2.54</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>变轨过程</h3>
+      <div class="steps">
+        <div><i style="background:#5b9dff"></i>小圆轨道：匀速圆周运动</div>
+        <div><i style="background:#ffaa33"></i>近地点点火：第一次加速</div>
+        <div><i style="background:#ffcc33"></i>转移椭圆：绕行一圈半，近快远慢</div>
+        <div><i style="background:#ff9955"></i>远地点点火：第二次加速</div>
+        <div><i style="background:#36cf80"></i>大圆轨道：匀速圆周运动</div>
+      </div>
+    </div>
+    <div class="card hl">
+      <div><b>结论：</b></div>
+      <div>① 卫星从低轨到高轨需<b>两次加速</b>：近地点点火进入椭圆转移轨道，在椭圆上运行一圈半后，于远地点再次点火进入大圆轨道；</div>
+      <div>② 椭圆轨道上近地点速度最大、远地点速度最小（开普勒第二定律）；</div>
+      <div>③ 圆轨道上 v = √(GM/r)，轨道越高速度越小，故 v₂ &lt; v₁。</div>
+    </div>
+  </div>
+</div>
+<div class="footer">高中物理动画 · 宇宙航行</div>
+<script>
+(function(){
+const c=document.getElementById('hc'),ctx=c.getContext('2d');
+const W=680,H=540;c.width=W;c.height=H;
+
+const OX=W/2,OY=H/2+8;
+const R1=78,R2=198;
+const A=(R1+R2)/2;
+const ecc=(R2-R1)/(R2+R1);
+const B=A*Math.sqrt(1-ecc*ecc);
+const pSL=A*(1-ecc*ecc);
+const T1=2300,T2=T1*Math.pow(R2/R1,1.5),Th=T1*Math.pow(A/R1,1.5)/2;
+const GM=4*Math.PI*Math.PI*R1*R1*R1/(T1*T1);
+
+function kepE(M){
+  let E=M;for(let i=0;i<12;i++)E-=(E-ecc*Math.sin(E)-M)/(1-ecc*Math.cos(E));return E;
+}
+function nu2pos(nu){
+  const r=pSL/(1+ecc*Math.cos(nu));
+  return{x:OX+r*Math.cos(nu),y:OY-r*Math.sin(nu),r};
+}
+function getSat(ph,t){
+  switch(ph){
+    case 0:{const a=t*2*Math.PI/T1;return{x:OX+R1*Math.cos(a),y:OY-R1*Math.sin(a),vx:-Math.sin(a),vy:-Math.cos(a),r:R1};}
+    case 1:return{x:OX+R1,y:OY,vx:0,vy:-1,r:R1};
+    case 2:{
+      const M=3*Math.PI*Math.min(t/(3*Th),0.9999);
+      const E=kepE(M);
+      const nu=2*Math.atan2(Math.sqrt(1+ecc)*Math.sin(E/2),Math.sqrt(1-ecc)*Math.cos(E/2));
+      const{x,y,r}=nu2pos(nu);
+      const dt2=20,M2=3*Math.PI*Math.min((t+dt2)/(3*Th),0.9999);
+      const E2=kepE(M2);
+      const nu2=2*Math.atan2(Math.sqrt(1+ecc)*Math.sin(E2/2),Math.sqrt(1-ecc)*Math.cos(E2/2));
+      const{x:x2,y:y2}=nu2pos(nu2);
+      const dx=x2-x,dy=y2-y,len=Math.hypot(dx,dy)+1e-9;
+      return{x,y,vx:dx/len,vy:dy/len,r};
+    }
+    case 3:return{x:OX-R2,y:OY,vx:0,vy:1,r:R2};
+    case 4:{const a=Math.PI+t*2*Math.PI/T2;return{x:OX+R2*Math.cos(a),y:OY-R2*Math.sin(a),vx:-Math.sin(a),vy:-Math.cos(a),r:R2};}
+  }
+  const a=Math.PI+DUR[4]*2*Math.PI/T2;return{x:OX+R2*Math.cos(a),y:OY-R2*Math.sin(a),vx:-Math.sin(a),vy:-Math.cos(a),r:R2};
+}
+
+let ph=0,pt=0,last=null,running=true,rafId=null;
+let trail=[],parts=[],flashA=0,burnTxt={s:'',a:0};
+const DUR=[2*T1,680,3*Th,680,1.55*T2];
+
+const stars=Array.from({length:160},()=>({
+  x:Math.random()*W,y:Math.random()*H,
+  r:0.2+Math.random()*1.4,a:0.12+Math.random()*0.7
+}));
+
+function spawnBurst(x,y,exa){
+  flashA=0.5;
+  for(let i=0;i<60;i++){
+    const a=exa+(Math.random()-0.5)*1.3;
+    const s=0.5+Math.random()*6;
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,
+      r:0.8+Math.random()*5,life:1,
+      dc:0.012+Math.random()*0.02,
+      col:['#ff8800','#ffcc00','#ff5500','#ffaa33','#ffffff'][Math.floor(Math.random()*5)]});
+  }
+}
+function emitThrust(x,y,exa){
+  for(let i=0;i<5;i++){
+    const a=exa+(Math.random()-0.5)*0.55;
+    const s=0.4+Math.random()*2.4;
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,
+      r:0.7+Math.random()*2.4,life:1,
+      dc:0.04+Math.random()*0.04,
+      col:['#ff7700','#ffcc00','#ff5500'][Math.floor(Math.random()*3)]});
+  }
+}
+
+function frame(ts){
+  if(!last)last=ts;
+  const dt=Math.min(ts-last,50);last=ts;
+  pt+=dt;
+  if(pt>=DUR[ph]&&ph<5){
+    ph++;pt=0;
+    if(ph===1){spawnBurst(OX+R1,OY,Math.PI/2);burnTxt={s:'近地点点火！一次加速！',a:1};trail=[];}
+    if(ph===2)trail=[];
+    if(ph===3){spawnBurst(OX-R2,OY,-Math.PI/2);burnTxt={s:'远地点点火！二次加速！',a:1};trail=[];}
+    if(ph===4)trail=[];
+    if(ph===5){document.getElementById('hbtn').style.display='block';running=false;}
+  }
+  if(ph===1)emitThrust(OX+R1,OY,Math.PI/2);
+  if(ph===3)emitThrust(OX-R2,OY,-Math.PI/2);
+  const dtF=dt/16.67;
+  parts.forEach(p=>{p.x+=p.vx*dtF;p.y+=p.vy*dtF;p.life-=p.dc*dtF;});
+  parts=parts.filter(p=>p.life>0);
+  flashA=Math.max(0,flashA-0.025*dtF);
+  burnTxt.a=Math.max(0,burnTxt.a-0.01*dtF);
+  const sat=getSat(ph<5?ph:5,pt);
+  if(ph!==1&&ph!==3){
+    trail.push({x:sat.x,y:sat.y});
+    if(trail.length>80)trail.shift();
+  }
+  draw(sat);
+  if(running)rafId=requestAnimationFrame(frame);else rafId=null;
+}
+
+function drawGlowOrbit(drawFn, color, glowColor, alpha, lineW){
+  // glow layer
+  ctx.save();
+  ctx.globalAlpha=alpha*0.35;
+  ctx.strokeStyle=glowColor;
+  ctx.lineWidth=lineW*4;
+  ctx.shadowColor=glowColor;
+  ctx.shadowBlur=18;
+  drawFn();
+  ctx.restore();
+  // solid line
+  ctx.save();
+  ctx.globalAlpha=alpha;
+  ctx.strokeStyle=color;
+  ctx.lineWidth=lineW;
+  drawFn();
+  ctx.restore();
+}
+
+function draw(sat){
+  ctx.fillStyle='#050610';ctx.fillRect(0,0,W,H);
+
+  stars.forEach(s=>{
+    ctx.globalAlpha=s.a;ctx.fillStyle='#fff';
+    ctx.beginPath();ctx.arc(s.x,s.y,s.r,0,2*Math.PI);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  if(flashA>0){ctx.fillStyle=`rgba(255,155,30,${flashA*0.55})`;ctx.fillRect(0,0,W,H);}
+
+  // === 小圆轨道 ===
+  const o1alpha = ph>=4 ? 0.45 : 0.92;
+  ctx.save();ctx.setLineDash([6,5]);
+  drawGlowOrbit(()=>{
+    ctx.beginPath();ctx.arc(OX,OY,R1,0,2*Math.PI);ctx.stroke();
+  },'#5b9dff','#3b7aff',o1alpha,2);
+  ctx.restore();
+
+  // === 大圆轨道 ===
+  const o2alpha = ph<2 ? 0.28 : ph>=4 ? 0.92 : 0.5;
+  ctx.save();ctx.setLineDash([6,5]);
+  drawGlowOrbit(()=>{
+    ctx.beginPath();ctx.arc(OX,OY,R2,0,2*Math.PI);ctx.stroke();
+  },'#36cf80','#20b060',o2alpha,2);
+  ctx.restore();
+
+  // === 霍曼椭圆 ===
+  if(ph>=2){
+    const oEalpha = ph>=4 ? 0.4 : 0.88;
+    const ecx=(R1-R2)/2;
+    drawGlowOrbit(()=>{
+      ctx.save();ctx.translate(OX+ecx,OY);ctx.scale(1,B/A);
+      ctx.beginPath();ctx.arc(0,0,A,0,2*Math.PI);ctx.stroke();
+      ctx.restore();
+    },'#ffcc33','#ffaa00',oEalpha,2);
+  }
+
+  // === 轨道标签 ===
+  const lbPad=14;
+  ctx.textAlign='center';
+  // 小圆轨道标签
+  ctx.save();
+  ctx.globalAlpha=o1alpha;
+  ctx.font='500 13px "Microsoft YaHei",sans-serif';
+  ctx.fillStyle='#5b9dff';
+  const l1bg_y=OY-R1-lbPad-18;
+  ctx.fillStyle='rgba(10,25,70,0.72)';
+  roundRectFill(ctx,OX-52,l1bg_y,104,22,5);
+  ctx.fillStyle='#7bb8ff';
+  ctx.fillText('小圆轨道  r₁',OX,l1bg_y+15);
+  ctx.restore();
+
+  // 大圆轨道标签
+  ctx.save();
+  ctx.globalAlpha=o2alpha;
+  ctx.font='500 13px "Microsoft YaHei",sans-serif';
+  const l2bg_y=OY-R2-lbPad-18;
+  ctx.fillStyle='rgba(5,40,22,0.72)';
+  roundRectFill(ctx,OX-52,l2bg_y,104,22,5);
+  ctx.fillStyle='#4de89a';
+  ctx.fillText('大圆轨道  r₂',OX,l2bg_y+15);
+  ctx.restore();
+
+  // 椭圆标签
+  if(ph>=2){
+    const oEalpha2=ph>=4?0.4:0.88;
+    ctx.save();ctx.globalAlpha=oEalpha2;
+    ctx.font='500 13px "Microsoft YaHei",sans-serif';
+    const ecx=(R1-R2)/2;
+    const el_y=OY-B*(B/A)-lbPad-18;
+    ctx.fillStyle='rgba(50,35,0,0.8)';
+    roundRectFill(ctx,OX+ecx-66,el_y,132,22,5);
+    ctx.fillStyle='#ffe066';
+    ctx.fillText('霍曼转移椭圆轨道',OX+ecx,el_y+15);
+    ctx.restore();
+  }
+
+  // 近/远地点标记
+  if(ph>=1){
+    ctx.save();
+    ctx.fillStyle='#ffe566';
+    ctx.beginPath();ctx.arc(OX+R1,OY,5,0,2*Math.PI);ctx.fill();
+    ctx.strokeStyle='rgba(255,220,80,0.5)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(OX+R1,OY,9,0,2*Math.PI);ctx.stroke();
+    ctx.font='12px "Microsoft YaHei",sans-serif';ctx.textAlign='right';ctx.fillStyle='rgba(255,230,100,0.9)';
+    ctx.fillText('近地点',OX+R1-13,OY+18);
+    ctx.restore();
+  }
+  if(ph>=3){
+    ctx.save();
+    ctx.fillStyle='#ff9955';
+    ctx.beginPath();ctx.arc(OX-R2,OY,5,0,2*Math.PI);ctx.fill();
+    ctx.strokeStyle='rgba(255,150,70,0.5)';ctx.lineWidth=1;
+    ctx.beginPath();ctx.arc(OX-R2,OY,9,0,2*Math.PI);ctx.stroke();
+    ctx.font='12px "Microsoft YaHei",sans-serif';ctx.textAlign='left';ctx.fillStyle='rgba(255,160,80,0.9)';
+    ctx.fillText('远地点',OX-R2+13,OY+18);
+    ctx.restore();
+  }
+
+  // 地球
+  {
+    const g=ctx.createRadialGradient(OX,OY,4,OX,OY,52);
+    g.addColorStop(0,'rgba(40,100,255,0.22)');g.addColorStop(1,'rgba(40,100,255,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(OX,OY,52,0,2*Math.PI);ctx.fill();
+    ctx.fillStyle='#1a5fb4';ctx.beginPath();ctx.arc(OX,OY,21,0,2*Math.PI);ctx.fill();
+    ctx.fillStyle='#26a269';
+    ctx.beginPath();ctx.ellipse(OX-5,OY-5,8,5,0.4,0,2*Math.PI);ctx.fill();
+    ctx.beginPath();ctx.ellipse(OX+6,OY+5,5,3.5,-0.3,0,2*Math.PI);ctx.fill();
+    ctx.strokeStyle='rgba(140,195,255,0.3)';ctx.lineWidth=0.7;
+    ctx.beginPath();ctx.arc(OX,OY,21,0,2*Math.PI);ctx.stroke();
+  }
+
+  // 轨迹
+  if(trail.length>1){
+    for(let i=1;i<trail.length;i++){
+      const al=(i/trail.length)*0.9;
+      ctx.strokeStyle=`rgba(255,215,70,${al})`;ctx.lineWidth=1.8;
+      ctx.beginPath();ctx.moveTo(trail[i-1].x,trail[i-1].y);ctx.lineTo(trail[i].x,trail[i].y);ctx.stroke();
+    }
+  }
+
+  // 粒子
+  parts.forEach(p=>{
+    ctx.globalAlpha=p.life*0.88;ctx.fillStyle=p.col;
+    ctx.beginPath();ctx.arc(p.x,p.y,p.r*Math.sqrt(p.life),0,2*Math.PI);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // 卫星
+  {
+    const{x,y,vx,vy}=sat;
+    const ang=Math.atan2(vy,vx);
+    ctx.save();ctx.translate(x,y);ctx.rotate(ang+Math.PI/2);
+    const burn=ph===1||ph===3;
+    if(burn){
+      const g2=ctx.createRadialGradient(0,0,2,0,0,20);
+      g2.addColorStop(0,'rgba(255,200,80,0.5)');g2.addColorStop(1,'rgba(255,120,0,0)');
+      ctx.fillStyle=g2;ctx.beginPath();ctx.arc(0,0,20,0,2*Math.PI);ctx.fill();
+    }
+    ctx.fillStyle='#f2f2f2';
+    ctx.beginPath();ctx.moveTo(0,-9);ctx.lineTo(-5,6);ctx.lineTo(5,6);ctx.closePath();ctx.fill();
+    ctx.fillStyle='#4080ee';
+    ctx.fillRect(-14,-2,6.5,3.5);ctx.fillRect(7.5,-2,6.5,3.5);
+    ctx.fillStyle='rgba(255,255,255,0.4)';
+    ctx.fillRect(-14,-2,6.5,1);ctx.fillRect(7.5,-2,6.5,1);
+    ctx.restore();
+  }
+
+  // 点火文字
+  if(burnTxt.a>0){
+    ctx.save();ctx.globalAlpha=burnTxt.a;
+    const pulse=1+0.07*Math.sin(Date.now()*0.02);
+    ctx.font=`500 ${Math.round(21*pulse)}px "Microsoft YaHei",sans-serif`;
+    ctx.textAlign='center';ctx.fillStyle='#ffcc00';
+    ctx.shadowColor='#ff8800';ctx.shadowBlur=14;
+    ctx.fillText(burnTxt.s,W/2,54);
+    ctx.globalAlpha=1;ctx.restore();
+  }
+
+  // 速度条
+  const spd=getSpd(sat);
+  if(spd!==null){
+    const maxB=150,bw=Math.min(spd*maxB/1.3,maxB);
+    const bx=W-22-maxB,by=H-42;
+    ctx.fillStyle='rgba(255,255,255,0.07)';
+    roundRectFill(ctx,bx,by,maxB,8,4);
+    ctx.fillStyle=ph===0?'rgba(100,155,255,0.85)':ph===2?'rgba(255,195,55,0.85)':'rgba(55,205,120,0.85)';
+    roundRectFill(ctx,bx,by,Math.max(bw,2),8,4);
+    ctx.font='12px "Microsoft YaHei",sans-serif';ctx.textAlign='right';ctx.fillStyle='rgba(255,255,255,0.65)';
+    ctx.fillText(`速度  ${spd.toFixed(2)} v₁`,W-22,by-6);
+  }
+
+  // 阶段标签
+  const PLbl=['● 小圆轨道  匀速圆周运动','● 近地点点火加速中…','● 霍曼转移椭圆  绕行一圈半  近快远慢','● 远地点点火加速中…','● 大圆轨道  匀速圆周运动','● 变轨完成！'];
+  const PClr=['rgba(100,155,255,0.9)','rgba(255,170,35,0.95)','rgba(255,200,55,0.88)','rgba(255,170,35,0.95)','rgba(55,205,120,0.9)','rgba(55,205,120,0.9)'];
+  ctx.font='13px "Microsoft YaHei",sans-serif';ctx.textAlign='left';
+  ctx.fillStyle=PClr[ph]||'rgba(255,255,255,0.7)';
+  ctx.fillText(PLbl[ph]||'',18,H-18);
+
+  // 右侧面板同步
+  const _phEl=document.getElementById('dPhase');
+  if(_phEl)_phEl.textContent=(PLbl[ph]||'').replace('● ','');
+  const _spEl=document.getElementById('dSpd');
+  if(_spEl){
+    const v=spd!==null?spd:(ph===5?Math.sqrt(R1/R2):null);
+    _spEl.textContent=v!==null?v.toFixed(2)+' v₁':'点火加速中…';
+  }
+}
+
+function roundRectFill(ctx,x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.lineTo(x+w-r,y);
+  ctx.quadraticCurveTo(x+w,y,x+w,y+r);ctx.lineTo(x+w,y+h-r);
+  ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);ctx.lineTo(x+r,y+h);
+  ctx.quadraticCurveTo(x,y+h,x,y+h-r);ctx.lineTo(x,y+r);
+  ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();ctx.fill();
+}
+
+function getSpd(sat){
+  const v1sq=GM/R1;
+  if(ph===0)return 1.0;
+  if(ph===4)return Math.sqrt(R1/R2);
+  if(ph===2){
+    const r=Math.hypot(sat.x-OX,sat.y-OY);
+    if(r<1)return 0;
+    const v2=GM*(2/r-1/A);
+    return v2>0?Math.sqrt(v2/v1sq):0;
+  }
+  return null;
+}
+
+window.hRestart=function(){
+  if(rafId!==null){cancelAnimationFrame(rafId);rafId=null;}
+  ph=0;pt=0;last=null;running=true;trail=[];parts=[];flashA=0;burnTxt={s:'',a:0};
+  document.getElementById('hbtn').style.display='none';
+  rafId=requestAnimationFrame(frame);
+};
+rafId=requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

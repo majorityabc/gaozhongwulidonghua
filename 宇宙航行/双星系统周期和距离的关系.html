@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>双星系统：周期与间距的关系（质量固定）</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#f2f5f9;color:#1f2937;min-height:100vh}
+.header{text-align:center;padding:22px 16px 10px}
+.header h1{font-size:1.7rem;color:#0f3d6e}
+.header p{color:#5b6b7d;margin-top:6px;font-size:.95rem}
+.wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;padding:14px 18px 30px;flex-wrap:wrap}
+.stage{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px}
+canvas{display:block;border-radius:8px;max-width:100%;height:auto}
+.panel{width:320px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:14px 16px;box-shadow:0 6px 24px rgba(15,61,110,.06)}
+.card h3{font-size:1rem;color:#0f3d6e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5ecf3}
+.row{display:flex;align-items:center;gap:10px;margin:10px 0 4px;font-size:.92rem}
+.row label{color:#374151;white-space:nowrap}
+input[type=range]{flex:1;accent-color:#2563eb}
+.tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:10px;font-weight:600}
+.tb{background:#E6F1FB;color:#0C447C}
+.tc{background:#FAECE7;color:#712B13}
+.data{font-size:.9rem;line-height:2}
+.data b{display:inline-block;min-width:96px;color:#475569;font-weight:600}
+.data span{font-family:"Consolas","Courier New",monospace;color:#0f3d6e}
+.hl{background:#eaf3ff;border:1px solid #bcd8ff;border-radius:10px;padding:10px 12px;font-size:.92rem;line-height:1.9;color:#0b3a6e}
+.formula{font-family:"Consolas","Courier New",monospace;font-weight:700;margin:2px 0 6px}
+.footer{text-align:center;color:#8aa0b4;font-size:.8rem;padding:10px 0 24px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>双星系统：周期与间距的关系</h1>
+  <p>质量固定（m₁ = 2 M☉，m₂ = 1 M☉），拖动滑块改变两星间距 L，观察周期 T 的变化</p>
+</div>
+<div class="wrap">
+  <div class="stage"><canvas id="c" width="640" height="340"></canvas></div>
+  <div class="panel">
+    <div class="card">
+      <h3>控制</h3>
+      <div class="row">
+        <label>两星间距 L</label>
+        <input type="range" id="sl" min="10" max="30" value="10" step="1">
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:.8rem;color:#8aa0b4;"><span>近</span><span>远</span></div>
+      <div style="margin-top:10px;"><span class="tag tb">m₁ = 2 M☉</span> <span class="tag tc">m₂ = 1 M☉</span></div>
+    </div>
+    <div class="card">
+      <h3>实时数据</h3>
+      <div class="data">
+        <div><b>间距 L</b><span><span id="dL">1.00</span> AU</span></div>
+        <div><b>周期 T</b><span><span id="dT">1.00</span> T₀</span></div>
+        <div><b>T / T₀</b><span><span id="dR">1.00</span> ×</span></div>
+      </div>
+    </div>
+    <div class="card hl">
+      <div><b>结论（质量固定）：</b></div>
+      <div class="formula">T = 2π·√( L³ / G(m₁+m₂) )</div>
+      <div>即 <b>T ∝ L<sup>3/2</sup></b>（开普勒第三定律）：间距越大，周期越长；</div>
+      <div>间距变为 2 倍，周期变为 2√2 ≈ 2.83 倍。</div>
+    </div>
+  </div>
+</div>
+<div class="footer">高中物理动画 · 宇宙航行</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height, cx = W/2, cy = H/2;
+
+// Physics in normalized units: G·M = 1 (M = m1+m2 = 3)
+// L_norm is the physical separation (1.0 ~ 3.0)
+// T = 2π·sqrt(L³)
+// omega = 1/sqrt(L³)
+// Display pixels: r_px = L_norm * PX_SCALE
+
+const m1=2, m2=1, M=m1+m2;
+const PX_SCALE = 75;
+const L0 = 1.0;
+const T0 = 2*Math.PI*Math.sqrt(L0*L0*L0);
+const SPEED = 1.5; // visual time multiplier
+
+let L = L0;
+let angle = 0;
+let last = null;
+const TLEN = 120;
+let tr1=[], tr2=[];
+
+const sl = document.getElementById('sl');
+sl.addEventListener('input', function(){
+  const newL = parseInt(this.value)/10;
+  if(Math.abs(newL - L) > 0.05){ tr1=[]; tr2=[]; }
+  L = newL;
+});
+
+// Deterministic background stars
+const bgStars = Array.from({length:70},(_,i)=>({
+  x:(Math.sin(i*137.508)*0.5+0.5)*W,
+  y:(Math.cos(i*97.31)*0.5+0.5)*H,
+  r:0.4+(i%4)*0.35,
+  a:0.15+(i%5)*0.07
+}));
+
+function drawBG(){
+  ctx.fillStyle='#080b12';
+  ctx.fillRect(0,0,W,H);
+  bgStars.forEach(s=>{
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(220,230,255,${s.a})`;
+    ctx.fill();
+  });
+}
+
+function drawOrbitRing(r, alpha){
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,0,Math.PI*2);
+  ctx.strokeStyle=`rgba(255,255,255,${alpha})`;
+  ctx.lineWidth=0.5;
+  ctx.setLineDash([3,7]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
+function drawTrail(trail, hex){
+  for(let i=1;i<trail.length;i++){
+    const a = (i/trail.length)*0.5;
+    const alpha = Math.floor(a*255).toString(16).padStart(2,'0');
+    ctx.beginPath();
+    ctx.moveTo(trail[i-1].x,trail[i-1].y);
+    ctx.lineTo(trail[i].x,trail[i].y);
+    ctx.strokeStyle=hex+alpha;
+    ctx.lineWidth=1.8;
+    ctx.stroke();
+  }
+}
+
+function frame(ts){
+  if(!last) last=ts;
+  const dt = Math.min((ts-last)/1000, 0.05);
+  last=ts;
+
+  // omega in normalized units
+  const omega = SPEED / Math.sqrt(L*L*L);
+  angle += omega * dt;
+
+  const r1_px = (m2/M)*L*PX_SCALE;
+  const r2_px = (m1/M)*L*PX_SCALE;
+
+  const x1 = cx + r1_px*Math.cos(angle+Math.PI);
+  const y1 = cy + r1_px*Math.sin(angle+Math.PI);
+  const x2 = cx + r2_px*Math.cos(angle);
+  const y2 = cy + r2_px*Math.sin(angle);
+
+  tr1.push({x:x1,y:y1}); if(tr1.length>TLEN) tr1.shift();
+  tr2.push({x:x2,y:y2}); if(tr2.length>TLEN) tr2.shift();
+
+  drawBG();
+  drawOrbitRing(r1_px,0.14);
+  drawOrbitRing(r2_px,0.14);
+
+  // line connecting stars
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x2,y2);
+  ctx.strokeStyle='rgba(255,255,255,0.07)';
+  ctx.lineWidth=0.8;
+  ctx.stroke();
+
+  drawTrail(tr1,'#5a9fd4');
+  drawTrail(tr2,'#d87a5a');
+
+  // star 1 (blue, larger)
+  ctx.beginPath();
+  ctx.arc(x1,y1,13,0,Math.PI*2);
+  ctx.fillStyle='#378ADD';
+  ctx.fill();
+
+  // star 2 (coral, smaller)
+  ctx.beginPath();
+  ctx.arc(x2,y2,9,0,Math.PI*2);
+  ctx.fillStyle='#D85A30';
+  ctx.fill();
+
+  // center of mass
+  ctx.beginPath();
+  ctx.arc(cx,cy,3,0,Math.PI*2);
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.5)';
+  ctx.font='11px monospace';
+  ctx.fillText('CoM',cx+6,cy-6);
+
+  // update display
+  const T_cur = 2*Math.PI*Math.sqrt(L*L*L);
+  document.getElementById('dL').textContent = L.toFixed(2);
+  document.getElementById('dT').textContent = (T_cur/T0).toFixed(2);
+  document.getElementById('dR').textContent = (T_cur/T0).toFixed(2);
+
+  requestAnimationFrame(frame);
+}
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
