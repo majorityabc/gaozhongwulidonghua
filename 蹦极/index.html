@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>蹦极模型互动演示：受力与运动全过程</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;margin:0;padding:16px;color:#222;}
+  h1{font-size:18px;margin:0 0 12px;text-align:center;}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;justify-content:center;width:100%;max-width:1000px;margin:0 auto;}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:10px;}
+  .panel.canvas-panel{flex:1 1 580px;min-width:0;max-width:620px;}
+  .cap{text-align:center;font-size:13px;color:#556;margin-bottom:6px;}
+  canvas{display:block;background:#fff;max-width:100%;height:auto;margin:0 auto;}
+  .info{flex:0 0 330px;width:330px;font-size:15px;line-height:1.9;}
+  .info hr{border:none;border-top:1px dashed #ccd;}
+  button,select{font:inherit;padding:4px 12px;cursor:pointer;}
+  /* 右栏控制区 */
+  .ctl{display:flex;flex-direction:column;gap:8px;margin-bottom:6px;}
+  .ctl-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .tog{border:2px solid #cdd5df;background:#fff;color:#445;border-radius:8px;font-weight:bold;transition:all .15s;}
+  .tog.active{color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+  #vBtn.active{background:#43a047;}
+  #aBtn.active{background:#fb8c00;}
+  #fBtn.active{background:#1e88e5;}
+  .seg{display:inline-flex;border:1px solid #cdd5df;border-radius:8px;overflow:hidden;}
+  .seg button{border:none;background:#fff;padding:4px 12px;color:#556;}
+  .seg button.active{background:#c0392b;color:#fff;font-weight:bold;}
+  .chk{font-size:14px;color:#556;display:inline-flex;align-items:center;gap:3px;cursor:pointer;}
+  .tl{width:100%;}
+  .tl input{width:100%;cursor:pointer;display:block;margin:2px 0 0;}
+  .spd-label{font-size:13px;color:#556;}
+  .spd-label b{color:#c0392b;font-family:Consolas,monospace;}
+  /* 阶段指示条 */
+  .chips{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px;}
+  .chip{padding:2px 8px;border-radius:10px;background:#eef1f5;color:#778;font-size:13px;transition:all .2s;}
+  .chip.cur{background:#c0392b;color:#fff;font-weight:bold;box-shadow:0 2px 6px rgba(192,57,43,.35);}
+  /* 阶段卡片 */
+  .stage-card{background:#fdf6f5;border:1px solid #f2d7d3;border-radius:8px;padding:8px 10px;margin-bottom:8px;}
+  .stage-title{font-weight:bold;color:#c0392b;font-size:16px;}
+  .stage-desc{font-size:14px;color:#555;line-height:1.7;margin-top:2px;}
+  /* 思考题卡片 */
+  .quiz{border:1px solid #f0c9c4;border-left:4px solid #c0392b;background:#fffaf9;border-radius:8px;padding:10px;margin-bottom:8px;}
+  .quiz-title{font-weight:bold;color:#c0392b;font-size:15.5px;margin-bottom:4px;}
+  .quiz-text{font-size:14px;color:#555;line-height:1.7;margin-bottom:6px;}
+  .quiz-q{font-weight:bold;font-size:14.5px;margin:6px 0;color:#222;}
+  #quizOpts button{display:block;width:100%;text-align:left;margin:4px 0;padding:6px 10px;border:1px solid #d5dbe3;border-radius:8px;background:#fff;cursor:pointer;font-size:14px;line-height:1.5;}
+  #quizOpts button:hover:not(:disabled){border-color:#c0392b;}
+  #quizOpts button.correct{background:#e8f5e9;border-color:#43a047;color:#2e7d32;font-weight:bold;}
+  #quizOpts button.wrong{background:#ffebee;border-color:#e53935;color:#c62828;}
+  .quiz-fb{font-size:14px;line-height:1.7;min-height:20px;margin:4px 0;}
+  .quiz-fb.ok{color:#2e7d32;}
+  .quiz-fb.bad{color:#c62828;}
+  #quizNext{background:#c0392b;color:#fff;border:none;border-radius:8px;padding:6px 16px;font-weight:bold;}
+  #quizNext:disabled{background:#e0c3bf;cursor:not-allowed;}
+</style>
+</head>
+<body>
+<h1>蹦极模型互动演示（不计空气阻力与能量损耗：下落与上升过程完全对称）</h1>
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cap">绳拉直后拉力逐渐增大：T &lt; mg 加速（a 减小） → T = mg 速度最大 → T &gt; mg 减速 → 最低点后对称上升</div>
+    <canvas id="view" width="560" height="680"></canvas>
+  </div>
+  <div class="info panel">
+    <div class="ctl">
+      <div class="ctl-row">
+        <span class="seg">
+          <button id="modeFree" class="active">自由演示</button><button id="modeStep">分步讲解</button>
+        </span>
+        <label class="chk"><input type="checkbox" id="slowChk" checked>关键点慢放</label>
+      </div>
+      <div class="ctl-row">
+        <button id="playBtn">暂停</button>
+        <button id="resetBtn">重置</button>
+        <button class="tog active" id="vBtn">速度 v</button>
+        <button class="tog active" id="aBtn">加速度 a</button>
+        <button class="tog active" id="fBtn">受力分析</button>
+      </div>
+      <div class="tl">
+        <div class="spd-label">播放速度：<b id="spdVal">1.0×</b>（慢 ↔ 快）</div>
+        <input type="range" id="speedRange" min="0.2" max="2.5" step="0.1" value="1">
+      </div>
+    </div>
+    <hr>
+    <div class="chips" id="chips"></div>
+    <div class="stage-card">
+      <div class="stage-title" id="stageTitle"></div>
+      <div class="stage-desc" id="stageDesc"></div>
+    </div>
+    <div class="quiz" id="quizCard" style="display:none">
+      <div class="quiz-title" id="quizTitle"></div>
+      <div class="quiz-text" id="quizText"></div>
+      <div class="quiz-q" id="quizQ"></div>
+      <div id="quizOpts"></div>
+      <div class="quiz-fb" id="quizFb"></div>
+      <button id="quizNext" disabled>继续 ▶</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('view'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+
+/* ================= 物理参数 ================= */
+const m=60,g=10,k=60,L0=15;          // 质量kg、重力加速度、绳劲度系数N/m、绳原长m
+const mg=m*g;                        // 重力 600 N
+const xEq=mg/k;                      // 平衡位置伸长量 10 m（此处 T=mg）
+const om=Math.sqrt(k/m);             // 简谐运动角频率
+const v0=Math.sqrt(2*g*L0);          // 绳刚好拉直时的速度
+const A=Math.sqrt(xEq*xEq+v0*v0/(om*om)); // 振幅 20 m
+const xMax=xEq+A;                    // 最大伸长量 30 m
+const Tmax=k*xMax;                   // 最大拉力 1800 N = 3mg
+const yEqM=L0+xEq;                   // 平衡位置下落距离 25 m
+const yLowM=L0+xMax;                 // 最低点下落距离 45 m
+
+/* ================= 画面几何 ================= */
+const S=11;                          // 比例 px/m
+const ax=300,ay=60;                  // 跳台锚点
+const yTaut=ay+L0*S;                 // 绳刚好拉直位置
+const yEq=ay+yEqM*S;                 // 平衡位置
+const yLow=ay+yLowM*S;               // 最低点
+
+/* ================= 状态 ================= */
+let y=0,v=0,t=0;                     // y: 下落距离(m)，v: 速度(向下为正)
+let playing=true,speed=1,mode='free';
+let showV=true,showA=true,showF=true,slowOn=true;
+let quizOpen=false;
+const DT=1/240;let acc=0,last=0;
+
+function phys(dt){
+  const x=Math.max(0,y-L0);
+  const a=(mg-k*x)/m;                // 向下为正：绳松时 a=g；拉直后 a=g-T/m
+  v+=a*dt;y+=v*dt;t+=dt;
+}
+
+/* ================= 关键事件（物理条件触发） ================= */
+const EVENTS=[
+ {key:'taut', quiz:0,test:(py,pv,yy,vv)=>py<L0&&yy>=L0&&vv>0},      // ① 绳刚好拉直
+ {key:'eqD',  quiz:1,test:(py,pv,yy,vv)=>py<yEqM&&yy>=yEqM&&vv>0},  // ② 下落过平衡位置
+ {key:'low',  quiz:2,test:(py,pv,yy,vv)=>pv>0&&vv<=0&&yy>yEqM+1},   // ③ 最低点
+ {key:'eqU',  quiz:3,test:(py,pv,yy,vv)=>py>yEqM&&yy<=yEqM&&vv<0},  // ④ 上升过平衡位置
+ {key:'slack',quiz:4,test:(py,pv,yy,vv)=>py>L0&&yy<=L0&&vv<0},      // ⑤ 绳再次松弛
+ {key:'top',  quiz:5,test:(py,pv,yy,vv)=>pv<0&&vv>=0&&yy<L0},       // ⑥ 回到出发点
+];
+const flashOf={taut:'taut',eqD:'eq',low:'low',eqU:'eq',slack:'taut',top:null};
+const flashes={taut:0,eq:0,low:0};
+const eventDone=[false,false,false,false,false,false];
+
+/* ================= 思考题数据 ================= */
+const QUIZ=[
+ {title:'① 绳刚好被拉直',
+  text:'绳子刚刚绷直，伸长量还是 0，拉力 T = 0，人仍然只受重力。',
+  q:'想一想：这一瞬间，人的速度达到最大了吗？',
+  opts:['A. 达到了，绳开始起作用，速度就是这里最大','B. 没有，之后人还会继续加速','C. 速度从这一刻起就开始减小'],
+  ans:1,
+  exp:'√ 此时 T = 0 < mg，合力仍向下，人继续加速。要等到拉力增大到 T = mg（平衡位置）时，速度才达到最大。'},
+ {title:'② 下落经过平衡位置',
+  text:'这里绳拉力恰好等于重力：T = mg = 600 N，合力为 0，加速度为 0。',
+  q:'想一想：合力为 0，人会停在这里吗？',
+  opts:['A. 会，受力平衡人就停下了','B. 不会，此时速度最大，人会继续向下冲','C. 会立刻被绳子弹回去'],
+  ans:1,
+  exp:'√ 受力平衡只说明加速度为 0，并不说明速度为 0。平衡位置正是速度最大的位置（v = 20 m/s），人靠惯性继续下冲，此后 T > mg 才开始减速。'},
+ {title:'③ 到达最低点',
+  text:'速度减为 0，绳伸长量最大（30 m），拉力达到最大 T = 1800 N = 3mg。',
+  q:'想一想：最低点 v = 0，能说明人受力平衡吗？',
+  opts:['A. 能，v = 0 就是受力平衡','B. 不能，此时 T = 3mg > mg，合力向上且最大'],
+  ans:1,
+  exp:'√ “速度为 0”与“受力平衡”是两回事！此时合力 1200 N 向上，加速度约 20 m/s²（≈2g）向上，下一刻人就被向上拉起。'},
+ {title:'④ 上升再次经过平衡位置',
+  text:'上升回到平衡位置，T 再次等于 mg，合力为 0，上升速度达到最大。',
+  q:'想一想：过了平衡位置继续向上，人将怎样运动？',
+  opts:['A. 继续加速上升','B. 开始减速上升','C. 立刻掉头下落'],
+  ans:1,
+  exp:'√ 再往上伸长量小于平衡伸长量，T < mg，合力向下，与速度方向相反，人做减速上升，直到绳松弛。'},
+ {title:'⑤ 绳再次松弛',
+  text:'绳恢复到原长，开始松垮，拉力消失。',
+  q:'想一想：绳松弛之后，人受几个力？加速度多大？',
+  opts:['A. 受重力和拉力两个力，a < g','B. 只受重力，a = g = 10 m/s²，方向向下','C. 不受力，a = 0'],
+  ans:1,
+  exp:'√ 绳松了就没有拉力。人只受重力，相当于竖直上抛：上升过程不断减速，a 始终为 g 向下，直到速度减为 0。'},
+ {title:'⑥ 恰好回到出发点',
+  text:'人恰好回到跳台高度，速度再次减为 0，准备开始下一个周期。',
+  q:'想一想：为什么能恰好回到原来的高度？',
+  opts:['A. 是绳把人拉回原处的','B. 纯属巧合','C. 不计空气阻力与能量损耗，机械能守恒，下落与上升完全对称'],
+  ans:2,
+  exp:'√ 全程只有重力和弹力做功，机械能守恒，所以上升与下落严格对称，恰好回到出发点。现实中因能量损耗，返回高度会越来越低。'},
+];
+
+/* ================= 阶段定义 ================= */
+const STAGES=[
+ {c:'① 自由落体',d:'绳未拉直，只受重力，a = g，速度越来越大。'},
+ {c:'② 下落加速（a 减小）',d:'T < mg，合力向下但逐渐减小，人做加速度减小的加速运动。'},
+ {c:'③ 下落减速',d:'T > mg，合力向上，与速度方向相反，人开始减速。'},
+ {c:'④ 最低点',d:'v = 0，拉力最大（T = 3mg），向上的加速度最大，即将被弹回。'},
+ {c:'⑤ 上升加速',d:'T > mg，合力向上，人向上加速，过平衡位置时速度最大。'},
+ {c:'⑥ 上升减速',d:'T < mg，合力向下，人向上减速。'},
+ {c:'⑦ 绳松上升',d:'绳已松弛，只受重力，a = g，速度减到 0 即回到出发点。'},
+];
+const CHIP_NAMES=['①自由落体','②加速↓','③减速↓','④最低点','⑤加速↑','⑥减速↑','⑦绳松上升'];
+
+function curState(){
+  const x=Math.max(0,y-L0),T=k*x,a=(mg-T)/m,F=T-mg;
+  let stage;
+  if(y<L0-0.02)stage=v>=0?0:6;
+  else if(Math.abs(v)<0.5&&x>xEq+A*0.85)stage=3;
+  else if(v>0)stage=x<xEq?1:2;
+  else stage=x>xEq?4:5;
+  return {x,T,a,F,stage};
+}
+
+/* ================= 绘图工具 ================= */
+function drawArrow(x1,y1,x2,y2,color,dashed,label,labelLeft){
+  const dx=x2-x1,dy=y2-y1,len=Math.hypot(dx,dy);
+  if(len<4)return;
+  const ux=dx/len,uy=dy/len;
+  ctx.save();
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=2.5;
+  if(dashed)ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2-ux*9,y2-uy*9);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-ux*10-uy*5,y2-uy*10+ux*5);
+  ctx.lineTo(x2-ux*10+uy*5,y2-uy*10-ux*5);
+  ctx.closePath();ctx.fill();
+  if(label){
+    ctx.font='12px Microsoft YaHei';
+    const w=ctx.measureText(label).width;
+    ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(label,labelLeft?x2-7-w:x2+(ux>=0?7:-7-w),y2+(uy>=0?10:-10));
+  }
+  ctx.restore();
+}
+
+function hLine(py,text,color,flash){
+  ctx.save();
+  if(flash>0){
+    ctx.globalAlpha=flash*0.15;
+    ctx.fillStyle=color;ctx.fillRect(80,py-7,455,14);
+    ctx.globalAlpha=1;
+  }
+  ctx.strokeStyle=color;ctx.setLineDash([7,5]);ctx.lineWidth=1+2*flash;
+  ctx.beginPath();ctx.moveTo(80,py);ctx.lineTo(535,py);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle=color;ctx.font='bold '+(flash>0?13:12)+'px Microsoft YaHei';
+  ctx.textAlign='left';ctx.textBaseline='bottom';
+  ctx.fillText(text,86,py-4);
+  ctx.restore();
+}
+
+function drawPerson(cx,cy){
+  ctx.save();
+  ctx.strokeStyle='#263238';ctx.lineWidth=2.4;ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(cx,cy-12,6,0,Math.PI*2);ctx.stroke();          // 头
+  ctx.beginPath();ctx.moveTo(cx,cy-6);ctx.lineTo(cx,cy+8);ctx.stroke();   // 身体
+  ctx.beginPath();                                                         // 手臂上举
+  ctx.moveTo(cx,cy-2);ctx.lineTo(cx-10,cy-13);
+  ctx.moveTo(cx,cy-2);ctx.lineTo(cx+10,cy-13);ctx.stroke();
+  ctx.beginPath();                                                         // 腿
+  ctx.moveTo(cx,cy+8);ctx.lineTo(cx-8,cy+20);
+  ctx.moveTo(cx,cy+8);ctx.lineTo(cx+8,cy+20);ctx.stroke();
+  ctx.restore();
+}
+
+function drawRope(cx,cy,T){
+  const px=cx,py=cy-6;
+  ctx.save();
+  if(y>=L0){                                   // 绳拉直：直线，拉力越大越红越粗
+    const r=T/Tmax;
+    ctx.strokeStyle='rgb('+Math.round(67+180*r)+','+Math.round(160-110*r)+','+Math.round(71-40*r)+')';
+    ctx.lineWidth=2+3*r;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(px,py);ctx.stroke();
+  }else{                                       // 绳松弛：画成松垮的弧线
+    const slack=(L0-y)*S;
+    const mx=(ax+px)/2+Math.min(130,slack*1.3);
+    const my=(ay+py)/2+Math.min(60,slack*0.3);
+    ctx.strokeStyle='#90a4ae';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.quadraticCurveTo(mx,my,px,py);ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/* ================= 主绘制 ================= */
+function render(){
+  const st=curState();
+  ctx.clearRect(0,0,W,H);
+
+  // 天空背景
+  const sky=ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#eef6fd');sky.addColorStop(1,'#ffffff');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,W,H);
+
+  // 水面
+  ctx.fillStyle='#b3e0f2';ctx.fillRect(0,620,W,H-620);
+  ctx.strokeStyle='#7cc4e8';ctx.lineWidth=1.5;
+  for(let i=0;i<3;i++){
+    ctx.beginPath();
+    for(let x=0;x<=W;x+=8)ctx.lineTo(x,630+i*14+Math.sin(x/22+i*2+t*2)*2.5);
+    ctx.stroke();
+  }
+
+  // 跳台
+  ctx.fillStyle='#8d6e63';ctx.fillRect(70,ay-8,290,10);
+  ctx.fillStyle='#6d4c41';ctx.fillRect(86,ay+2,14,150);
+  ctx.fillStyle='#a1887f';ctx.fillRect(70,ay-14,290,4);
+  ctx.fillStyle='#37474f';ctx.beginPath();ctx.arc(ax,ay,4,0,Math.PI*2);ctx.fill();
+
+  // 三条关键位置虚线（穿过时高亮闪现）
+  hLine(yTaut,'绳刚好拉直（原长 L₀=15 m，此处 T 从 0 开始增大）','#78909c',flashes.taut);
+  hLine(yEq,'平衡位置：T = mg，合力为 0，速度最大','#2e7d32',flashes.eq);
+  hLine(yLow,'最低点：v = 0，拉力最大 T = 3mg','#c62828',flashes.low);
+
+  const cx=ax,cy=ay+y*S;
+
+  drawRope(cx,cy,st.T);
+  drawPerson(cx,cy);
+
+  // 受力分析：重力与拉力同一起点（贴身右侧，一上一下），合力紧挨在旁（紫虚线）
+  if(showF){
+    drawArrow(cx+12,cy,cx+12,cy+mg*0.06,'#e53935',false,'mg='+mg.toFixed(0)+' N');
+    if(st.T>1)drawArrow(cx+12,cy,cx+12,cy-st.T*0.06,'#1e88e5',false,'T='+st.T.toFixed(0)+' N');
+    if(st.T>1&&Math.abs(st.F)>5)drawArrow(cx+34,cy,cx+34,cy-st.F*0.06,'#8e24aa',true,'F合='+Math.abs(st.F).toFixed(0)+' N');
+    // 重力与弹力的共同作用点：画个明显的圆点
+    ctx.save();
+    ctx.beginPath();ctx.arc(cx+12,cy,5.5,0,Math.PI*2);
+    ctx.fillStyle='#37474f';ctx.fill();
+    ctx.lineWidth=2;ctx.strokeStyle='#fff';ctx.stroke();
+    ctx.restore();
+  }
+  // 速度（绿）、加速度（橙）：放到左侧远处，远离绳索与受力箭头
+  if(showV&&Math.abs(v)>0.05)
+    drawArrow(cx-56,cy,cx-56,cy+v*5.5,'#43a047',false,'v='+Math.abs(v).toFixed(1)+' m/s');
+  if(showA&&Math.abs(st.a)>0.05)
+    drawArrow(cx-96,cy,cx-96,cy+st.a*5,'#fb8c00',false,'a='+Math.abs(st.a).toFixed(1)+' m/s²',true);
+
+  updatePanel(st);
+}
+
+/* ================= 右侧面板 ================= */
+const chipEls=[];
+(function buildChips(){
+  const box=document.getElementById('chips');
+  CHIP_NAMES.forEach(n=>{
+    const s=document.createElement('span');s.className='chip';s.textContent=n;
+    box.appendChild(s);chipEls.push(s);
+  });
+})();
+
+function updatePanel(st){
+  chipEls.forEach((el,i)=>el.classList.toggle('cur',i===st.stage));
+  document.getElementById('stageTitle').textContent=STAGES[st.stage].c;
+  document.getElementById('stageDesc').textContent=STAGES[st.stage].d;
+}
+
+/* ================= 思考题组件 ================= */
+const quizCard=document.getElementById('quizCard'),
+      quizOpts=document.getElementById('quizOpts'),
+      quizFb=document.getElementById('quizFb'),
+      quizNext=document.getElementById('quizNext'),
+      playBtn=document.getElementById('playBtn');
+
+function syncPlayBtn(){playBtn.textContent=playing?'暂停':'播放';}
+
+function openQuiz(qi){
+  const d=QUIZ[qi];
+  quizOpen=true;playing=false;syncPlayBtn();
+  document.getElementById('quizTitle').textContent=d.title+' —— 先观察，再回答';
+  document.getElementById('quizText').textContent=d.text;
+  document.getElementById('quizQ').textContent=d.q;
+  quizFb.textContent='';quizFb.className='quiz-fb';
+  quizNext.disabled=true;
+  quizOpts.innerHTML='';
+  let answered=false;
+  d.opts.forEach((op,i)=>{
+    const b=document.createElement('button');
+    b.textContent=op;
+    b.addEventListener('click',()=>{
+      if(answered)return;
+      if(i===d.ans){
+        answered=true;
+        b.classList.add('correct');
+        quizFb.textContent=d.exp;quizFb.className='quiz-fb ok';
+        quizNext.disabled=false;
+        quizOpts.querySelectorAll('button').forEach(x=>x.disabled=true);
+      }else{
+        b.classList.add('wrong');b.disabled=true;
+        quizFb.textContent='✗ 不对，再想一想——结合图中力的大小和箭头方向。';quizFb.className='quiz-fb bad';
+      }
+    });
+    quizOpts.appendChild(b);
+  });
+  quizCard.style.display='block';
+}
+function closeQuiz(){
+  quizCard.style.display='none';
+  quizOpen=false;
+}
+quizNext.addEventListener('click',()=>{
+  closeQuiz();playing=true;syncPlayBtn();
+});
+
+/* ================= 事件检测 ================= */
+function checkEvents(py,pv,yy,vv){
+  for(const e of EVENTS){
+    if(e.test(py,pv,yy,vv)){
+      const fk=flashOf[e.key];
+      if(fk)flashes[fk]=1;
+      if(mode==='step'&&!eventDone[e.quiz]&&!quizOpen){
+        eventDone[e.quiz]=true;
+        openQuiz(e.quiz);
+        break;
+      }
+    }
+  }
+}
+
+/* ================= 动画循环 ================= */
+// 支持 ?ff=秒 快进（便于课堂直接定位到某一过程）
+const ff=parseFloat(new URLSearchParams(location.search).get('ff')||'0');
+if(ff>0)for(let i=0,n=Math.min(Math.round(ff/DT),200000);i<n;i++)phys(DT);
+
+function frame(now){
+  if(!last)last=now;
+  let dt=(now-last)/1000;last=now;
+  if(dt>0.05)dt=0.05;
+  for(const key in flashes)flashes[key]=Math.max(0,flashes[key]-dt*0.8);
+  if(playing){
+    let eff=speed;
+    if(slowOn&&mode==='free'){
+      const dn=Math.min(Math.abs(y-yEqM),Math.abs(y-yLowM));
+      if(dn<2.5)eff=speed*0.25;
+    }
+    acc+=dt*eff;
+    while(acc>=DT){
+      const py=y,pv=v;
+      phys(DT);acc-=DT;
+      checkEvents(py,pv,y,v);
+      if(quizOpen){acc=0;break;}
+    }
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ================= 控件 ================= */
+playBtn.addEventListener('click',()=>{
+  if(quizOpen){closeQuiz();playing=true;syncPlayBtn();return;}  // 跳过本题继续
+  playing=!playing;syncPlayBtn();
+});
+function resetSim(){
+  y=0;v=0;t=0;acc=0;
+  for(let i=0;i<eventDone.length;i++)eventDone[i]=false;
+  closeQuiz();
+}
+document.getElementById('resetBtn').addEventListener('click',()=>{
+  resetSim();playing=true;syncPlayBtn();
+});
+document.getElementById('speedRange').addEventListener('input',e=>{
+  speed=parseFloat(e.target.value);
+  document.getElementById('spdVal').textContent=speed.toFixed(1)+'×';
+});
+const modeFree=document.getElementById('modeFree'),modeStep=document.getElementById('modeStep');
+modeFree.addEventListener('click',()=>{
+  mode='free';closeQuiz();
+  modeFree.classList.add('active');modeStep.classList.remove('active');
+});
+modeStep.addEventListener('click',()=>{
+  mode='step';resetSim();playing=true;syncPlayBtn();
+  modeStep.classList.add('active');modeFree.classList.remove('active');
+});
+document.getElementById('slowChk').addEventListener('change',e=>{
+  slowOn=e.target.checked;
+});
+function bindToggle(id,fn){
+  const btn=document.getElementById(id);
+  btn.addEventListener('click',()=>{
+    btn.classList.toggle('active');
+    fn(btn.classList.contains('active'));
+  });
+}
+bindToggle('vBtn',on=>showV=on);
+bindToggle('aBtn',on=>showA=on);
+bindToggle('fBtn',on=>showF=on);
+})();
+</script>
+</body>
+</html>
