@@ -1,0 +1,811 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>平行四边形法则与三角形法则</title>
+<style>
+  body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:#f5f7fa;margin:0;padding:16px;color:#222;}
+  h1{font-size:18px;margin:0 0 10px;}
+  .tabbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+  .tabbar button{font:inherit;font-size:14px;padding:6px 14px;border:1px solid #cdd5df;background:#fff;border-radius:8px;cursor:pointer;}
+  .tabbar button:hover{border-color:#7aa8d8;background:#f3f8ff;}
+  .tabbar button.active{background:#2f6fb2;color:#fff;border-color:#2f6fb2;}
+  .tab{display:none;}
+  .tab.active{display:block;}
+  .wrap{display:flex;gap:16px;flex-wrap:nowrap;align-items:flex-start;width:100%;max-width:calc(100vw - 32px);}
+  .panel{background:#fff;border:1px solid #dde3ea;border-radius:10px;padding:10px;}
+  .panel.canvas-panel{flex:1 1 auto;min-width:0;}
+  .cap{text-align:center;font-size:13px;color:#556;margin-bottom:6px;}
+  canvas{display:block;background:#fff;max-width:100%;height:auto;}
+  .info{flex:0 0 400px;width:400px;font-size:16px;line-height:2.0;}
+  .info hr{border:none;border-top:1px dashed #ccd;}
+  .info b{font-size:17px;}
+  .info .note{font-size:14px;}
+  button,select,input{font:inherit;padding:4px 12px;cursor:pointer;}
+  .val{font-family:Consolas,monospace;color:#124;font-weight:bold;}
+  .note{font-size:12px;color:#667;}
+  #p3Judge{font-size:16px;line-height:1.9;}
+  .ctrl{margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:14px;}
+  .ctrl input[type=range]{flex:0 1 130px;max-width:150px;padding:0;cursor:pointer;}
+  .ctrl input[type=radio],.ctrl input[type=checkbox]{padding:0;margin:0 4px 0 0;}
+  .ctrl label{display:inline-flex;align-items:center;cursor:pointer;}
+  .playBtn{background:#2f6fb2;color:#fff;border:none;border-radius:6px;min-width:76px;}
+  .playBtn.on{background:#1e8e3e;}
+  .ok{color:#1e8e3e;font-weight:bold;}
+  .warn{color:#c0392b;font-weight:bold;}
+</style>
+</head>
+<body>
+<h1>力的合成与分解：平行四边形法则与三角形法则</h1>
+<div class="tabbar">
+  <button data-tab="p1" class="active">① 平行四边形法则</button>
+  <button data-tab="p2">② 发现：三个力构成两个三角形</button>
+  <button data-tab="p3">③ 三角形法则（探究）</button>
+</div>
+
+<!-- ============ 页面一：平行四边形法则 ============ -->
+<section id="tab-p1" class="tab active">
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cap">从同一作用点 O 画出两个分力，以它们为邻边作平行四边形，过 O 的对角线就是合力 R（浅色箭头为对边的平移复制）</div>
+    <canvas id="cvA" width="900" height="500"></canvas>
+    <div class="ctrl">
+      <span>|F₁|：</span>
+      <input type="range" id="p1F1" min="20" max="80" step="1" value="50">
+      <span class="val" id="p1F1v">50</span><span>N</span>
+      <span>|F₂|：</span>
+      <input type="range" id="p1F2" min="20" max="80" step="1" value="40">
+      <span class="val" id="p1F2v">40</span><span>N</span>
+      <span>夹角 θ：</span>
+      <input type="range" id="p1Th" min="5" max="180" step="1" value="60">
+      <span class="val" id="p1Thv">60</span><span>°</span>
+      <span class="note">也可以直接拖动 F₁、F₂ 的彩色端点</span>
+    </div>
+  </div>
+  <div class="info panel">
+    <b>平行四边形法则</b>
+    <hr>
+    <div>F₁ = <span class="val" id="p1F1i">50</span> N（蓝色，方向水平）</div>
+    <div>F₂ = <span class="val" id="p1F2i">40</span> N（绿色）</div>
+    <div>两力夹角 θ = <span class="val" id="p1Thi">60</span>°</div>
+    <hr>
+    <div>R = √(F₁²+F₂²+2F₁F₂cosθ)</div>
+    <div>R = <span class="val" id="p1R">78.1</span> N</div>
+    <div>R 与 F₁ 的夹角 φ = <span class="val" id="p1Phi">26.3</span>°</div>
+    <hr>
+    <div class="note">步骤：① 从作用点 O 画出 F₁、F₂；② 以它们为邻边补全平行四边形（对边就是分力的平移复制）；③ 从 O 出发的对角线即合力 R。两个分力张得越开，对角线越短，合力越小。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 页面二：发现三个力构成两个三角形 ============ -->
+<section id="tab-p2" class="tab">
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cap">平行四边形被对角线 R 分成两个全等三角形——每个三角形里都有 F₁、F₂、R 三个力。点按钮把其中一个分力平移过去，拼出三角形</div>
+    <canvas id="cvB" width="900" height="500"></canvas>
+    <div class="ctrl">
+      <span>|F₁|：</span>
+      <input type="range" id="p2F1" min="20" max="80" step="1" value="50">
+      <span class="val" id="p2F1v">50</span><span>N</span>
+      <span>|F₂|：</span>
+      <input type="range" id="p2F2" min="20" max="80" step="1" value="40">
+      <span class="val" id="p2F2v">40</span><span>N</span>
+      <span>夹角 θ：</span>
+      <input type="range" id="p2Th" min="5" max="180" step="1" value="60">
+      <span class="val" id="p2Thv">60</span><span>°</span>
+      <button id="p2T1" class="playBtn">拼三角形①</button>
+      <button id="p2T2" class="playBtn">拼三角形②</button>
+      <button id="p2Back">还原平行四边形</button>
+      <label><input type="checkbox" id="p2Ghost" checked>平行四边形残影</label>
+    </div>
+  </div>
+  <div class="info panel">
+    <b>从平行四边形到三角形</b>
+    <hr>
+    <div id="p2Msg" class="note"></div>
+    <hr>
+    <div>F₁ = <span class="val" id="p2F1i">50</span> N　F₂ = <span class="val" id="p2F2i">40</span> N　θ = <span class="val" id="p2Thi">60</span>°</div>
+    <div>R = <span class="val" id="p2R">78.1</span> N（两个三角形里是同一条边）</div>
+    <hr>
+    <div class="note">发现：求合力其实不必画完整的平行四边形——只要把两个分力<b>首尾相接</b>，从第一个力的起点指向第二个力的终点的那条边就是合力。两种接法（F₁ 后接 F₂、F₂ 后接 F₁）得到同一个合力。这就是<b>三角形法则</b>。</div>
+  </div>
+</div>
+</section>
+
+<!-- ============ 页面三：三角形法则（探究） ============ -->
+<section id="tab-p3" class="tab">
+<div class="wrap">
+  <div class="panel canvas-panel">
+    <div class="cap" id="p3Cap"></div>
+    <canvas id="cvC" width="900" height="540"></canvas>
+    <div class="ctrl">
+      <span>任务：</span>
+      <label><input type="radio" name="p3Mode" value="add" checked>求合力</label>
+      <label><input type="radio" name="p3Mode" value="sub1">求分力·首尾相接</label>
+      <label><input type="radio" name="p3Mode" value="sub2">求分力·矢量减法</label>
+      <label><input type="radio" name="p3Mode" value="sub3">求分力·平行四边形</label>
+      <button id="p3Play" class="playBtn">▶ 演示</button>
+      <button id="p3Swap">交换顺序</button>
+      <button id="p3Reset">重置</button>
+      <button id="p3Practice" class="playBtn">✏️ 我来画一画</button>
+      <button id="p3Hint" class="playBtn" style="display:none">💡 提示</button>
+      <button id="p3New" style="display:none">🔀 换一组力</button>
+      <span class="note">拖动彩色端点可以改变已知力的大小和方向，图形实时更新</span>
+    </div>
+  </div>
+  <div class="info panel">
+    <b id="p3Title">三角形法则 · 求合力</b>
+    <hr>
+    <div id="p3Judge"></div>
+    <div id="p3Info"></div>
+    <hr>
+    <div class="note" id="p3Note"></div>
+  </div>
+</div>
+</section>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ 通用绘图工具 ============ */
+function arrow(ctx,x1,y1,x2,y2,color,w,label,lx,ly,dash){
+  const ang=Math.atan2(y2-y1,x2-x1);
+  ctx.save();
+  if(dash)ctx.setLineDash(dash);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w||2;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.restore();
+  const hl=9+(w||2)*1.6;
+  ctx.fillStyle=color;
+  ctx.beginPath();ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-hl*Math.cos(ang-0.42),y2-hl*Math.sin(ang-0.42));
+  ctx.lineTo(x2-hl*Math.cos(ang+0.42),y2-hl*Math.sin(ang+0.42));
+  ctx.closePath();ctx.fill();
+  if(label){
+    ctx.font="bold 14px 'Microsoft YaHei'";ctx.textAlign="center";ctx.textBaseline="middle";
+    ctx.fillText(label,lx!==undefined?lx:(x1+x2)/2,ly!==undefined?ly:(y1+y2)/2);
+  }
+}
+function seg(ctx,x1,y1,x2,y2,color,w,dash){
+  ctx.save();
+  if(dash)ctx.setLineDash(dash);
+  ctx.strokeStyle=color;ctx.lineWidth=w||1.5;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.restore();
+}
+function dot(ctx,x,y,r,color){ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();}
+function ring(ctx,x,y,r,color){dot(ctx,x,y,r,color);ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.stroke();}
+function txt(ctx,s,x,y,color,size,bold,align){
+  ctx.fillStyle=color;ctx.font=(bold?"bold ":"")+(size||13)+"px 'Microsoft YaHei'";
+  ctx.textAlign=align||"center";ctx.textBaseline="middle";ctx.fillText(s,x,y);
+}
+/* 画夹角弧：数学角（逆时针为正，y轴向上），中心(cx,cy)为屏幕坐标 */
+function angleArc(ctx,cx,cy,r,a1,a2,color,label){
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(cx,cy,r,-a1*Math.PI/180,-a2*Math.PI/180,a2>a1);ctx.stroke();
+  if(label){
+    const mid=(a1+a2)/2*Math.PI/180;
+    txt(ctx,label,cx+(r+16)*Math.cos(mid),cy-(r+16)*Math.sin(mid),color,13,true);
+  }
+}
+function grid(ctx,W,H){
+  ctx.strokeStyle="#eef1f5";ctx.lineWidth=1;
+  for(let x=0;x<=W;x+=50){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<=H;y+=50){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+}
+function fillTri(ctx,x1,y1,x2,y2,x3,y3,rgba){
+  ctx.fillStyle=rgba;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.lineTo(x3,y3);ctx.closePath();ctx.fill();
+}
+const RAD=Math.PI/180;
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function normA(a){while(a>180)a-=360;while(a<=-180)a+=360;return a;}
+
+/* ============ 标签页切换 ============ */
+let curTab="p1";
+const tabBtns=document.querySelectorAll(".tabbar button");
+function setTab(id){
+  curTab=id;
+  tabBtns.forEach(b=>b.classList.toggle("active",b.dataset.tab===id));
+  document.querySelectorAll(".tab").forEach(s=>s.classList.toggle("active",s.id==="tab-"+id));
+}
+tabBtns.forEach(b=>b.addEventListener("click",()=>{setTab(b.dataset.tab);history.replaceState(null,"","#"+b.dataset.tab);}));
+const hashParts=(location.hash||"").replace("#","").split("&");
+const hp={};hashParts.slice(1).forEach(p=>{const kv=p.split("=");if(kv.length===2)hp[kv[0]]=kv[1];});
+if(["p1","p2","p3"].indexOf(hashParts[0])>=0)setTab(hashParts[0]);
+
+/* ============================================================
+   页面一：平行四边形法则
+   F₁ 沿水平方向，F₂ 与 F₁ 夹角 θ；对角线 R 为合力
+   ============================================================ */
+const p1={
+  cv:document.getElementById("cvA"),ctx:null,
+  F1:50,F2:40,th:60,K:3,
+  OX:300,OY:320,dragRole:null,
+  init(){
+    this.ctx=this.cv.getContext("2d");
+    const self=this;
+    document.getElementById("p1F1").addEventListener("input",function(){self.F1=+this.value;});
+    document.getElementById("p1F2").addEventListener("input",function(){self.F2=+this.value;});
+    document.getElementById("p1Th").addEventListener("input",function(){self.th=+this.value;});
+    attachDrag12(this);
+  },
+  tips(){
+    const th=this.th*RAD;
+    return {A:[this.OX+this.F1*this.K,this.OY],
+            B:[this.OX+this.F2*this.K*Math.cos(th),this.OY-this.F2*this.K*Math.sin(th)]};
+  },
+  R(){const c=Math.cos(this.th*RAD);return Math.sqrt(this.F1*this.F1+this.F2*this.F2+2*this.F1*this.F2*c);},
+  phi(){const th=this.th*RAD;return Math.atan2(this.F2*Math.sin(th),this.F1+this.F2*Math.cos(th))/RAD;},
+  render(){
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.clearRect(0,0,W,H);
+    grid(ctx,W,H);
+    const ox=this.OX,oy=this.OY,t=this.tips();
+    const ax=t.A[0],ay=t.A[1],bx=t.B[0],by=t.B[1];
+    const px=ax+(bx-ox),py=ay+(by-oy);
+    /* 对边：分力的平移复制（浅色细箭头） */
+    arrow(ctx,ax,ay,px,py,"#a9dfbf",2,"F₂",(ax+px)/2+16,(ay+py)/2);
+    arrow(ctx,bx,by,px,py,"#aed6f1",2,"F₁",(bx+px)/2-16,(by+py)/2);
+    /* 夹角弧 */
+    angleArc(ctx,ox,oy,54,0,this.th,"#7a8794","θ");
+    const phi=this.phi();
+    if(phi>2)angleArc(ctx,ox,oy,34,0,phi,"#e74c3c","φ");
+    /* 三个力 */
+    arrow(ctx,ox,oy,ax,ay,"#2980b9",3,"F₁ = "+this.F1+" N",(ox+ax)/2,ay+20);
+    arrow(ctx,ox,oy,bx,by,"#27ae60",3,"F₂ = "+this.F2+" N",(ox+bx)/2-10,(oy+by)/2-16);
+    arrow(ctx,ox,oy,px,py,"#e74c3c",3.5,"",0,0);
+    txt(ctx,"R = "+this.R().toFixed(1)+" N",px,py-16,"#e74c3c",14,true);
+    ring(ctx,ax,ay,7,"#2980b9");
+    ring(ctx,bx,by,7,"#27ae60");
+    dot(ctx,ox,oy,5,"#333");txt(ctx,"O",ox-14,oy+14,"#333",13,true);
+    /* 面板 */
+    document.getElementById("p1F1v").textContent=this.F1;
+    document.getElementById("p1F2v").textContent=this.F2;
+    document.getElementById("p1Thv").textContent=this.th;
+    document.getElementById("p1F1i").textContent=this.F1;
+    document.getElementById("p1F2i").textContent=this.F2;
+    document.getElementById("p1Thi").textContent=this.th;
+    document.getElementById("p1R").textContent=this.R().toFixed(1);
+    document.getElementById("p1Phi").textContent=this.phi().toFixed(1);
+  }
+};
+
+/* ============================================================
+   页面二：发现——平行四边形 = 两个全等三角形
+   st：0 完整平行四边形；1 三角形①（F₁ 后接 F₂）；2 三角形②（F₂ 后接 F₁）
+   prog：平移动画进度 0→1
+   ============================================================ */
+const p2={
+  cv:document.getElementById("cvB"),ctx:null,
+  F1:50,F2:40,th:60,K:3,
+  OX:300,OY:320,dragRole:null,
+  st:0,prog:0,
+  init(){
+    this.ctx=this.cv.getContext("2d");
+    const self=this;
+    document.getElementById("p2F1").addEventListener("input",function(){self.F1=+this.value;});
+    document.getElementById("p2F2").addEventListener("input",function(){self.F2=+this.value;});
+    document.getElementById("p2Th").addEventListener("input",function(){self.th=+this.value;});
+    document.getElementById("p2T1").addEventListener("click",()=>{self.go(1);});
+    document.getElementById("p2T2").addEventListener("click",()=>{self.go(2);});
+    document.getElementById("p2Back").addEventListener("click",()=>{self.go(0);});
+    attachDrag12(this);
+  },
+  /* 点“拼三角形①/②”：从头播放平移动画（重复点击同一按钮可重播）；“还原”回到平行四边形 */
+  go(s){if(s>0)this.prog=0;this.st=s;},
+  tips(){
+    const th=this.th*RAD;
+    return {A:[this.OX+this.F1*this.K,this.OY],
+            B:[this.OX+this.F2*this.K*Math.cos(th),this.OY-this.F2*this.K*Math.sin(th)]};
+  },
+  R(){const c=Math.cos(this.th*RAD);return Math.sqrt(this.F1*this.F1+this.F2*this.F2+2*this.F1*this.F2*c);},
+  update(dt){
+    const target=this.st>0?1:0;
+    if(this.prog<target)this.prog=Math.min(target,this.prog+1.3*dt);
+    if(this.prog>target)this.prog=Math.max(target,this.prog-1.3*dt);
+  },
+  render(){
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.clearRect(0,0,W,H);
+    grid(ctx,W,H);
+    const ox=this.OX,oy=this.OY,t=this.tips(),pr=this.prog;
+    const ax=t.A[0],ay=t.A[1],bx=t.B[0],by=t.B[1];
+    const px=ax+(bx-ox),py=ay+(by-oy);
+    const ghost=document.getElementById("p2Ghost").checked;
+    /* 残影：原来的平行四边形 */
+    if(this.st>0&&ghost){
+      ctx.save();ctx.globalAlpha=0.15;
+      arrow(ctx,ox,oy,ax,ay,"#2980b9",3,"",0,0);
+      arrow(ctx,ox,oy,bx,by,"#27ae60",3,"",0,0);
+      seg(ctx,ax,ay,px,py,"#9aa7b5",1.5,[6,5]);
+      seg(ctx,bx,by,px,py,"#9aa7b5",1.5,[6,5]);
+      ctx.restore();
+    }
+    /* 三角形拼好后给三角形涂底色 */
+    if(this.st===1&&pr>=1)fillTri(ctx,ox,oy,ax,ay,px,py,"rgba(39,174,96,0.10)");
+    if(this.st===2&&pr>=1)fillTri(ctx,ox,oy,bx,by,px,py,"rgba(41,128,185,0.10)");
+    if(this.st===0){
+      /* 完整平行四边形 */
+      arrow(ctx,ax,ay,px,py,"#a9dfbf",2,"F₂",(ax+px)/2+16,(ay+py)/2);
+      arrow(ctx,bx,by,px,py,"#aed6f1",2,"F₁",(bx+px)/2-16,(by+py)/2);
+      arrow(ctx,ox,oy,ax,ay,"#2980b9",3,"F₁",(ox+ax)/2,ay+20);
+      arrow(ctx,ox,oy,bx,by,"#27ae60",3,"F₂",(ox+bx)/2-10,(oy+by)/2-16);
+      angleArc(ctx,ox,oy,54,0,this.th,"#7a8794","θ");
+    }else if(this.st===1){
+      /* 三角形①：F₂ 平移，起点接到 F₁ 的终点 A */
+      const ofx=(ax-ox)*pr,ofy=(ay-oy)*pr;
+      if(pr<1)seg(ctx,ax,ay,px,py,"#27ae60",1.5,[5,5]);
+      arrow(ctx,ox,oy,ax,ay,"#2980b9",3,"F₁",(ox+ax)/2,ay+20);
+      arrow(ctx,ox+ofx,oy+ofy,bx+ofx,by+ofy,"#27ae60",3,"F₂",(ox+bx)/2+ofx+18,(oy+by)/2+ofy);
+      if(pr>=1)txt(ctx,"三角形①：O → A → P",ax+120,ay+34,"#1e8e3e",13,true);
+    }else{
+      /* 三角形②：F₁ 平移，起点接到 F₂ 的终点 B */
+      const ofx=(bx-ox)*pr,ofy=(by-oy)*pr;
+      if(pr<1)seg(ctx,bx,by,px,py,"#2980b9",1.5,[5,5]);
+      arrow(ctx,ox,oy,bx,by,"#27ae60",3,"F₂",(ox+bx)/2-10,(oy+by)/2-16);
+      arrow(ctx,ox+ofx,oy+ofy,ax+ofx,ay+ofy,"#2980b9",3,"F₁",(ox+ax)/2+ofx-18,(oy+ay)/2+ofy);
+      if(pr>=1)txt(ctx,"三角形②：O → B → P",bx+120,by+34,"#2f6fb2",13,true);
+    }
+    /* 合力（对角线/封闭边） */
+    arrow(ctx,ox,oy,px,py,"#e74c3c",3.5,"",0,0);
+    txt(ctx,"R = "+this.R().toFixed(1)+" N",px,py-16,"#e74c3c",14,true);
+    ring(ctx,ax,ay,7,"#2980b9");
+    ring(ctx,bx,by,7,"#27ae60");
+    dot(ctx,ox,oy,5,"#333");txt(ctx,"O",ox-14,oy+14,"#333",13,true);
+    if(this.st>0){txt(ctx,"A",ax-12,ay+14,"#2980b9",12,true);txt(ctx,"B",bx-12,by-12,"#27ae60",12,true);txt(ctx,"P",px+12,py+12,"#e74c3c",12,true);}
+    /* 按钮高亮与说明 */
+    document.getElementById("p2T1").classList.toggle("on",this.st===1);
+    document.getElementById("p2T2").classList.toggle("on",this.st===2);
+    const msg=document.getElementById("p2Msg");
+    if(this.st===0)msg.innerHTML="完整平行四边形：F₁、F₂ 为邻边，对角线 R 是合力。对角线把平行四边形分成<b>两个全等三角形</b>，每个三角形都含有 F₁、F₂、R 三个力。点上面的按钮，把其中一个分力平移过去看一看。";
+    else if(this.st===1)msg.innerHTML="<b>三角形①</b>：把 F₂ 平移，使它的起点接在 F₁ 的终点上（O→A→P，首尾相接）。从 F₁ 的起点 O 指向 F₂ 的终点 P 的那条边，正好就是合力 R——这就是<b>三角形法则</b>。";
+    else msg.innerHTML="<b>三角形②</b>：换成把 F₁ 接在 F₂ 的后面（O→B→P），得到的合力 R 完全相同——两个三角形全等，<b>合力与拼接顺序无关</b>。";
+    /* 面板数值 */
+    document.getElementById("p2F1v").textContent=this.F1;
+    document.getElementById("p2F2v").textContent=this.F2;
+    document.getElementById("p2Thv").textContent=this.th;
+    document.getElementById("p2F1i").textContent=this.F1;
+    document.getElementById("p2F2i").textContent=this.F2;
+    document.getElementById("p2Thi").textContent=this.th;
+    document.getElementById("p2R").textContent=this.R().toFixed(1);
+  }
+};
+
+/* ============ 页面一、二共用：端点拖动（F₁ 沿水平只改大小，F₂ 大小方向都可改） ============ */
+function attachDrag12(self){
+  const cvEl=self.cv;
+  function pos(ev){
+    const r=cvEl.getBoundingClientRect();
+    const p=ev.touches?ev.touches[0]:ev;
+    return [(p.clientX-r.left)*cvEl.width/r.width,(p.clientY-r.top)*cvEl.height/r.height];
+  }
+  function near(m){
+    const t=self.tips();
+    if(Math.hypot(m[0]-t.A[0],m[1]-t.A[1])<22)return "F1";
+    if(Math.hypot(m[0]-t.B[0],m[1]-t.B[1])<22)return "F2";
+    return null;
+  }
+  function applyDrag(m){
+    if(self.dragRole==="F1"){
+      self.F1=clamp(Math.round((m[0]-self.OX)/self.K),20,80);
+      document.getElementById(self===p1?"p1F1":"p2F1").value=self.F1;
+    }else if(self.dragRole==="F2"){
+      const dx=m[0]-self.OX,dy=m[1]-self.OY;
+      self.F2=clamp(Math.round(Math.hypot(dx,dy)/self.K),20,80);
+      self.th=clamp(Math.round(Math.atan2(-dy,dx)/RAD),5,180);
+      document.getElementById(self===p1?"p1F2":"p2F2").value=self.F2;
+      document.getElementById(self===p1?"p1Th":"p2Th").value=self.th;
+    }
+  }
+  function down(ev){
+    const role=near(pos(ev));
+    if(role){self.dragRole=role;cvEl.style.cursor="grabbing";ev.preventDefault();}
+  }
+  function move(ev){
+    const m=pos(ev);
+    if(self.dragRole){applyDrag(m);ev.preventDefault();}
+    else cvEl.style.cursor=near(m)?"grab":"default";
+  }
+  function up(){self.dragRole=null;cvEl.style.cursor="default";}
+  cvEl.addEventListener("mousedown",down);
+  cvEl.addEventListener("mousemove",move);
+  window.addEventListener("mouseup",up);
+  cvEl.addEventListener("touchstart",down,{passive:false});
+  cvEl.addEventListener("touchmove",move,{passive:false});
+  window.addEventListener("touchend",up);
+}
+
+p1.init();
+p2.init();
+
+/* ============================================================
+   页面三：三角形法则（探究）
+   add ：已知 F₁、F₂ 求合力——平移其中一个力使首尾相接，封闭边即 R
+   sub1：已知 F、F₁ 求 F₂——法①首尾相接：F₁ 终点到 F 终点那一段即 F₂
+   sub2：已知 F、F₁ 求 F₂——法②矢量减法：F₂ = F + (−F₁)
+   sub3：已知 F、F₁ 求 F₂——法③以 F 为对角线补平行四边形
+   所有力用 {m:大小(N), a:方向角(度，数学角)} 表示，端点可拖动
+   ============================================================ */
+const p3={
+  cv:document.getElementById("cvC"),ctx:null,
+  K:3,OX:300,OY:300,
+  mode:"add",
+  add:{F1:{m:50,a:20},F2:{m:40,a:95},first:1},
+  sub:{F:{m:70,a:12},F1:{m:45,a:85}},
+  playing:false,p:0,constructed:false,dragRole:null,
+  practice:false,drawing:false,dStart:null,dCur:null,attempt:null,tries:0,solved:false,hint:false,
+  init(){
+    this.ctx=this.cv.getContext("2d");
+    const self=this;
+    document.querySelectorAll("input[name=p3Mode]").forEach(r=>{
+      r.addEventListener("change",()=>{self.setMode(r.value);});
+    });
+    document.getElementById("p3Play").addEventListener("click",()=>{
+      if(self.practice)self.togglePractice();
+      self.playing=true;self.p=0;self.constructed=false;
+    });
+    document.getElementById("p3Swap").addEventListener("click",()=>{
+      if(self.practice)self.togglePractice();
+      self.add.first=self.add.first===1?2:1;
+      self.playing=true;self.p=0;self.constructed=false;
+    });
+    document.getElementById("p3Reset").addEventListener("click",()=>{self.reset();});
+    document.getElementById("p3Practice").addEventListener("click",()=>{self.togglePractice();});
+    document.getElementById("p3Hint").addEventListener("click",()=>{
+      self.hint=!self.hint;
+      document.getElementById("p3Hint").textContent=self.hint?"隐藏提示":"💡 提示";
+    });
+    document.getElementById("p3New").addEventListener("click",()=>{self.newForces();});
+    /* ===== 拖动端点 ===== */
+    const cvEl=this.cv;
+    function pos(ev){
+      const r=cvEl.getBoundingClientRect();
+      const p=ev.touches?ev.touches[0]:ev;
+      return [(p.clientX-r.left)*cvEl.width/r.width,(p.clientY-r.top)*cvEl.height/r.height];
+    }
+    function near(m){
+      const pts=self.dragPts();
+      for(const q of pts)if(Math.hypot(m[0]-q.x,m[1]-q.y)<24)return q.role;
+      return null;
+    }
+    function down(ev){
+      const m=pos(ev);
+      if(self.practice){
+        if(self.solved)return;                 /* 已答对：请先“换一组力” */
+        self.drawing=true;self.dStart=m;self.dCur=m;cvEl.style.cursor="crosshair";ev.preventDefault();return;
+      }
+      const role=near(m);
+      if(role){self.dragRole=role;self.playing=false;cvEl.style.cursor="grabbing";ev.preventDefault();}
+    }
+    function move(ev){
+      const m=pos(ev);
+      if(self.drawing){self.dCur=m;ev.preventDefault();return;}
+      if(self.dragRole){
+        const dx=m[0]-self.OX,dy=m[1]-self.OY;
+        const mm=Math.hypot(dx,dy)/self.K,aa=normA(Math.atan2(-dy,dx)/RAD);
+        if(self.mode==="add"){const o=self.add[self.dragRole];o.m=clamp(mm,15,90);o.a=aa;}
+        else{const o=self.sub[self.dragRole];o.m=clamp(mm,20,100);o.a=aa;}
+        ev.preventDefault();
+      }else cvEl.style.cursor=self.practice?"crosshair":(near(m)?"grab":"default");
+    }
+    function up(ev){
+      if(self.drawing){
+        self.drawing=false;cvEl.style.cursor=self.practice?"crosshair":"default";
+        const p=ev&&ev.changedTouches?ev.changedTouches[0]:ev;   /* touchend 没有 touches，用 changedTouches 取松手点 */
+        if(p){const r=cvEl.getBoundingClientRect();self.dCur=[(p.clientX-r.left)*cvEl.width/r.width,(p.clientY-r.top)*cvEl.height/r.height];}
+        if(Math.hypot(self.dCur[0]-self.dStart[0],self.dCur[1]-self.dStart[1])>12){
+          self.attempt={x1:self.dStart[0],y1:self.dStart[1],x2:self.dCur[0],y2:self.dCur[1]};
+          self.tries++;self.judge();
+        }
+        return;
+      }
+      self.dragRole=null;cvEl.style.cursor="default";
+    }
+    cvEl.addEventListener("mousedown",down);
+    cvEl.addEventListener("mousemove",move);
+    window.addEventListener("mouseup",up);
+    cvEl.addEventListener("touchstart",down,{passive:false});
+    cvEl.addEventListener("touchmove",move,{passive:false});
+    window.addEventListener("touchend",up);
+  },
+  setMode(m){
+    this.mode=m;this.playing=false;this.p=0;this.constructed=false;this.dragRole=null;
+    if(this.practice)this.togglePractice();
+    document.getElementById("p3Swap").style.display=m==="add"?"":"none";
+  },
+  reset(){
+    this.add={F1:{m:50,a:20},F2:{m:40,a:95},first:1};
+    this.sub={F:{m:70,a:12},F1:{m:45,a:85}};
+    this.playing=false;this.p=0;this.constructed=false;
+    if(this.practice)this.togglePractice();
+  },
+  /* 进入/退出“我来画一画”探究模式：清空作答记录，切换提示、换题按钮的显示 */
+  togglePractice(){
+    this.practice=!this.practice;
+    this.playing=false;this.p=0;this.constructed=false;this.dragRole=null;
+    this.drawing=false;this.attempt=null;this.tries=0;this.solved=false;this.hint=false;
+    document.getElementById("p3Practice").classList.toggle("on",this.practice);
+    document.getElementById("p3Hint").style.display=this.practice?"":"none";
+    document.getElementById("p3New").style.display=this.practice?"":"none";
+    document.getElementById("p3Hint").textContent="💡 提示";
+    if(this.practice){
+      document.getElementById("p3Judge").innerHTML="✏️ <b>探究开始</b>：在画布上<b>按住拖动</b>，画出你认为的"
+        +(this.mode==="add"?"<b>合力 R</b>":"<b>分力 F₂</b>")+"，松手后我来评判。画错了没关系，可以无限次重画！";
+    }else document.getElementById("p3Judge").innerHTML="";
+  },
+  /* 随机换一组力：保证各关键点都落在画布内，否则重新生成 */
+  newForces(){
+    const rnd=(a,b)=>a+Math.random()*(b-a);
+    let pts=[];
+    for(let it=0;it<60;it++){
+      if(this.mode==="add"){
+        this.add.F1={m:Math.round(rnd(35,70)),a:Math.round(rnd(-20,40))};
+        this.add.F2={m:Math.round(rnd(30,65)),a:Math.round(rnd(75,135))};
+      }else{
+        this.sub.F={m:Math.round(rnd(55,85)),a:Math.round(rnd(-15,35))};
+        this.sub.F1={m:Math.round(rnd(30,60)),a:Math.round(rnd(65,135))};
+      }
+      pts=this.keyPts();
+      if(pts.every(q=>q[0]>50&&q[0]<860&&q[1]>45&&q[1]<505))break;
+    }
+    this.attempt=null;this.tries=0;this.solved=false;this.hint=false;
+    document.getElementById("p3Hint").textContent="💡 提示";
+    document.getElementById("p3Judge").innerHTML="🔀 新题目来了！继续画，松手评判。";
+  },
+  /* 关键点：add → [F₁尖, F₂尖, 合力尖P]；sub → [F尖, F₁尖, F₂尖G] */
+  keyPts(){
+    const ox=this.OX,oy=this.OY;
+    if(this.mode==="add"){
+      const f1=this.v(this.add.F1),f2=this.v(this.add.F2);
+      return [[ox+f1.dx,oy+f1.dy],[ox+f2.dx,oy+f2.dy],[ox+f1.dx+f2.dx,oy+f1.dy+f2.dy]];
+    }
+    const F=this.v(this.sub.F),F1=this.v(this.sub.F1);
+    return [[ox+F.dx,oy+F.dy],[ox+F1.dx,oy+F1.dy],[ox+F.dx-F1.dx,oy+F.dy-F1.dy]];
+  },
+  /* 评判学生画的箭头：答对给祝贺并揭示标准作法；答错给针对性诊断+鼓励，允许无限重画 */
+  judge(){
+    const a=this.attempt,ox=this.OX,oy=this.OY,J=document.getElementById("p3Judge");
+    const vx=a.x2-a.x1,vy=a.y2-a.y1;
+    const pts=this.keyPts();
+    const isAdd=this.mode==="add";
+    const tx=pts[2][0],ty=pts[2][1];               /* 答案箭头的终点：add 为 P，sub 为 G */
+    const ex=tx-ox,ey=ty-oy;
+    const tol=26;                                   /* 终点容差(px)，约 8~9 N */
+    const dTail=Math.hypot(a.x1-ox,a.y1-oy);
+    const dHead=Math.hypot(a.x2-tx,a.y2-ty);
+    const dVec=Math.hypot(vx-ex,vy-ey);             /* 位移矢量与答案的偏差（与画在哪儿无关） */
+    const dRev=Math.hypot(vx+ex,vy+ey);             /* 与“反向答案”的偏差 */
+    const ok=isAdd?(dTail<=30&&dHead<=tol):(dVec<=tol);  /* 合力必须画在 O 点；分力接受任意位置的正确矢量 */
+    this.solved=ok;
+    const n="<span class='note'>（第 "+this.tries+" 次尝试）</span> ";
+    if(ok){
+      J.innerHTML=n+(isAdd
+        ?"<span class='ok'>🎉 画对啦！</span>从 O 出发，指向平移后 "+(this.add.first===1?"F₂":"F₁")+" 的终点——首尾相接后的封闭边正是合力 R。点「🔀 换一组力」再挑战，或再点一次「✏️ 我来画一画」退出探究看演示。"
+        :"<span class='ok'>🎉 正确！</span>这段矢量就是 F₂ = F − F₁——画在 O 点，或画成「F₁ 终点 → F 终点」，都是同一个 F₂。点「🔀 换一组力」再挑战！");
+      return;
+    }
+    let m;
+    if(dRev<=tol){
+      m=isAdd?"<b>方向画反啦！</b>合力是从第一个力的起点指向第二个力的终点，不是倒过来。再试一次，你可以的！"
+             :"<b>方向画反啦！</b>F₂ = F − F₁，是从 F₁ 的终点指向 F 的终点。调转方向再画一次！";
+    }else if(isAdd&&dVec<=tol){
+      m="<b>大小、方向都对了！</b>不过这段更像是平移后的分力——合力 R 要从作用点 O 出发。从 O 开始再画一次！";
+    }else if(isAdd&&dHead<=tol){
+      m="<b>终点找对啦！</b>把起点挪到 O 点就完美了，再画一次！";
+    }else if(dTail<=30&&(Math.hypot(a.x2-pts[0][0],a.y2-pts[0][1])<=tol||Math.hypot(a.x2-pts[1][0],a.y2-pts[1][1])<=tol)){
+      m=isAdd?"<b>这画的好像是分力本身哦。</b>合力是首尾相接后的那条封闭边——把一个分力平移到另一个身后，再从 O 指过去！"
+             :"<b>这画的是已知的力哦。</b>要求的是未知的 F₂：从 F₁ 的终点到 F 的终点那一段。再想想！";
+    }else{
+      const angE=Math.atan2(ey,ex),angS=Math.atan2(vy,vx);
+      let dA=Math.abs(angE-angS)/RAD;if(dA>180)dA=360-dA;
+      const ratio=Math.hypot(vx,vy)/(Math.hypot(ex,ey)||1);
+      if(dA<=12)m="<b>方向已经对了！</b>长度还差一点——想想首尾相接后终点落在哪儿。再试试！";
+      else if(ratio>=0.85&&ratio<=1.15)m="<b>长度很接近了！</b>方向再调一调。卡住了可以点「💡 提示」。再来！";
+      else{
+        const pool=isAdd?[
+          "还差一点，别灰心！回忆一下：把 "+(this.add.first===1?"F₂":"F₁")+" 平移到 "+(this.add.first===1?"F₁":"F₂")+" 的终点，首尾相接，从 O 指向它的终点就是 R。再画一次！",
+          "没关系，探究就是在试错中前进！可以点「💡 提示」看看辅助线，再试一次！",
+          "坚持就是胜利！小技巧：想象把第二个力“滑”到第一个力身后，看从 O 出发到哪里结束。这一次一定行！"]
+        :[
+          "还差一点！想想 F₂ = F − F₁：从 F₁ 的终点到 F 的终点那一段就是 F₂。再画一次！",
+          "别放弃，错了正好能发现问题！可以点「💡 提示」看辅助线，再来一次！",
+          "继续加油！把 F₁ 反向接在 F 的后面（矢量减法）也能找到它。这一次一定行！"];
+        m=pool[Math.min(this.tries-1,2)];
+      }
+    }
+    J.innerHTML=n+"<span class='warn'>还不太对。</span> "+m;
+  },
+  /* {m,a} → 屏幕位移 */
+  v(x){return {dx:x.m*this.K*Math.cos(x.a*RAD),dy:-x.m*this.K*Math.sin(x.a*RAD)};},
+  dragPts(){
+    const ox=this.OX,oy=this.OY;
+    if(this.mode==="add"){
+      const f1=this.v(this.add.F1),f2=this.v(this.add.F2);
+      return [{x:ox+f1.dx,y:oy+f1.dy,role:"F1"},{x:ox+f2.dx,y:oy+f2.dy,role:"F2"}];
+    }
+    const F=this.v(this.sub.F),F1=this.v(this.sub.F1);
+    return [{x:ox+F.dx,y:oy+F.dy,role:"F"},{x:ox+F1.dx,y:oy+F1.dy,role:"F1"}];
+  },
+  update(dt){
+    if(!this.playing)return;
+    this.p+=dt/1.8;
+    if(this.p>=1){this.p=1;this.playing=false;this.constructed=true;}
+  },
+  render(){
+    const ctx=this.ctx,W=this.cv.width,H=this.cv.height;
+    ctx.clearRect(0,0,W,H);
+    grid(ctx,W,H);
+    const ox=this.OX,oy=this.OY;
+    const show=this.constructed||this.playing||this.solved;
+    const mask=this.practice&&!this.solved;   /* 面板结果打码：探究中尚未答对 */
+    const pr=this.p;
+    const handle=(x,y,c)=>{this.practice?dot(ctx,x,y,5,c):ring(ctx,x,y,7,c);};
+    const cap=document.getElementById("p3Cap"),title=document.getElementById("p3Title");
+    const info=document.getElementById("p3Info"),note=document.getElementById("p3Note");
+    const fmt=v=>"<span class='val'>"+v.m.toFixed(1)+"</span> N，方向 <span class='val'>"+normA(v.a).toFixed(1)+"</span>°";
+    if(this.mode==="add"){
+      const f1=this.v(this.add.F1),f2=this.v(this.add.F2);
+      const ax=ox+f1.dx,ay=oy+f1.dy,bx=ox+f2.dx,by=oy+f2.dy;
+      const px=ox+f1.dx+f2.dx,py=oy+f1.dy+f2.dy;
+      const first=this.add.first===1;
+      /* 后接的那个力（被平移者） */
+      const bc=first?"#27ae60":"#2980b9",bl=first?"F₂":"F₁";
+      const bex=first?bx:ax,bey=first?by:ay;         /* 被平移者在 O 的终点 */
+      const atx=first?ax:bx,aty=first?ay:by;         /* 拼接点（先行的力的终点） */
+      if(show){
+        const q=this.playing?clamp(pr/0.5,0,1):1;    /* 平移进度 */
+        const r=this.playing?clamp((pr-0.5)/0.5,0,1):1; /* 合力画出进度 */
+        const ofx=(atx-ox)*q,ofy=(aty-oy)*q;
+        if(r>=1)fillTri(ctx,ox,oy,atx,aty,px,py,"rgba(231,76,60,0.07)");
+        if(q<1)seg(ctx,atx,aty,px,py,"#9aa7b5",1.5,[5,5]);
+        /* 被平移的力：原位置淡出，复制箭头滑动到拼接位置 */
+        if(q>0){ctx.save();ctx.globalAlpha=0.22;arrow(ctx,ox,oy,bex,bey,bc,3,"",0,0);ctx.restore();}
+        arrow(ctx,ox+ofx,oy+ofy,bex+ofx,bey+ofy,bc,3,bl,(ox+bex)/2+ofx+18,(oy+bey)/2+ofy);
+        if(r>0)arrow(ctx,ox,oy,ox+(px-ox)*r,oy+(py-oy)*r,"#e74c3c",3.5,r>=1?"R":"",px,py-16);
+      }else{
+        txt(ctx,this.practice?"在画布上按住拖动，画出你心中的合力 R，松手即评判！":"想一想：怎样把 F₁、F₂ 首尾相接？（点 ▶ 演示看答案，或点「✏️ 我来画一画」自己动手）",ox+280,oy-200,"#7a8794",14,true);
+      }
+      /* 两个已知分力 */
+      arrow(ctx,ox,oy,ax,ay,"#2980b9",3,"F₁",(ox+ax)/2-16,(oy+ay)/2);
+      arrow(ctx,ox,oy,bx,by,"#27ae60",3,"F₂",(ox+bx)/2+16,(oy+by)/2);
+      handle(ax,ay,"#2980b9");
+      handle(bx,by,"#27ae60");
+      dot(ctx,ox,oy,5,"#333");txt(ctx,"O",ox-14,oy+14,"#333",13,true);
+      /* 探究提示：虚线画出平移后的分力 + 目标点小圈 */
+      if(this.practice&&this.hint&&!this.solved){
+        arrow(ctx,atx,aty,px,py,bc,2,"平移后的"+bl,(atx+px)/2+18,(aty+py)/2,[6,5]);
+        ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle="#c0392b";ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.arc(px,py,12,0,7);ctx.stroke();ctx.restore();
+        txt(ctx,"目标点",px,py-24,"#c0392b",12,true);
+      }
+      /* 面板 */
+      const Rm=Math.hypot(f1.dx+f2.dx,f1.dy+f2.dy)/this.K;
+      const Ra=normA(Math.atan2(-(f1.dy+f2.dy),f1.dx+f2.dx)/RAD);
+      cap.textContent="三角形法则求合力：把两个分力首尾相接，从第一个力的起点指向第二个力的终点，就是合力 R";
+      title.textContent="三角形法则 · 求合力";
+      info.innerHTML="<div>F₁ = "+fmt(this.add.F1)+"</div><div>F₂ = "+fmt(this.add.F2)+"</div><hr>"
+        +(mask
+          ?"<div>合力 R = <span class='note'>？（先自己拼一拼、算一算）</span></div>"
+          :"<div>合力 R = <span class='val'>"+Rm.toFixed(1)+"</span> N，方向 <span class='val'>"+Ra.toFixed(1)+"</span>°</div>")
+        +"<div class='note'>（方向角以水平向右为 0°，逆时针为正）</div>";
+      note.innerHTML="步骤：① 平移 "+(first?"F₂":"F₁")+"，使它的起点接在 "+(first?"F₁":"F₂")+" 的终点上；② 从 "+(first?"F₁":"F₂")+" 的起点指向 "+(first?"F₂":"F₁")+" 的终点，即为合力 R。点“交换顺序”可验证两种接法结果相同。<br>探究：拖动 F₁、F₂ 的彩色端点，随意改变它们的大小和方向，R 实时变化——任何情况下三角形法则都适用。";
+    }else{
+      const Fv=this.v(this.sub.F),F1v=this.v(this.sub.F1);
+      const px=ox+Fv.dx,py=oy+Fv.dy,ax=ox+F1v.dx,ay=oy+F1v.dy;
+      const f2={dx:Fv.dx-F1v.dx,dy:Fv.dy-F1v.dy};      /* F₂ = F − F₁ */
+      const gx=ox+f2.dx,gy=oy+f2.dy;                   /* F₂ 画在 O 点时的终点 G */
+      if(this.mode==="sub1"){
+        if(show){
+          const q=this.playing?clamp(pr/0.5,0,1):1;      /* A→P 画出 */
+          const s=this.playing?clamp((pr-0.5)/0.5,0,1):1;/* 平移回 O */
+          arrow(ctx,ax,ay,ax+(px-ax)*q,ay+(py-ay)*q,"#27ae60",2.5,q>=1&&s<=0?"F₂":"",(ax+px)/2+16,(ay+py)/2);
+          if(s>0){
+            const ofx=-F1v.dx*s,ofy=-F1v.dy*s;
+            arrow(ctx,ax+ofx,ay+ofy,px+ofx,py+ofy,"#27ae60",3.5,s>=1?"F₂":"",(ax+px)/2+ofx-18,(ay+py)/2+ofy);
+          }
+          if(s>=1)fillTri(ctx,ox,oy,ax,ay,px,py,"rgba(39,174,96,0.07)");
+        }else{
+          txt(ctx,this.practice?"画出 F₂：可以画在 O 点，也可以直接接在 F₁ 身后，松手评判！":"想一想：从 F₁ 的终点出发，到哪一点结束才是 F₂？（点 ▶ 演示）",ox+280,oy-200,"#7a8794",14,true);
+        }
+        cap.textContent="方法①：F₁ 与 F₂ 首尾相接应得到 F——从 F₁ 的终点到 F 的终点的那一段就是 F₂，再把它平移回 O 点";
+        title.textContent="求分力 · 方法① 首尾相接";
+        note.innerHTML="思路：F₁ 与 F₂ 首尾相接后必须等于 F。从 O 沿 F₁ 走到终点 A，剩下从 A 到 F 的终点 P 的那段必定就是 F₂；把它平移回 O 点即得所求分力。<br>探究：拖动 F 或 F₁ 的端点，F₂ 随之改变——无论怎么拖，F₂ 都唯一确定（F₂ = F − F₁）。";
+      }else if(this.mode==="sub2"){
+        if(show){
+          const r1=this.playing?clamp(pr/0.4,0,1):1;      /* −F₁ 在 O 旋转 */
+          const r2=this.playing?clamp((pr-0.4)/0.3,0,1):1;/* 滑到 F 的终点 */
+          const r3=this.playing?clamp((pr-0.7)/0.3,0,1):1;/* F₂ 画出 */
+          const ang=(this.sub.F1.a+180*r1)*RAD,L=this.sub.F1.m*this.K;
+          const tx2=ox+(px-ox)*r2,ty2=oy+(py-oy)*r2;
+          const ex=tx2+L*Math.cos(ang),ey=ty2-L*Math.sin(ang);
+          arrow(ctx,tx2,ty2,ex,ey,"#e67e22",2.5,"−F₁",(tx2+ex)/2,(ty2+ey)/2+16);
+          if(r3>0)arrow(ctx,ox,oy,ox+(gx-ox)*r3,oy+(gy-oy)*r3,"#27ae60",3.5,r3>=1?"F₂":"",gx+18,gy+10);
+          if(r3>=1)fillTri(ctx,ox,oy,px,py,gx,gy,"rgba(39,174,96,0.07)");
+        }else{
+          txt(ctx,this.practice?"画出 F₂：可以画在 O 点，也可以直接接在 F₁ 身后，松手评判！":"想一想：F₂ = F − F₁ = F + (−F₁)，怎样用三角形法则接出来？",ox+280,oy-200,"#7a8794",14,true);
+        }
+        cap.textContent="方法②：F₂ = F − F₁ = F + (−F₁)——把 F₁ 反向得到 −F₁，接在 F 的终点上，从 O 指向它的终点即 F₂";
+        title.textContent="求分力 · 方法② 矢量减法";
+        note.innerHTML="矢量减法：F₂ = F − F₁ = F + (−F₁)。① 把 F₁ 旋转 180° 得到 −F₁；② 把 −F₁ 平移到 F 的终点（首尾相接）；③ 从 O 指向 −F₁ 的终点，就是 F₂。与方法①结果完全一致，殊途同归。";
+      }else{
+        if(show){
+          const r1=this.playing?clamp(pr/0.5,0,1):1;      /* 补线淡入 */
+          const r2=this.playing?clamp((pr-0.5)/0.5,0,1):1;/* F₂ 画出 */
+          ctx.save();ctx.globalAlpha=r1;
+          seg(ctx,ax,ay,px,py,"#9aa7b5",1.5,[6,5]);
+          seg(ctx,ox,oy,gx,gy,"#9aa7b5",1.5,[6,5]);
+          seg(ctx,gx,gy,px,py,"#9aa7b5",1.5,[6,5]);
+          ctx.restore();
+          if(r2>0)arrow(ctx,ox,oy,ox+(gx-ox)*r2,oy+(gy-oy)*r2,"#27ae60",3.5,r2>=1?"F₂":"",gx-16,gy+16);
+          if(r2>=1)fillTri(ctx,ox,oy,ax,ay,px,py,"rgba(39,174,96,0.07)");
+        }else{
+          txt(ctx,this.practice?"画出 F₂：可以画在 O 点，也可以直接接在 F₁ 身后，松手评判！":"想一想：以 F 为对角线、F₁ 为一条邻边，怎样补全平行四边形？",ox+280,oy-200,"#7a8794",14,true);
+        }
+        cap.textContent="方法③：以 F 为对角线、F₁ 为一条邻边补全平行四边形，从 O 出发的另一条邻边就是 F₂";
+        title.textContent="求分力 · 方法③ 平行四边形";
+        note.innerHTML="分解是合成的逆运算：平行四边形中 F 是对角线、F₁ 是一条邻边，补全平行四边形后，从 O 出发的另一条邻边即 F₂。三种方法得到的 F₂ 完全一致——已知合力与一个分力（大小、方向都已知），另一个分力唯一确定。";
+      }
+      /* 已知的 F 与 F₁ */
+      arrow(ctx,ox,oy,px,py,"#e74c3c",3.5,"F",(ox+px)/2+14,(oy+py)/2+14);
+      arrow(ctx,ox,oy,ax,ay,"#2980b9",3,"F₁",(ox+ax)/2-16,(oy+ay)/2);
+      handle(px,py,"#e74c3c");
+      handle(ax,ay,"#2980b9");
+      dot(ctx,ox,oy,5,"#333");txt(ctx,"O",ox-14,oy+14,"#333",13,true);
+      /* 探究提示：F₁ 终点 → F 终点的虚线箭头 + 目标点小圈 */
+      if(this.practice&&this.hint&&!this.solved){
+        arrow(ctx,ax,ay,px,py,"#27ae60",2,"F₂ 的位置",(ax+px)/2+16,(ay+py)/2,[6,5]);
+        ctx.save();ctx.setLineDash([4,4]);ctx.strokeStyle="#c0392b";ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.arc(gx,gy,12,0,7);ctx.stroke();ctx.restore();
+        txt(ctx,"目标点（平移回 O 后）",gx,gy-24,"#c0392b",12,true);
+      }
+      /* 面板 */
+      const F2m=Math.hypot(f2.dx,f2.dy)/this.K;
+      const F2a=normA(Math.atan2(-f2.dy,f2.dx)/RAD);
+      info.innerHTML="<div>合力 F = "+fmt(this.sub.F)+"</div><div>分力 F₁ = "+fmt(this.sub.F1)+"</div><hr>"
+        +"<div>所求 F₂ = F − F₁</div>"
+        +(mask
+          ?"<div>F₂ = <span class='note'>？（先自己画一画、算一算）</span></div>"
+          :"<div>F₂ = <span class='val'>"+F2m.toFixed(1)+"</span> N，方向 <span class='val'>"+F2a.toFixed(1)+"</span>°</div>")
+        +"<div class='note'>（方向角以水平向右为 0°，逆时针为正）</div>";
+    }
+    /* 探究：学生画的箭头（进行中的紫色 / 提交后按对错着色），并覆盖标题与说明 */
+    if(this.practice){
+      const a=this.drawing?{x1:this.dStart[0],y1:this.dStart[1],x2:this.dCur[0],y2:this.dCur[1]}:this.attempt;
+      if(a){
+        const col=this.drawing?"#8e44ad":(this.solved?"#1e8e3e":"#e67e22");
+        const mx=(a.x1+a.x2)/2,my=(a.y1+a.y2)/2,L=Math.hypot(a.x2-a.x1,a.y2-a.y1)||1;
+        arrow(ctx,a.x1,a.y1,a.x2,a.y2,col,3.5,"我画的",mx-(a.y2-a.y1)/L*16,my+(a.x2-a.x1)/L*16);
+      }
+      cap.textContent=this.mode==="add"
+        ?"探究：在图上直接画出合力 R——按住拖出箭头，松手评判（想想：怎样首尾相接？）"
+        :"探究：在图上画出分力 F₂——可以画在 O 点，也可以直接接在 F₁ 身后，松手评判";
+      note.innerHTML="画法：在画布上<b>按住并拖动</b>画出箭头，松手后自动评判；画错没关系，直接重画，不限次数。卡住了点「💡 提示」，答对后可点「🔀 换一组力」继续挑战。";
+    }
+  }
+};
+p3.init();
+
+/* hash 参数定位：#p1、#p2、#p3&m=sub2（便于截图与讲解） */
+if(hashParts[0]==="p3"&&hp.m&&["add","sub1","sub2","sub3"].indexOf(hp.m)>=0){
+  p3.setMode(hp.m);
+  const r=document.querySelector("input[name=p3Mode][value='"+hp.m+"']");
+  if(r)r.checked=true;
+}
+
+/* ============ 主循环 ============ */
+let lastT=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-lastT)/1000);lastT=now;
+  if(curTab==="p1"){p1.render();}
+  else if(curTab==="p2"){p2.update(dt);p2.render();}
+  else{p3.update(dt);p3.render();}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
