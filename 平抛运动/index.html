@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>平抛运动 — 速度偏转角与位移偏转角</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#f2f5f9;color:#1f2937;min-height:100vh}
+.header{text-align:center;padding:22px 16px 10px}
+.header h1{font-size:1.7rem;color:#0f3d6e}
+.header p{color:#5b6b7d;margin-top:6px;font-size:.95rem}
+.wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;padding:14px 18px 30px;flex-wrap:wrap}
+.stage{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px}
+canvas{display:block;border-radius:8px}
+.panel{width:410px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:16px 18px;box-shadow:0 6px 24px rgba(15,61,110,.06)}
+.card h3{font-size:1.1rem;color:#0f3d6e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5ecf3}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:.95rem}
+.row label{flex:1;color:#374151}
+input[type=range]{flex:1.4;accent-color:#2563eb}
+.btns{display:flex;gap:10px}
+button{border:none;cursor:pointer;padding:9px 14px;border-radius:10px;font-size:.95rem;font-weight:600;transition:all .15s}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-ghost{background:#e8eef5;color:#33475b}
+.btn-ghost:hover{background:#d8e3ee}
+.chk{display:flex;align-items:center;gap:8px;font-size:.95rem;color:#374151;margin:6px 0;cursor:pointer}
+.chk input{accent-color:#2563eb;width:16px;height:16px}
+.data{font-size:1rem;line-height:2.3}
+.data b{color:#475569;font-weight:600}
+.data span{font-family:"Consolas","Courier New",monospace;color:#0f3d6e}
+.hl{background:#eaf3ff;border:1px solid #bcd8ff;border-radius:10px;padding:10px 12px;font-size:.95rem;line-height:1.9;color:#0b3a6e}
+.hl .big{font-size:1.05rem;font-weight:700;color:#b45309}
+.beta{color:#16a34a;font-weight:700}
+.alpha{color:#2563eb;font-weight:700}
+.footer{text-align:center;color:#8aa0b4;font-size:.8rem;padding:10px 0 24px}
+select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid #cbd5e1}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>平抛运动：速度偏转角 β 与位移偏转角 α</h1>
+  <p>坐标系：x 轴正方向向右，y 轴正方向向下 · g = 10 m/s² · 落地点高度 5 m</p>
+</div>
+<div class="wrap">
+  <div class="stage"><canvas id="cv" width="1000" height="620"></canvas></div>
+  <div class="panel">
+    <div class="card">
+      <h3>控制</h3>
+      <div class="row"><label>初速度 v₀ = <b id="v0val">4.0</b> m/s</label><input id="v0" type="range" min="2" max="8" step="0.1" value="4"></div>
+      <div class="row"><label>播放速度</label>
+        <select id="speed"><option value="0.5">0.5×（慢）</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+      </div>
+      <div class="btns">
+        <button id="playBtn" class="btn-primary">开始</button>
+        <button id="resetBtn" class="btn-ghost">重置</button>
+      </div>
+    </div>
+    <div class="card">
+      <h3>显示选项</h3>
+      <label class="chk"><input type="checkbox" id="showExt" checked> 速度反向延长线与 x 轴交点 P</label>
+      <label class="chk"><input type="checkbox" id="showHD" checked> 位移标注（x = v₀t、y = ½gt²）</label>
+      <label class="chk"><input type="checkbox" id="showComp" checked> 速度分解（vₓ、v_y 分量）</label>
+      <label class="chk"><input type="checkbox" id="showDots" checked> 轨迹等时描点（每 0.15 s）</label>
+    </div>
+    <div class="card">
+      <h3>实时数据</h3>
+        <div class="data">
+          <div class="beta"><b>tan β</b> = v_y / v_x = <span id="dTanB">0.000</span></div>
+          <div class="beta">β = <span id="dBeta">0.0°</span></div>
+          <div class="alpha"><b>tan α</b> = y / x = <span id="dTanA">0.000</span></div>
+          <div class="alpha">α = <span id="dAlpha">0.0°</span></div>
+          <div><b>tan β / tan α</b> = <span id="dRatio" style="color:#b45309;font-weight:700">—</span></div>
+          <div><b>β / α</b> = <span id="dAngleRatio">—</span>（β ≠ 2α）</div>
+        </div>
+    </div>
+    <div class="card hl">
+      <div>结论：</div>
+      <div class="big">tan β = 2 · tan α</div>
+      <div>速度偏转角的正切 = 位移偏转角正切的 2 倍</div>
+      <div>速度反向延长线与 x 轴交于水平位移中点：<br><b>OP = x / 2</b></div>
+    </div>
+  </div>
+</div>
+<div class="footer">高中物理动画 · 平抛运动</div>
+
+<script>
+(function(){
+"use strict";
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+// 世界坐标：x 正方向向右，y 正方向向下，单位米
+const g=10, S=80;                 // 80 px / m
+const OX=130, OY=80;              // 原点像素位置
+const GROUND=5;                   // 落地点高度 y=5m
+function px(wx,wy){return [OX+wx*S, OY+wy*S];}
+
+const ui={
+  v0:document.getElementById('v0'), v0val:document.getElementById('v0val'),
+  speed:document.getElementById('speed'),
+  play:document.getElementById('playBtn'), reset:document.getElementById('resetBtn'),
+  showExt:document.getElementById('showExt'), showHD:document.getElementById('showHD'),
+  showComp:document.getElementById('showComp'), showDots:document.getElementById('showDots'),
+  dT:document.getElementById('dT'), dX:document.getElementById('dX'), dY:document.getElementById('dY'),
+  dV:document.getElementById('dV'), dTanB:document.getElementById('dTanB'), dBeta:document.getElementById('dBeta'),
+  dTanA:document.getElementById('dTanA'), dAlpha:document.getElementById('dAlpha'), dRatio:document.getElementById('dRatio'), dAngleRatio:document.getElementById('dAngleRatio')
+};
+
+let v0=parseFloat(ui.v0.value);
+let t=0, running=false, landed=false;
+let dots=[];          // 等时描点 [t,...]
+let trail=[];         // 轨迹
+
+function reset(){
+  t=0; running=false; landed=false; dots=[]; trail=[];
+  ui.play.textContent='开始';
+}
+ui.reset.addEventListener('click',reset);
+ui.v0.addEventListener('input',()=>{v0=parseFloat(ui.v0.value);ui.v0val.textContent=v0.toFixed(1);reset();draw();});
+ui.play.addEventListener('click',()=>{
+  if(landed){reset();}
+  running=!running;
+  ui.play.textContent=running?'暂停':'开始';
+});
+
+function step(dt){
+  if(!running||landed)return;
+  t+=dt;
+  const tHit=Math.sqrt(2*GROUND/g);
+  if(t>=tHit){t=tHit;landed=true;running=false;ui.play.textContent='重新播放';}
+  // 等时描点
+  const nextDot=dots.length*0.15+0.15;
+  if(t>=nextDot&&nextDot<tHit)dots.push(nextDot);
+  trail.push(t);
+  if(trail.length>2000)trail.shift();
+}
+
+function arrow(x1,y1,x2,y2,color,w,head){
+  head=head||9;
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(a-Math.PI/6),y2-head*Math.sin(a-Math.PI/6));
+  ctx.lineTo(x2-head*Math.cos(a+Math.PI/6),y2-head*Math.sin(a+Math.PI/6));
+  ctx.closePath();ctx.fill();
+}
+function dashedLine(x1,y1,x2,y2,color){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=1.4;ctx.setLineDash([6,5]);
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();ctx.restore();
+}
+function text(s,x,y,color,font,align){
+  ctx.fillStyle=color;ctx.font=font||'14px Microsoft YaHei';ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(s,x,y);
+}
+
+function braceH(x1, y_base, x2, color) {
+  const w = x2 - x1;
+  if (w < 30) return;
+  const midX = (x1 + x2) / 2;
+  const d = 7;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x1, y_base);
+  ctx.lineTo(x1, y_base - d);
+  ctx.lineTo(x1 + 5, y_base - d);
+  ctx.lineTo(midX - 3, y_base - d);
+  ctx.lineTo(midX, y_base - d - 4);
+  ctx.lineTo(midX + 3, y_base - d);
+  ctx.lineTo(x2 - 5, y_base - d);
+  ctx.lineTo(x2, y_base - d);
+  ctx.lineTo(x2, y_base);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function braceV(x, y_top, y_bot, color, side) {
+  const h = y_bot - y_top;
+  if (h < 30) return;
+  const midY = (y_top + y_bot) / 2;
+  const dir = side === 'left' ? -1 : 1;
+  const d = 7;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  ctx.moveTo(x, y_top);
+  ctx.lineTo(x + dir * d, y_top);
+  ctx.lineTo(x + dir * d, y_top + 5);
+  ctx.lineTo(x + dir * d, midY - 3);
+  ctx.lineTo(x + dir * (d + 4), midY);
+  ctx.lineTo(x + dir * d, midY + 3);
+  ctx.lineTo(x + dir * d, y_bot - 5);
+  ctx.lineTo(x + dir * d, y_bot);
+  ctx.lineTo(x, y_bot);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // 背景网格（每 1 m）
+  ctx.strokeStyle='#eef2f7';ctx.lineWidth=1;
+  for(let i=0;i<=10;i++){const x=OX+i*S;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let j=0;j<=6;j++){const y=OY+j*S;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // 地面 y = 5 m
+  const gy=OY+GROUND*S;
+  ctx.strokeStyle='#8b6f47';ctx.lineWidth=2.5;
+  ctx.beginPath();ctx.moveTo(40,gy);ctx.lineTo(W-40,gy);ctx.stroke();
+  ctx.strokeStyle='#b09a72';ctx.lineWidth=1.5;
+  for(let x=52;x<W-40;x+=22){ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x-9,gy+10);ctx.stroke();}
+  text('地面',W-60,gy-14,'#8b6f47','13px Microsoft YaHei','left');
+
+  // 坐标轴：x 向右，y 向下
+  arrow(OX-20,OY,OX+10*S,OY,'#111827',2,10);
+  arrow(OX,OY-30,OX,OY+6*S-10,'#111827',2,10);
+  text('x',OX+10*S+14,OY-16,'#111827','bold 16px Microsoft YaHei');
+  text('y',OX+16,OY+6*S-22,'#111827','bold 16px Microsoft YaHei');
+  text('O',OX-16,OY-14,'#111827','bold 15px Microsoft YaHei');
+
+  // 当前运动学量
+  const x=v0*t, y=0.5*g*t*t;
+  const vx=v0, vy=g*t, v=Math.sqrt(vx*vx+vy*vy);
+  const [bx,by]=px(x,y);
+
+  // 轨迹
+  ctx.strokeStyle='rgba(220,80,80,.75)';ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<trail.length;i++){
+    const tt=trail[i],pxx=OX+v0*tt*S,pyy=OY+0.5*g*tt*tt*S;
+    i===0?ctx.moveTo(pxx,pyy):ctx.lineTo(pxx,pyy);
+  }
+  ctx.stroke();
+  // 等时描点
+  if(ui.showDots.checked){
+    ctx.fillStyle='#dc5050';
+    dots.forEach(tt=>{
+      const pxx=OX+v0*tt*S,pyy=OY+0.5*g*tt*tt*S;
+      ctx.beginPath();ctx.arc(pxx,pyy,3.2,0,7);ctx.fill();
+    });
+  }
+
+  // 水平位移 OQ
+  const [qx,qy]=px(x,0);
+  if(ui.showHD.checked&&x>0.02){
+    dashedLine(bx,by,qx,qy,'#7c3aed');
+    braceH(OX, OY, qx, '#7c3aed');
+    text("x = v₀t", (OX+qx)/2, OY-44, "#7c3aed", "bold 14px Microsoft YaHei");
+    text('Q',qx,OY-14,'#7c3aed','bold 14px Microsoft YaHei');
+  }
+
+  // 速度反向延长线交点 P（世界坐标 (x/2, 0)）
+  if(ui.showExt.checked&&vy>0.01){
+    const [ex,ey]=px(x/2,0);
+    dashedLine(bx,by,ex,ey,'#16a34a');
+    ctx.fillStyle='#16a34a';
+    ctx.beginPath();ctx.arc(ex,ey,4.5,0,7);ctx.fill();
+    text('P',ex,OY-16,'#16a34a','bold 15px Microsoft YaHei');
+    text('OP = x/2',ex-46,OY-16,'#16a34a','13px Microsoft YaHei','right');
+    // β at P
+    const bAP = Math.atan2(by-ey, bx-ex);
+    ctx.strokeStyle="#16a34a";ctx.lineWidth=1.8;
+    ctx.beginPath();ctx.arc(ex,ey,26,0,bAP,false);ctx.stroke();
+    const bmidP = bAP / 2;
+    text("β", ex+34*Math.cos(bmidP), ey+34*Math.sin(bmidP), "#16a34a", "bold italic 17px serif");
+  }
+  // 竖直位移
+  if (ui.showHD.checked && y > 0.02) {
+    const vbx = OX - 35;
+    dashedLine(bx, by, vbx, by, "#7c3aed");
+    braceV(vbx, OY, by, "#7c3aed", "left");
+    text("y = ½gt²", vbx - 14, (OY + by) / 2, "#7c3aed", "bold 13px Microsoft YaHei", "right");
+  }
+  // 位移矢量 s
+  if(x>0.02||y>0.02){
+    arrow(OX,OY,bx,by,'#2563eb',2.5,10);
+    text('位移 s',(OX+bx)/2+30,(OY+by)/2-14,'#2563eb','bold 14px Microsoft YaHei');
+  }
+
+  // 角 α（原点处，x 轴与位移的夹角）
+  if(x>0.02){
+    const aA=Math.atan2(y,x);           // 位移与x轴正向夹角
+    
+    
+    ctx.strokeStyle='#2563eb';ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(OX,OY,44,0,aA,false);ctx.stroke();
+    const mid=aA/2;
+    text('α',OX+58*Math.cos(mid),OY+58*Math.sin(mid),'#2563eb','bold italic 17px serif');
+  }
+
+  // 速度矢量与分解（速度比例尺 12 px / (m/s)）
+  const VS=12;
+  const vpx=vx*VS, vpy=vy*VS;          // 像素方向：右、下
+  if(v>0.01){
+    if(ui.showComp.checked){
+      dashedLine(bx,by,bx+vpx,by,"#f59e0b");
+      if(vx>0.01)arrow(bx,by,bx+vpx,by,"#f59e0b",1.8,7);
+      text("v_x",bx+vpx/2,by-14,"#d97706","bold 13px Microsoft YaHei");
+      dashedLine(bx,by,bx,by+vpy,"#f59e0b");
+      if(vy>0.01)arrow(bx,by,bx,by+vpy,"#f59e0b",1.8,7);
+      text("v_y",bx-16,by+vpy/2,"#d97706","bold 13px Microsoft YaHei","right");
+      dashedLine(bx+vpx,by,bx+vpx,by+vpy,"#f59e0b");
+      dashedLine(bx,by+vpy,bx+vpx,by+vpy,"#f59e0b");
+    }
+    arrow(bx,by,bx+vpx,by+vpy,"#16a34a",2.5,10);
+    text("v = "+v.toFixed(1)+" m/s",bx+vpx-40,by+vpy+18,"#16a34a","bold 14px Microsoft YaHei","right");
+    // 水平参考虚线（过小球，平行 x 轴）
+    dashedLine(bx-40,by,bx+120,by,"#9ca3af");
+    // 角 β（小球处，水平方向与速度的夹角）
+    const bA=Math.atan2(vy,vx);
+    ctx.strokeStyle="#16a34a";ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(bx,by,34,0,bA,false);ctx.stroke();
+    const bmid=bA/2;
+    text("β",bx+46*Math.cos(bmid),by+46*Math.sin(bmid),"#16a34a","bold italic 17px serif");
+  }
+  // 小球
+  const grad=ctx.createRadialGradient(bx-4,by-4,2,bx,by,12);
+  grad.addColorStop(0,'#ff8a80');grad.addColorStop(1,'#d32f2f');
+  ctx.fillStyle=grad;
+  ctx.beginPath();ctx.arc(bx,by,11,0,7);ctx.fill();
+  ctx.strokeStyle='#b71c1c';ctx.lineWidth=1.5;ctx.stroke();
+
+  // 抛出点小球（静止示意）
+  ctx.fillStyle='rgba(211,47,47,.35)';
+  ctx.beginPath();ctx.arc(OX,OY,8,0,7);ctx.fill();
+
+  // 更新数据面板
+  const tanB=vx>0?vy/vx:0, tanA=x>1e-6?y/x:0;
+  ui.dTanB.textContent = tanB.toFixed(3);
+  ui.dBeta.textContent = (Math.atan2(vy,vx)*180/Math.PI).toFixed(1) + '°';
+  ui.dTanA.textContent = t > 1e-6 ? tanA.toFixed(3) : '0.000';
+  ui.dAlpha.textContent = (t > 1e-6 ? (Math.atan2(y,x)*180/Math.PI).toFixed(1) : '0.0') + '°';
+  ui.dRatio.textContent = tanA > 1e-9 ? (tanB/tanA).toFixed(2) : '—';
+  const angB = Math.atan2(vy,vx), angA = Math.atan2(y,x);
+  ui.dAngleRatio.textContent = angA > 1e-6 ? (angB/angA).toFixed(2) : '—';
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min((now-last)/1000,0.05)*parseFloat(ui.speed.value);
+  last=now;
+  step(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+reset();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
