@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>竖直平面内的圆周运动 — 绳模型与杆模型</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#f2f5f9;color:#1f2937;min-height:100vh}
+.header{text-align:center;padding:22px 16px 6px}
+.header h1{font-size:1.7rem;color:#0f3d6e}
+.header p{color:#5b6b7d;margin-top:6px;font-size:.95rem}
+.tabs{display:flex;gap:10px;justify-content:center;padding:14px 16px 4px;flex-wrap:wrap}
+.tabs button{border:1px solid #c9d6e4;background:#fff;color:#33506b;cursor:pointer;padding:10px 20px;border-radius:999px;font-size:.95rem;font-weight:600;transition:all .15s}
+.tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 6px 18px rgba(37,99,235,.3)}
+.page{padding:14px 18px 30px}
+.hidden{display:none}
+.wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.stage{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px}
+canvas{display:block;border-radius:8px}
+.panel{width:330px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:14px 16px;box-shadow:0 6px 24px rgba(15,61,110,.06)}
+.card h3{font-size:1rem;color:#0f3d6e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5ecf3}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:.92rem}
+.row label{flex:1;color:#374151}
+input[type=range]{flex:1.4;accent-color:#2563eb}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+button.act{border:none;cursor:pointer;padding:9px 14px;border-radius:10px;font-size:.92rem;font-weight:600;transition:all .15s}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-ghost{background:#e8eef5;color:#33475b}
+.btn-ghost:hover{background:#d8e3ee}
+.chk{display:flex;align-items:center;gap:8px;font-size:.9rem;color:#374151;margin:6px 0;cursor:pointer}
+.chk input{accent-color:#2563eb;width:16px;height:16px}
+.predict{font-size:.92rem;line-height:1.8;border-radius:10px;padding:10px 12px;margin-top:8px}
+.predict.ok{background:#e9f9ee;border:1px solid #b7e6c4;color:#14532d}
+.predict.no{background:#fdf1e7;border:1px solid #f5cfae;color:#7c3f10}
+.known{font-size:.9rem;color:#374151;line-height:2}
+.ggrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(560px,1fr));gap:16px;max-width:1240px;margin:0 auto}
+.gpair{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.gears{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.gears button{border:1px solid #c9d6e4;background:#fff;color:#33506b;cursor:pointer;padding:7px 14px;border-radius:999px;font-size:.85rem;font-weight:600;transition:all .15s}
+.gears button.on{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 4px 12px rgba(37,99,235,.25)}
+.dcard{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:12px;box-shadow:0 6px 24px rgba(15,61,110,.06);text-align:center}
+.dcard h3{font-size:1rem;color:#0f3d6e;margin-bottom:6px}
+.dcard p{font-size:.88rem;color:#475569;line-height:1.8;text-align:left;margin-top:8px}
+.sumgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;max-width:1240px;margin:16px auto 0}
+.sum{border-radius:14px;padding:16px 18px;font-size:.92rem;line-height:2}
+.sum.rope{background:#fdf1e7;border:1px solid #f5cfae;color:#7c3f10}
+.sum.rod{background:#e9f9ee;border:1px solid #b7e6c4;color:#14532d}
+.sum h3{font-size:1.05rem;margin-bottom:6px}
+.sum .f{font-family:"Consolas",monospace;font-weight:700}
+.footer{text-align:center;color:#8aa0b4;font-size:.8rem;padding:10px 0 24px}
+select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid #cbd5e1}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>竖直平面内的圆周运动：绳模型 与 杆模型</h1>
+</div>
+
+<div class="tabs">
+  <button class="active" data-tab="0">① 模型分类（受力分析）</button>
+  <button data-tab="1">② 绳子模型实验</button>
+  <button data-tab="2">③ 轻杆模型实验</button>
+</div>
+
+<!-- ============ 页面一：模型分类 ============ -->
+<div class="page" id="page0">
+  <div class="ggrid">
+    <div class="ggroup">
+      <div class="gpair">
+        <div class="dcard">
+          <h3>绳拉球（绳模型）</h3>
+          <canvas id="dg1" width="270" height="230"></canvas>
+        </div>
+        <div class="dcard">
+          <h3>单轨道 · 内轨（绳模型）</h3>
+          <canvas id="dg2" width="270" height="230"></canvas>
+        </div>
+      </div>
+      <div class="gears" id="ropeGears">
+        <button data-g="0" class="on">速度大：最高点 T 向下</button>
+        <button data-g="1">临界速度：最高点 T = 0</button>
+        <button data-g="2">速度小：到不了最高点</button>
+      </div>
+    </div>
+    <div class="ggroup">
+      <div class="gpair">
+        <div class="dcard">
+          <h3>轻杆连球（杆模型）</h3>
+          <canvas id="dg3" width="270" height="230"></canvas>
+        </div>
+        <div class="dcard">
+          <h3>双轨道 · 管道（杆模型）</h3>
+          <canvas id="dg4" width="270" height="230"></canvas>
+        </div>
+      </div>
+      <div class="gears" id="rodGears">
+        <button data-g="0" class="on">速度大：最高点 F 向下</button>
+        <button data-g="1">临界速度：最高点 F = 0</button>
+        <button data-g="2">速度小：最高点 F 向上</button>
+        <button data-g="3">恰能到顶：最高点 v = 0</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="sumgrid">
+    <div class="sum rope">
+      <h3>绳模型 = 绳拉球 + 单轨道（内轨）</h3>
+      受力特征：<b>绳子/轨道只能提供指向圆心的力</b>，受力情况相同。
+    </div>
+    <div class="sum rod">
+      <h3>杆模型 = 轻杆连球 + 双轨道（管道）</h3>
+      受力特征：<b>轻杆/双轨既能提供指向圆心的力，也能提供背离圆心的力</b>，受力情况相同。
+    </div>
+  </div>
+</div>
+
+<!-- ============ 页面二：绳子模型 ============ -->
+<div class="page hidden" id="page1">
+  <div class="wrap">
+    <div class="stage"><canvas id="cvRope" width="560" height="560"></canvas></div>
+    <div class="panel">
+      <div class="card">
+        <h3>已知条件（给定）</h3>
+        <div class="known">
+          绳长 L = <b>1.0 m</b>　小球质量 m = <b>0.5 kg</b><br>
+          g = <b>10 m/s²</b>　绳不可伸长、只能拉不能推
+        </div>
+      </div>
+      <div class="card">
+        <h3>控制</h3>
+        <div class="row"><label>最低点初速度 v₀ = <b id="rV0val">5.5</b> m/s</label>
+          <input id="rV0" type="range" min="2" max="9" step="0.1" value="5.5"></div>
+        <div class="row"><label>播放速度</label>
+          <select id="rSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option></select>
+        </div>
+        <div class="btns">
+          <button id="rPlay" class="act btn-primary">开始</button>
+          <button id="rReset" class="act btn-ghost">重置</button>
+          <button id="rExplain" class="act btn-ghost">显示解释</button>
+        </div>
+        <div id="rPredict" class="predict hidden"></div>
+      </div>
+      <div class="card">
+        <h3>显示选项</h3>
+        <label class="chk"><input type="checkbox" id="rShowF" checked> 受力分析（重力 G、绳拉力 T）</label>
+        <label class="chk"><input type="checkbox" id="rShowDecomp"> 分解重力（θ 取重力与绳的锐角夹角：沿绳分力 G·cosθ 与 T 的合力提供向心力，垂直绳分力 G·sinθ 改变速度大小）</label>
+        <label class="chk"><input type="checkbox" id="rShowV" checked> 速度大小（跟随小球）</label>
+        <label class="chk"><input type="checkbox" id="rShowTrail" checked> 运动轨迹</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 页面三：轻杆模型 ============ -->
+<div class="page hidden" id="page2">
+  <div class="wrap">
+    <div class="stage"><canvas id="cvRod" width="560" height="560"></canvas></div>
+    <div class="panel">
+      <div class="card">
+        <h3>已知条件（给定）</h3>
+        <div class="known">
+          杆长 L = <b>1.0 m</b>　小球质量 m = <b>0.5 kg</b><br>
+          g = <b>10 m/s²</b>　轻杆可拉可压、始终约束小球做圆周运动
+        </div>
+      </div>
+      <div class="card">
+        <h3>控制</h3>
+        <div class="row"><label>最低点初速度 v₀ = <b id="dV0val">5.0</b> m/s</label>
+          <input id="dV0" type="range" min="2" max="8" step="0.1" value="5.0"></div>
+        <div class="row"><label>播放速度</label>
+          <select id="dSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option></select>
+        </div>
+        <div class="btns">
+          <button id="dPlay" class="act btn-primary">开始</button>
+          <button id="dReset" class="act btn-ghost">重置</button>
+          <button id="dExplain" class="act btn-ghost">显示解释</button>
+        </div>
+        <div id="dPredict" class="predict hidden"></div>
+      </div>
+      <div class="card">
+        <h3>显示选项</h3>
+        <label class="chk"><input type="checkbox" id="dShowF" checked> 受力分析（重力 G、杆作用力 F）</label>
+        <label class="chk"><input type="checkbox" id="dShowDecomp"> 分解重力（θ 取重力与杆的锐角夹角：沿杆分力 G·cosθ 与 F 的合力提供向心力，垂直杆分力 G·sinθ 改变速度大小）</label>
+        <label class="chk"><input type="checkbox" id="dShowV" checked> 速度大小（跟随小球）</label>
+        <label class="chk"><input type="checkbox" id="dShowTrail" checked> 运动轨迹</label>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">高中物理动画 · 竖直圆周运动</div>
+
+<script>
+"use strict";
+/* ================= 公共工具 ================= */
+function arr(ctx,x1,y1,x2,y2,color,w,head,dash){
+  head=head||9;
+  const a=Math.atan2(y2-y1,x2-x1);
+  ctx.save();
+  if(dash)ctx.setLineDash([5,4]);
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=w;
+  ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.moveTo(x2,y2);
+  ctx.lineTo(x2-head*Math.cos(a-Math.PI/6),y2-head*Math.sin(a-Math.PI/6));
+  ctx.lineTo(x2-head*Math.cos(a+Math.PI/6),y2-head*Math.sin(a+Math.PI/6));
+  ctx.closePath();ctx.fill();
+  ctx.restore();
+}
+function txt(ctx,s,x,y,color,font,align){
+  ctx.fillStyle=color;ctx.font=font||'13px Microsoft YaHei';ctx.textAlign=align||'center';ctx.textBaseline='middle';
+  ctx.fillText(s,x,y);
+}
+function labelBg(ctx,s,x,y,color,font){   // 带半透明白底的标注，防止与箭头/轨迹重叠时看不清
+  ctx.font=font||'13px Microsoft YaHei';
+  const w=ctx.measureText(s).width;
+  ctx.fillStyle='rgba(255,255,255,.85)';
+  ctx.fillRect(x-w/2-3,y-9,w+6,18);
+  ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(s,x,y);
+}
+function cl(v,a,b){return v<a?a:v>b?b:v;}   // 把坐标限制在画布范围内
+function ball(ctx,x,y,r){
+  const g=ctx.createRadialGradient(x-3,y-3,2,x,y,r);
+  g.addColorStop(0,'#ff8a80');g.addColorStop(1,'#d32f2f');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(x,y,r,0,7);ctx.fill();
+  ctx.strokeStyle='#b71c1c';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+/* ================= 页面一：四幅分类图（动画 · 三挡位） ================= */
+(function diagramAnim(){
+  const g=10,m=0.5,LL=1.0;          // 与实验页一致：L = 1 m，m = 0.5 kg
+  const cx=135,cy=115,R=80;
+  const FS=1.4;                     // 力箭头比例 1.4 px/N
+  const SLOW=0.5;                   // 慢放演示
+  // 三挡最低点初速度：大 / 临界（最高点约束力恰好为 0）/ 小
+  const ROPE_V0=[8.0,Math.sqrt(5*g*LL),5.5];   // 小：越过等高点后绳松弛，到不了最高点
+  const ROD_V0 =[8.0,Math.sqrt(5*g*LL),6.4,2*Math.sqrt(g*LL)];   // 小：最高点杆/轨道向上托球；末挡：恰能到顶，v顶 = 0
+  // 图1、图2 共用 ropeS；图3、图4 共用 rodS —— 同组运动与受力完全相同
+  const ropeS={phase:'circle',theta:0,omega:0,x:0,y:0,vx:0,vy:0};
+  const rodS ={phase:'circle',theta:0,omega:0,x:0,y:0,vx:0,vy:0};
+  const ctxs=[1,2,3,4].map(i=>document.getElementById('dg'+i).getContext('2d'));
+
+  function launch(s,v0){
+    s.phase='circle';s.theta=0;s.omega=v0/LL;
+    s.x=0;s.y=-LL;s.vx=0;s.vy=0;s.rest=false;
+  }
+
+  function stepCircle(s,dt){
+    s.omega+=-(g/LL)*Math.sin(s.theta)*dt;
+    s.theta+=s.omega*dt;
+  }
+  function stepRope(s,dt){
+    if(s.phase==='circle'){
+      stepCircle(s,dt);
+      const T=m*(LL*s.omega*s.omega+g*Math.cos(s.theta));
+      if(T<-0.1&&Math.cos(s.theta)<0){       // 上半圆 T=0 → 绳松弛（= 内轨 N=0 离开轨道）
+        s.phase='free';
+        s.x=LL*Math.sin(s.theta); s.y=-LL*Math.cos(s.theta);
+        s.vx=s.omega*LL*Math.cos(s.theta); s.vy=s.omega*LL*Math.sin(s.theta);
+      }
+    }else{                                   // 抛体阶段
+      s.vy-=g*dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
+      const d=Math.hypot(s.x,s.y);
+      if(d>=LL){                             // 绳重新绷紧（非弹性：去掉径向分速度）
+        const nx=s.x/d,ny=s.y/d,vr=s.vx*nx+s.vy*ny;
+        if(vr>0){s.vx-=vr*nx;s.vy-=vr*ny;}
+        s.x=nx*LL; s.y=ny*LL;
+        s.theta=Math.atan2(s.x,-s.y);
+        s.omega=(s.vx*Math.cos(s.theta)+s.vy*Math.sin(s.theta))/LL;
+        s.phase='circle';
+      }
+    }
+  }
+  function stepRod(s,dt){
+    if(s.rest)return;                        // 已静止在最高点
+    stepCircle(s,dt);
+    const topA=Math.PI+2*Math.round((s.theta-Math.PI)/(2*Math.PI))*Math.PI;
+    if(Math.abs(s.theta-topA)<0.03&&Math.abs(s.omega)<0.1){
+      s.theta=topA;s.omega=0;s.rest=true;    // 最高点速度为 0：静止在顶点，不再下落
+    }
+  }
+  // 约束力：正 → 指向圆心，负 → 背离圆心（抛体阶段为 0）
+  function force(s){
+    if(s.phase==='free')return 0;
+    return m*(LL*s.omega*s.omega+g*Math.cos(s.theta));
+  }
+
+  function drawScene(x,s,opt){
+    x.clearRect(0,0,270,230);
+    // 轨道
+    if(opt.track==='single'){
+      x.strokeStyle='#64748b';x.lineWidth=9;
+      x.beginPath();x.arc(cx,cy,R,0,7);x.stroke();
+      x.strokeStyle='#cbd5e1';x.lineWidth=1.2;
+      x.beginPath();x.arc(cx,cy,R-6,0,7);x.stroke();
+    }else if(opt.track==='double'){
+      x.strokeStyle='#64748b';x.lineWidth=5;
+      x.beginPath();x.arc(cx,cy,R+7,0,7);x.stroke();
+      x.beginPath();x.arc(cx,cy,R-7,0,7);x.stroke();
+    }else{
+      x.strokeStyle='#94a3b8';x.setLineDash([4,4]);x.lineWidth=1.5;
+      x.beginPath();x.arc(cx,cy,R,0,7);x.stroke();x.setLineDash([]);
+    }
+    x.fillStyle='#334155';x.beginPath();x.arc(cx,cy,4,0,7);x.fill();
+    txt(x,'O',cx+14,cy+2,'#334155');
+
+    const r=opt.radius;
+    const ux=Math.sin(s.theta),uy=Math.cos(s.theta);   // 圆心 → 小球方向
+    let bx,by;
+    if(s.phase==='circle'){bx=cx+r*ux;by=cy+r*uy;}
+    else{bx=cx+s.x*r;by=cy-s.y*r;}             // 抛体阶段：按本图轨道半径同比例绘制
+
+    // 绳 / 杆
+    if(opt.link==='rope'){
+      if(s.phase==='circle'){
+        x.strokeStyle='#475569';x.lineWidth=2;
+        x.beginPath();x.moveTo(cx,cy);x.lineTo(bx,by);x.stroke();
+        txt(x,'绳',cx+ux*r/2-uy*12,cy+uy*r/2+ux*12,'#475569');
+      }else{
+        x.save();x.strokeStyle='#b6c2cf';x.setLineDash([4,6]);x.lineWidth=1.5;
+        x.beginPath();x.moveTo(cx,cy);x.lineTo(bx,by);x.stroke();x.restore();
+        txt(x,'绳松弛',(cx+bx)/2+16,(cy+by)/2,'#94a3b8','12px Microsoft YaHei');
+      }
+    }else if(opt.link==='rod'){
+      x.strokeStyle='#795548';x.lineWidth=5;
+      x.beginPath();x.moveTo(cx,cy);x.lineTo(bx,by);x.stroke();
+    }
+
+    // 受力分析：重力 mg（恒定向下）+ 约束力（沿半径方向），箭头从小球表面出发
+    const BR=11;
+    arr(x,bx,by+BR,bx,by+BR+m*g*FS,'#2563eb',2.5,7);
+    txt(x,'mg',bx+17,by+BR+m*g*FS/2,'#2563eb','bold 13px Microsoft YaHei');
+    const F=force(s);
+    const px=-uy,py=ux;              // 切向单位向量（标注偏移用）
+    if(F>0.05){                      // 指向圆心
+      arr(x,bx-ux*BR,by-uy*BR,bx-ux*(BR+F*FS),by-uy*(BR+F*FS),'#f59e0b',2.5,7);
+      txt(x,opt.flabel,bx-ux*(BR+F*FS/2)+px*16,by-uy*(BR+F*FS/2)+py*16,'#f59e0b','bold 13px Microsoft YaHei');
+    }else if(F<-0.05){               // 背离圆心（支持力）
+      arr(x,bx+ux*BR,by+uy*BR,bx+ux*(BR+(-F)*FS),by+uy*(BR+(-F)*FS),'#16a34a',2.5,7);
+      txt(x,opt.flabel,bx+ux*(BR+(-F)*FS/2)+px*16,by+uy*(BR+(-F)*FS/2)+py*16,'#16a34a','bold 13px Microsoft YaHei');
+    }
+
+    ball(x,bx,by,10);
+  }
+
+  // 挡位按钮：切换即重置该组（两图同步）
+  function bindGears(id,s,vlist){
+    const box=document.getElementById(id);
+    box.querySelectorAll('button').forEach(btn=>{
+      btn.addEventListener('click',()=>{
+        box.querySelectorAll('button').forEach(b=>b.classList.remove('on'));
+        btn.classList.add('on');
+        launch(s,vlist[+btn.dataset.g]);
+      });
+    });
+  }
+  bindGears('ropeGears',ropeS,ROPE_V0);
+  bindGears('rodGears',rodS,ROD_V0);
+  launch(ropeS,ROPE_V0[0]);launch(rodS,ROD_V0[0]);
+
+  let last=performance.now();
+  (function frame(now){
+    const dt=Math.min((now-last)/1000,0.05)*SLOW; last=now;
+    const n=Math.max(1,Math.ceil(dt/0.002)), h=dt/n;
+    for(let i=0;i<n;i++){stepRope(ropeS,h);stepRod(rodS,h);}
+    drawScene(ctxs[0],ropeS,{link:'rope',track:null,   flabel:'T',radius:R});
+    drawScene(ctxs[1],ropeS,{link:null, track:'single',flabel:'N',radius:R-15});
+    drawScene(ctxs[2],rodS, {link:'rod', track:null,   flabel:'F',radius:R});
+    drawScene(ctxs[3],rodS, {link:null, track:'double',flabel:'F',radius:R});
+    requestAnimationFrame(frame);
+  })(performance.now());
+})();
+</script>
+
+<script>
+"use strict";
+/* ================= 竖直圆周运动模拟 ================= */
+const G=10, L=1.0, M=0.5;
+const CX=280, CY=280, RP=190;      // 圆心像素、半径像素（1 m = 190 px）
+const FS=9;                        // 力箭头 9 px/N（T/F 箭头限长 225 px）
+
+/* 封闭根号：√ 与上方横线一体绘制（内联 SVG，横线宽度按文字实测并与 √ 笔画相连）
+   用法：sqrt('(gL)', el) → 可直接拼进 innerHTML 的字符串 */
+const sqrtCtx=document.createElement('canvas').getContext('2d');
+function sqrt(t,refEl){
+  const cs=getComputedStyle(refEl||document.body);
+  const fs=parseFloat(cs.fontSize)||14;
+  const fam=cs.fontFamily.replace(/"/g,"'");
+  sqrtCtx.font=fs+'px '+fam;
+  const tw=sqrtCtx.measureText(t).width;
+  const sw=fs*0.55;                                // √ 符号宽度
+  const H=Math.ceil(fs*1.2), W=Math.ceil(sw+tw+2);
+  const top=1.2, base=H-fs*0.22;                   // 横线位置、文字基线
+  const p='M1 '+(base-fs*0.45).toFixed(1)+' L'+(sw*0.38).toFixed(1)+' '+(base+fs*0.05).toFixed(1)+' L'+(sw-1).toFixed(1)+' '+top;
+  return '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" style="vertical-align:-'+(H-base).toFixed(1)+'px" aria-hidden="true">'
+    +'<path d="'+p+'" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+    +'<line x1="'+(sw-1).toFixed(1)+'" y1="'+top+'" x2="'+W+'" y2="'+top+'" stroke="currentColor" stroke-width="1.5"/>'
+    +'<text x="'+(sw+1).toFixed(1)+'" y="'+base.toFixed(1)+'" font-size="'+fs+'" font-family="'+fam+'" fill="currentColor">'+t+'</text></svg>';
+}
+
+function createSim(cfg){
+  const ctx=cfg.cv.getContext('2d');
+  let v0=parseFloat(cfg.v0.value);
+  let s;
+  function reset(){
+    s={phase:'circle',theta:0,omega:0,x:0,y:-L,vx:0,vy:0,
+       running:false,started:false,crossed:false,turnedBack:false,
+       trail:[],acc:0,prevOmega:0};
+    cfg.play.textContent='开始';
+  }
+  reset();
+
+  /* ---- 物理子步 ---- */
+  function substep(dt){
+    if(s.phase==='circle'){
+      s.omega+=-(G/L)*Math.sin(s.theta)*dt;
+      s.theta+=s.omega*dt;
+      if(s.prevOmega*s.omega<0)s.turnedBack=true;
+      s.prevOmega=s.omega;
+      if(s.theta>Math.PI){s.theta-=2*Math.PI;s.crossed=true;}
+      else if(s.theta<-Math.PI){s.theta+=2*Math.PI;s.crossed=true;}
+      if(cfg.mode==='rope'){
+        const T=M*(L*s.omega*s.omega+G*Math.cos(s.theta));
+        if(T<=0&&Math.cos(s.theta)<0){       // 圆心等高点上方 T=0 → 绳松弛
+          s.phase='free';
+          s.x=L*Math.sin(s.theta); s.y=-L*Math.cos(s.theta);
+          s.vx=s.omega*L*Math.cos(s.theta); s.vy=s.omega*L*Math.sin(s.theta);
+        }
+      }
+    }else{                                    // 抛体阶段
+      s.vy-=G*dt; s.x+=s.vx*dt; s.y+=s.vy*dt;
+      const d=Math.hypot(s.x,s.y);
+      if(d>=L){                               // 绳重新绷紧（非弹性：去掉径向分速度）
+        const nx=s.x/d,ny=s.y/d;
+        const vr=s.vx*nx+s.vy*ny;
+        if(vr>0){s.vx-=vr*nx;s.vy-=vr*ny;}
+        s.x=nx*L; s.y=ny*L;
+        s.theta=Math.atan2(s.x,-s.y);
+        s.omega=(s.vx*Math.cos(s.theta)+s.vy*Math.sin(s.theta))/L;
+        s.phase='circle';
+      }
+    }
+  }
+
+  /* ---- 当前量 ---- */
+  function ballPos(){
+    if(s.phase==='circle')return [CX+RP*Math.sin(s.theta),CY+RP*Math.cos(s.theta)];
+    return [CX+s.x*RP,CY-s.y*RP];
+  }
+  function speedNow(){
+    if(s.phase==='circle')return Math.abs(s.omega)*L;
+    return Math.hypot(s.vx,s.vy);
+  }
+  function forceNow(){
+    if(s.phase==='free')return 0;
+    return M*(L*s.omega*s.omega+G*Math.cos(s.theta)); // 正：指向圆心
+  }
+  function heightNow(){
+    if(s.phase==='circle')return L*(1-Math.cos(s.theta));
+    return s.y+L;
+  }
+
+  /* ---- 绘制 ---- */
+  function draw(){
+    ctx.clearRect(0,0,560,560);
+    // 参考圆轨道
+    ctx.strokeStyle='#c3cedb';ctx.setLineDash([5,5]);ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.arc(CX,CY,RP,0,7);ctx.stroke();ctx.setLineDash([]);
+    // 圆心等高点参考线
+    ctx.strokeStyle='#e2e8f0';ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(CX-RP-30,CY);ctx.lineTo(CX+RP+30,CY);ctx.stroke();
+    txt(ctx,'圆心等高点',CX+RP+34,CY,'#94a3b8','12px Microsoft YaHei','left');
+    txt(ctx,'最高点',CX,CY-RP-14,'#94a3b8','12px Microsoft YaHei');
+    txt(ctx,'最低点 v₀',CX,CY+RP+16,'#94a3b8','12px Microsoft YaHei');
+    ctx.fillStyle='#334155';ctx.beginPath();ctx.arc(CX,CY,4.5,0,7);ctx.fill();
+    txt(ctx,'O',CX+15,CY,'#334155');
+
+    const [bx,by]=ballPos();
+    const v=speedNow();
+
+    // 轨迹
+    if(cfg.showTrail.checked&&s.trail.length>1){
+      ctx.strokeStyle='rgba(37,99,235,.4)';ctx.lineWidth=2;
+      ctx.beginPath();
+      s.trail.forEach((p,i)=>{i===0?ctx.moveTo(p[0],p[1]):ctx.lineTo(p[0],p[1]);});
+      ctx.stroke();
+    }
+
+    // 绳 / 杆
+    if(cfg.mode==='rod'){
+      ctx.strokeStyle='#795548';ctx.lineWidth=5;
+      ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(bx,by);ctx.stroke();
+    }else{
+      if(s.phase==='circle'){
+        ctx.strokeStyle='#475569';ctx.lineWidth=2;
+        ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(bx,by);ctx.stroke();
+      }else{
+        ctx.save();ctx.strokeStyle='#b6c2cf';ctx.setLineDash([4,6]);ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(bx,by);ctx.stroke();ctx.restore();
+        txt(ctx,'绳松弛',(CX+bx)/2+26,(CY+by)/2,'#94a3b8','12px Microsoft YaHei');
+      }
+    }
+
+    // 受力分析（θ 角标注在小球处：重力与绳/杆的锐角夹角，见下）
+    const decomp=cfg.showDecomp&&cfg.showDecomp.checked&&s.phase==='circle';
+    if(s.started&&(cfg.showF.checked||decomp)){
+      const BR=14;                              // 箭头从小球表面出发（避免被球体遮住）
+      const F=forceNow();
+      if(decomp){
+        // 分解重力：G 画实线，两个分力画虚线
+        const ux=Math.sin(s.theta),uy=Math.cos(s.theta);   // 圆心 → 小球方向
+        const rc=M*G*Math.cos(s.theta);         // 沿绳/杆分力大小（正：背离圆心）
+        const rx=rc*ux, ry=rc*uy;               // 沿绳/杆分力矢量
+        const tx=-rx, ty=M*G-ry;                // 垂直绳/杆（切向）分力矢量
+        ctx.strokeStyle='#cbd5e1';ctx.setLineDash([4,4]);ctx.lineWidth=1.2;   // 分解构造线
+        ctx.beginPath();ctx.moveTo(bx+rx*FS,by+ry*FS);ctx.lineTo(bx,by+M*G*FS);ctx.lineTo(bx+tx*FS,by+ty*FS);ctx.stroke();
+        ctx.setLineDash([]);
+        arr(ctx,bx,by+BR,bx,by+BR+M*G*FS,'#2563eb',4,11);
+        labelBg(ctx,'G',bx+20,by+BR+M*G*FS/2,'#2563eb','bold 13px Microsoft YaHei');
+        if(Math.abs(rc)>0.05){                  // 沿绳/杆分力（虚线）：与 T（杆为 F）的合力充当向心力
+          const l=Math.abs(rc),nx=rx/l,ny=ry/l;
+          arr(ctx,bx+nx*BR,by+ny*BR,bx+nx*(BR+l*FS),by+ny*(BR+l*FS),'#2563eb',3,9,true);
+          labelBg(ctx,'G·cosθ',cl(bx+nx*(BR+l*FS+35)-ny*45,40,520),cl(by+ny*(BR+l*FS+35)+nx*45,16,548),'#2563eb','bold 12px Microsoft YaHei');
+        }
+        const tl=Math.hypot(tx,ty);             // 垂直绳/杆分力（虚线）：改变速度大小
+        if(tl>0.05){
+          const nx=tx/tl,ny=ty/tl;
+          arr(ctx,bx+nx*BR,by+ny*BR,bx+nx*(BR+tl*FS),by+ny*(BR+tl*FS),'#2563eb',3,9,true);
+          labelBg(ctx,'G·sinθ',cl(bx+nx*(BR+tl*FS+35)-ux*40,40,520),cl(by+ny*(BR+tl*FS+35)-uy*40,16,548),'#2563eb','bold 12px Microsoft YaHei');
+        }
+        // 向心力矢量式：T⃗(杆为 F⃗) + (G·cosθ)⃗ = F⃗向 —— 约束力与重力沿绳/杆分力的合力 = 向心力
+        const fc=M*v*v/L;
+        const cfl=cfg.mode==='rope'?'T':'F';      // 约束力符号：绳 T、杆 F（均以拉向圆心为正）
+        const segs=[['向心力公式：',0],[cfl,1],[' + ',0],['G·cosθ',1],[' = ',0],['F',1],['向（θ 取重力与'+(cfg.mode==='rope'?'绳':'杆')+'的锐角夹角）',0]];
+        ctx.font='13px Microsoft YaHei';ctx.textAlign='left';ctx.textBaseline='middle';
+        let tw=0;segs.forEach(sg=>{tw+=ctx.measureText(sg[0]).width;});
+        let sx=CX-tw/2;
+        ctx.fillStyle='#475569';ctx.strokeStyle='#475569';ctx.lineWidth=1;
+        segs.forEach(sg=>{
+          const w=ctx.measureText(sg[0]).width;
+          ctx.fillText(sg[0],sx,30);
+          if(sg[1]){                            // 矢量符号：字符上方小箭头
+            ctx.beginPath();ctx.moveTo(sx,17);ctx.lineTo(sx+w,17);ctx.stroke();
+            ctx.beginPath();ctx.moveTo(sx+w,17);ctx.lineTo(sx+w-4,14.5);
+            ctx.moveTo(sx+w,17);ctx.lineTo(sx+w-4,19.5);ctx.stroke();
+          }
+          sx+=w;
+        });
+        // 标量式（θ 取锐角，G·cosθ 为分力大小）：下半圆分力背离圆心取 −，上半圆指向圆心取 +；杆的 F 为代数值（拉正推负）
+        txt(ctx,cfl+' '+(rc>=0?'−':'+')+' G·cosθ = '+(F<0?'('+F.toFixed(2)+')':F.toFixed(2))+(rc>=0?' − ':' + ')+Math.abs(rc).toFixed(2)+' = '+fc.toFixed(2)+' N　G·sinθ 改变速度大小',CX,50,'#0f3d6e','bold 13px Microsoft YaHei');
+      }else{
+        arr(ctx,bx,by+BR,bx,by+BR+M*G*FS,'#2563eb',4,11);
+        labelBg(ctx,'G',bx+20,by+BR+M*G*FS/2,'#2563eb','bold 13px Microsoft YaHei');
+      }
+      const ux=(CX-bx), uy=(CY-by), ul=Math.hypot(ux,uy)||1; // 指向圆心单位向量
+      if(Math.abs(F)>0.05){
+        const fx=ux/ul, fy=uy/ul;
+        const FL=Math.min(Math.abs(F)*FS,225);  // 限长，避免高速时箭头过长
+        const labMinY=decomp?64:14;             // 分解模式下避开顶部公式文字（y=30/50 两行）
+        if(F>0){
+          arr(ctx,bx+fx*BR,by+fy*BR,bx+fx*(BR+FL),by+fy*(BR+FL),'#f59e0b',4,11);
+          labelBg(ctx,(cfg.mode==='rope'?'T=':'F(拉)=')+F.toFixed(1)+'N',bx+fx*(BR+FL)+fy*22,Math.max(by+fy*(BR+FL)-fx*22,labMinY),'#d97706','bold 13px Microsoft YaHei');
+        }else{
+          arr(ctx,bx-fx*BR,by-fy*BR,bx-fx*(BR+FL),by-fy*(BR+FL),'#16a34a',4,11);
+          labelBg(ctx,'F(支持)='+(-F).toFixed(1)+'N',bx-fx*(BR+FL)+fy*22,Math.max(by-fy*(BR+FL)-fx*22,labMinY),'#16a34a','bold 13px Microsoft YaHei');
+        }
+      }
+      // θ 标注：重力与绳/杆的锐角夹角 —— 下半圆与重力成钝角，取绳/杆的延长线与重力的夹角；上半圆取绳/杆与重力的夹角
+      const aTh=Math.abs(s.theta);
+      if(s.phase==='circle'&&aTh>0.12&&Math.PI-aTh>0.12){
+        const c=Math.cos(s.theta),sn=Math.sin(s.theta),inLower=c>0;
+        if(inLower&&!decomp){                   // 下半圆：补画绳/杆的延长线（虚线），作为角弧参照
+          ctx.save();ctx.strokeStyle='#b6c2cf';ctx.setLineDash([4,4]);ctx.lineWidth=1.2;
+          ctx.beginPath();ctx.moveTo(bx+sn*14,by+c*14);ctx.lineTo(bx+sn*42,by+c*42);ctx.stroke();ctx.restore();
+        }
+        ctx.strokeStyle='#8ea6c1';ctx.lineWidth=1.5;
+        ctx.beginPath();ctx.arc(bx,by,28,Math.PI/2,inLower?Math.PI/2-s.theta:3*Math.PI/2-s.theta,(s.theta>0)===inLower);ctx.stroke();
+        let bix=inLower?sn:-sn,biy=inLower?1+c:1-c;   // 角平分线方向（重力方向 + 所取径向的单位矢量和）
+        const bil=Math.hypot(bix,biy)||1;bix/=bil;biy/=bil;
+        labelBg(ctx,'θ',bx+40*bix,by+40*biy,'#5b7ca3','italic 13px serif');
+      }
+      if(cfg.mode==='rope'&&s.phase==='free')
+        txt(ctx,'只受重力（抛体）',bx,by-30,'#64748b','12px Microsoft YaHei');
+    }
+
+    // 速度大小：标注放在小球外侧（沿速度方向并偏向圆外），远离受力箭头
+    if(cfg.showV.checked&&s.started){
+      let dvx=1,dvy=0;
+      if(s.phase==='circle'){dvx=Math.cos(s.theta);dvy=-Math.sin(s.theta);}
+      else if(v>0.05){dvx=s.vx/v;dvy=-s.vy/v;}
+      const ox=bx-CX,oy=by-CY,ol=Math.hypot(ox,oy)||1;   // 指向圆外
+      labelBg(ctx,'v = '+v.toFixed(1)+' m/s',bx+dvx*80+ox/ol*26,Math.max(by+dvy*80+oy/ol*26,decomp?64:14),'#16a34a','bold 14px Microsoft YaHei');
+    }
+
+    // 小球
+    ball(ctx,bx,by,13);
+    // 初始位置标记
+    ctx.fillStyle='rgba(211,47,47,.3)';
+    ctx.beginPath();ctx.arc(CX,CY+RP,9,0,7);ctx.fill();
+  }
+
+  /* ---- 预测 ---- */
+  function updatePredict(){
+    const el=cfg.predict;
+    if(cfg.mode==='rope'){
+      // 统一判据：先由临界条件 v顶 = √(gL) 结合动能定理算出最低点所需速度 √(5gL)，再拿 v₀ 与之比较
+      const vc=Math.sqrt(5*G*L);
+      const head='最高点临界条件：mg = m·v顶²/L，即 v顶 = '+sqrt('(gL)',el)+' ≈ 3.16 m/s；'
+        +'由动能定理 −mg·2L = ½mv顶² − ½mv₀²，'
+        +'得最低点速度需满足 v₀ ≥ '+sqrt('(v顶²+4gL)',el)+' = '+sqrt('(5gL)',el)+' ≈ 7.07 m/s。<br>';
+      el.classList.remove('ok','no');   // 保留 hidden 类，由"显示解释"按钮控制
+      if(v0>=vc){
+        el.classList.add('ok');
+        el.innerHTML=head+'当前 v₀ = '+v0.toFixed(1)+' m/s ≥ 7.07 m/s<br><b>✔ 能通过最高点</b>，做完整圆周运动（最高点 T ≥ 0）。';
+      }else{
+        el.classList.add('no');
+        el.innerHTML=head+'当前 v₀ = '+v0.toFixed(1)+' m/s &lt; 7.07 m/s<br><b>✘ 到不了最高点</b>，不能完成整圈（观察动画中小球的实际运动）。';
+      }
+    }else{
+      // 杆能"托住"小球：最高点 v顶 ≥ 0 即可；由动能定理 −mg·2L = ½mv顶² − ½mv₀²，取 v顶 = 0 得 v₀ 最小值 2√(gL)
+      const vc=2*Math.sqrt(G*L);
+      const head='到达最高点条件：最高点 v顶 ≥ 0 即可（轻杆可拉可压，能"托住"小球）；'
+        +'由动能定理 −mg·2L = ½mv顶² − ½mv₀²，取 v顶 = 0，'
+        +'得最低点速度需满足 v₀ ≥ '+sqrt('(4gL)',el)+' = 2'+sqrt('(gL)',el)+' ≈ 6.32 m/s。<br>';
+      el.classList.remove('ok','no');   // 保留 hidden 类，由"显示解释"按钮控制
+      if(v0>=vc){
+        el.classList.add('ok');
+        el.innerHTML=head+'当前 v₀ = '+v0.toFixed(1)+' m/s ≥ 6.32 m/s<br><b>✔ 能到达最高点</b>，做完整圆周运动；观察最高点附近 F &lt; 0，表示杆施加<b>背离圆心的支持力</b>（杆"推"小球）。';
+      }else{
+        el.classList.add('no');
+        el.innerHTML=head+'当前 v₀ = '+v0.toFixed(1)+' m/s &lt; 6.32 m/s<br><b>✘ 不能到达最高点</b>：能量不足，小球来回摆动（杆始终约束，不会脱落）。';
+      }
+    }
+  }
+
+  /* ---- 事件 ---- */
+  cfg.play.addEventListener('click',()=>{
+    if(!s.started){s.started=true;s.running=true;s.omega=v0/L;s.trail=[];}
+    else s.running=!s.running;
+    cfg.play.textContent=s.running?'暂停':'继续';
+  });
+  cfg.reset.addEventListener('click',()=>{reset();});
+  if(cfg.explain){                    // "显示解释"按钮：点击后才显示解释，再点隐藏
+    cfg.explain.addEventListener('click',()=>{
+      const hidden=cfg.predict.classList.toggle('hidden');
+      cfg.explain.textContent=hidden?'显示解释':'隐藏解释';
+    });
+  }
+
+  /* ---- 暂停时拖动小球：沿圆轨道拖动，实时显示该位置的受力 ---- */
+  cfg.cv.style.touchAction='none';
+  let dragging=false;
+  function canvasPos(e){
+    const r=cfg.cv.getBoundingClientRect();
+    return [(e.clientX-r.left)*cfg.cv.width/r.width,(e.clientY-r.top)*cfg.cv.height/r.height];
+  }
+  function maxDragTheta(){                        // 可拖动范围：物理可达且约束成立
+    const cE=1-v0*v0/(2*G*L);                     // 能量限制：v² = v0²−2gL(1−cosθ) ≥ 0
+    let tE=Math.PI;
+    if(cE>-1)tE=Math.acos(Math.max(-1,Math.min(1,cE)));
+    if(cfg.mode==='rod')return tE;                // 杆：可拉可压、不受张力限制，但同样受能量限制（到不了的位置不可拖入）
+    const cT=(2*G*L-v0*v0)/(3*G*L);               // 绳绷紧限制：T = m(v0²/L−2g+3g·cosθ) ≥ 0
+    let tT=Math.PI;
+    if(cT>-1)tT=Math.acos(Math.min(1,cT));
+    return Math.min(tE,tT);
+  }
+  function applyDrag(mx,my){
+    let th=Math.atan2(mx-CX,my-CY);               // 与竖直向下方向夹角
+    const tm=maxDragTheta();
+    if(th>tm)th=tm;else if(th<-tm)th=-tm;
+    s.phase='circle';
+    s.theta=th;
+    const ke=v0*v0-2*G*L*(1-Math.cos(th));        // 能量守恒 → 该位置速率
+    const sp=ke>0?Math.sqrt(ke):0;
+    s.omega=(s.omega<0?-1:1)*sp/L;                // 保持原运动方向
+    s.x=0;s.y=-L;s.vx=0;s.vy=0;
+    s.crossed=false;s.turnedBack=false;s.prevOmega=s.omega;
+  }
+  cfg.cv.addEventListener('pointerdown',e=>{
+    if(s.running)return;                          // 仅暂停/未开始时可拖
+    const [mx,my]=canvasPos(e);
+    const [bx,by]=ballPos();
+    if(Math.hypot(mx-bx,my-by)>30)return;
+    dragging=true;
+    cfg.cv.setPointerCapture(e.pointerId);
+    s.started=true;s.running=false;s.trail=[];
+    cfg.play.textContent='继续';
+    applyDrag(mx,my);
+  });
+  cfg.cv.addEventListener('pointermove',e=>{
+    const [mx,my]=canvasPos(e);
+    if(dragging){applyDrag(mx,my);return;}
+    const [bx,by]=ballPos();
+    cfg.cv.style.cursor=!s.running&&Math.hypot(mx-bx,my-by)<=30?'grab':'';
+  });
+  cfg.cv.addEventListener('pointerup',()=>{dragging=false;cfg.cv.style.cursor='';});
+  cfg.cv.addEventListener('pointercancel',()=>{dragging=false;cfg.cv.style.cursor='';});
+  cfg.v0.addEventListener('input',()=>{
+    v0=parseFloat(cfg.v0.value);
+    cfg.v0val.textContent=v0.toFixed(1);
+    reset();updatePredict();
+  });
+  updatePredict();
+
+  /* ---- 帧推进 ---- */
+  return function frame(dtReal){
+    if(s.running){
+      s.acc+=dtReal*parseFloat(cfg.speed.value);
+      const h=0.0008;
+      let n=Math.min(Math.floor(s.acc/h),800);
+      s.acc-=n*h;
+      while(n-->0)substep(h);
+      if(s.trail.length===0||true){
+        const p=ballPos();
+        const lastP=s.trail[s.trail.length-1];
+        if(!lastP||Math.hypot(p[0]-lastP[0],p[1]-lastP[1])>1.5){
+          s.trail.push(p);
+          if(s.trail.length>900)s.trail.shift();
+        }
+      }
+    }
+    draw();
+  };
+}
+
+/* ---- 建立两个模拟 ---- */
+const ropeFrame=createSim({
+  mode:'rope',cv:document.getElementById('cvRope'),
+  v0:document.getElementById('rV0'),v0val:document.getElementById('rV0val'),
+  speed:document.getElementById('rSpeed'),play:document.getElementById('rPlay'),reset:document.getElementById('rReset'),
+  predict:document.getElementById('rPredict'),
+  explain:document.getElementById('rExplain'),
+  showF:document.getElementById('rShowF'),showV:document.getElementById('rShowV'),showTrail:document.getElementById('rShowTrail'),
+  showDecomp:document.getElementById('rShowDecomp')
+});
+const rodFrame=createSim({
+  mode:'rod',cv:document.getElementById('cvRod'),
+  v0:document.getElementById('dV0'),v0val:document.getElementById('dV0val'),
+  speed:document.getElementById('dSpeed'),play:document.getElementById('dPlay'),reset:document.getElementById('dReset'),
+  predict:document.getElementById('dPredict'),
+  explain:document.getElementById('dExplain'),
+  showF:document.getElementById('dShowF'),showV:document.getElementById('dShowV'),showTrail:document.getElementById('dShowTrail'),
+  showDecomp:document.getElementById('dShowDecomp')
+});
+
+/* ---- 标签页切换 ---- */
+document.querySelectorAll('.tabs button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const i=btn.dataset.tab;
+    for(let k=0;k<3;k++)document.getElementById('page'+k).classList.toggle('hidden',String(k)!==i);
+  });
+});
+
+/* ---- 主循环 ---- */
+let lastT=performance.now();
+function mainLoop(now){
+  const dt=Math.min((now-lastT)/1000,0.05);
+  lastT=now;
+  ropeFrame(dt);
+  rodFrame(dt);
+  requestAnimationFrame(mainLoop);
+}
+requestAnimationFrame(mainLoop);
+</script>
+</body>
+</html>
