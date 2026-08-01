@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生活中的圆周运动 — 火车转弯</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#f2f5f9;color:#1f2937;min-height:100vh}
+.header{text-align:center;padding:22px 16px 6px}
+.header h1{font-size:1.7rem;color:#0f3d6e}
+.header p{color:#5b6b7d;margin-top:6px;font-size:.95rem}
+.tabs{display:flex;gap:10px;justify-content:center;padding:14px 16px 4px;flex-wrap:wrap}
+.tabs button{border:1px solid #c9d6e4;background:#fff;color:#33506b;cursor:pointer;padding:10px 20px;border-radius:999px;font-size:.95rem;font-weight:600;transition:all .15s}
+.tabs button.active{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 6px 18px rgba(37,99,235,.3)}
+.page{padding:14px 18px 30px}
+.hidden{display:none}
+.wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;flex-wrap:wrap}
+.stage{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px;flex:1 1 480px}
+canvas{display:block;border-radius:8px;cursor:grab;width:100%;height:clamp(520px,86vh,1000px)}
+canvas:active{cursor:grabbing}
+.panel{width:340px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:14px 16px;box-shadow:0 6px 24px rgba(15,61,110,.06)}
+.card h3{font-size:1rem;color:#0f3d6e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5ecf3}
+.row{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:.92rem}
+.row label{color:#374151;white-space:nowrap}
+input[type=range]{flex:1;accent-color:#2563eb}
+.slider-scale{position:relative;height:32px;margin-top:2px}
+.tick{position:absolute;top:0;transform:translateX(-50%);text-align:center;font-size:.7rem;line-height:1.25;color:#64748b;white-space:nowrap}
+.tick i{display:block;width:9px;height:9px;border-radius:50%;margin:0 auto 2px;box-shadow:0 0 0 1.5px #fff,0 0 0 2.5px #cbd5e1}
+.tick.crit i{background:#16a34a}
+.tick.warn i{background:#ea580c}
+.tick.danger i{background:#dc2626}
+.data{font-size:.92rem;line-height:2}
+.data b{display:inline-block;min-width:118px;color:#475569;font-weight:600}
+.data span{font-family:"Consolas","Courier New",monospace;color:#0f3d6e}
+.note{background:#eaf3ff;border:1px solid #bcd8ff;border-radius:10px;padding:10px 12px;font-size:.9rem;line-height:1.9;color:#0b3a6e}
+.note b{color:#0f3d6e}
+/* —— 封闭根号（根号勾 + 覆盖横线，像课本里那样）——
+   勾与横线画在同一张 SVG 里，勾尖与横线起点同坐标 → 天然闭合。
+   SVG 绝对定位：顶部对齐被开方数文字顶部，勾向下延伸穿过被开方数上半部分。
+   overflow:visible 让勾的下端可以超出 padding 区。 */
+.sqrt{display:inline-block;position:relative;vertical-align:-0.22em;margin:0 2px;color:inherit}
+.sqrt .sign{position:absolute;top:-.02em;left:0;width:100%;height:1.5em;overflow:visible;display:block}
+.sqrt .sign .hk{fill:none;stroke:currentColor;stroke-width:3;stroke-linejoin:miter;stroke-linecap:butt}
+.sqrt .sign .bar{fill:none;stroke:currentColor;stroke-width:3;stroke-linecap:butt}
+.sqrt .content{display:inline-block;padding:.04em .14em 0 .8em;line-height:1.3}
+.chk{display:flex;align-items:center;gap:8px;font-size:.9rem;color:#374151;margin:6px 0;cursor:pointer}
+.chk input{accent-color:#2563eb;width:16px;height:16px}
+.btns{display:flex;gap:10px;flex-wrap:wrap}
+button.act{border:none;cursor:pointer;padding:9px 14px;border-radius:10px;font-size:.92rem;font-weight:600;transition:all .15s}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-ghost{background:#e8eef5;color:#33475b}
+.btn-ghost:hover{background:#d8e3ee}
+.tag{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.85rem;font-weight:700}
+.tag.ok{background:#e9f9ee;border:1px solid #b7e6c4;color:#14532d}
+.tag.no{background:#fdf1e7;border:1px solid #f5cfae;color:#7c3f10}
+.tag.eq{background:#eaf3ff;border:1px solid #bcd8ff;color:#0b3a6e}
+.placeholder{max-width:920px;margin:30px auto;background:#fff;border:1px dashed #c9d6e4;border-radius:14px;padding:50px 30px;text-align:center;color:#64748b}
+.placeholder h2{color:#33506b;font-size:1.2rem;margin-bottom:12px}
+.placeholder p{line-height:1.9;font-size:.95rem}
+.stage2{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px;flex:1 1 480px}
+.stage2 canvas{display:block;border-radius:8px;cursor:grab}
+.stage2 canvas:active{cursor:grabbing}
+.tag-track{display:inline-block;padding:3px 12px;border-radius:8px;font-size:.88rem;font-weight:700}
+.tag-track.outer{background:#fde2e2;border:1px solid #f5b0b0;color:#9b2c2c}
+.tag-track.inner{background:#fde9d9;border:1px solid #f5cfae;color:#7c3f10}
+.tag-track.none{background:#e9f9ee;border:1px solid #b7e6c4;color:#14532d}
+.tag-track.derail{background:#ef4444;border:1px solid #dc2626;color:#fff}
+.footer{text-align:center;color:#8aa0b4;font-size:.8rem;padding:10px 0 24px}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>生活中的圆周运动：火车转弯</h1>
+  <p>倾斜轨道上的圆周运动 · 重力与支持力的合力提供向心力</p>
+</div>
+
+<div class="tabs">
+  <button class="active" data-tab="0">① 漏斗内的圆周运动</button>
+  <button data-tab="1">② 火车转弯（挤压内外轨）</button>
+</div>
+
+<!-- ============ 页面一：漏斗内壁圆周运动 ============ -->
+<div class="page" id="page0">
+  <div class="wrap">
+    <div class="stage"><canvas id="cv" width="640" height="560"></canvas></div>
+    <div class="panel">
+      <div class="card">
+        <h3>模型说明</h3>
+        <div class="note">
+          光滑漏斗内壁（圆锥面），一个小物体在某一高度做<b>水平面内的匀速圆周运动</b>。<br>
+          它只受两个力：重力 <b>mg</b>（竖直向下）与支持力 <b>N</b>（垂直于斜面、指向漏斗内）。<br>
+          二者的合力沿水平方向指向圆心，<b>恰好充当向心力</b>：
+          <div style="text-align:center;margin:8px 0;font-family:Consolas,monospace;color:#0f3d6e">mg·tanθ = m·v²/r</div>
+          得到该半径处的<b>临界速度</b>：v₀ = <span class="sqrt"><svg class="sign" viewBox="0 0 100 40" preserveAspectRatio="none"><polyline class="hk" points="3,17 8,17 13,34 20,2"/><line class="bar" x1="20" y1="2" x2="99" y2="2"/></svg><span class="content">g·r·tanθ</span></span>。<br>
+          改变速度，物体会自动滑到与之匹配的高度（半径）继续转圈。
+        </div>
+      </div>
+      <div class="card">
+        <h3>控制</h3>
+        <div class="row"><label>运动速度 v = <b id="vVal">4.0</b> m/s</label>
+          <input id="vIn" type="range" min="1" max="9" step="0.1" value="4.0"></div>
+        <div class="row"><label>漏斗半角 θ = <b id="tVal">45</b>°</label>
+          <input id="tIn" type="range" min="25" max="60" step="1" value="45"></div>
+        <div class="btns">
+          <button id="play" class="act btn-primary">暂停</button>
+          <button id="reset" class="act btn-ghost">重置视角</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>实时数据</h3>
+        <div class="data">
+          <div><b>当前状态</b><span id="dState"></span></div>
+          <div><b>圆周半径 r</b><span id="dR"></span></div>
+          <div><b>距底高度 h</b><span id="dH"></span></div>
+          <div><b>临界速度 v₀</b><span id="dV0"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 页面二：火车转弯 ============ -->
+<div class="page hidden" id="page1">
+  <div class="wrap">
+    <div class="stage2"><canvas id="cv2" width="640" height="560"></canvas></div>
+    <div class="panel">
+      <div class="card">
+        <h3>控制</h3>
+        <div class="row"><label>速度 v = <b id="v2Val">23.0</b> m/s</label>
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center">
+            <input id="v2In" type="range" min="5" max="40" step="0.5" value="23.0" style="width:100%">
+            <div class="slider-scale" id="v2Scale"></div>
+          </div>
+        </div>
+        <div class="data" style="margin:4px 0 2px">
+          <div><b>当前挤压</b><span id="d2State"></span></div>
+          <div><b>挤压力 F</b><span id="d2F">0</span></div>
+        </div>
+        <div class="btns">
+          <button id="pauseBtn" class="act btn-ghost">暂停</button>
+          <button id="forceBtn" class="act btn-ghost">显示受力分析</button>
+        </div>
+        <div id="forceLegend" class="hidden" style="font-size:.83rem;line-height:2;color:#475569;margin-top:8px">
+          <b style="color:#0f3d6e">火车：</b><span style="color:#dc2626">mg 重力</span> · <span style="color:#2563eb">N 支持力</span> · <span style="color:#7c3aed">F 轨对车弹力(沿轨面,重心与轮缘处)</span> · <span style="color:#0891b2">F合 向心力(虚线)</span><br>
+          <b style="color:#0f3d6e">轨道：</b><span style="color:#f97316">F′ 轮缘对轨侧压力</span>（与 F 互为牛三反作用）<br>
+          <span style="color:#94a3b8">受力分析仅在弯道段显示；浅色为直轨道</span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>模型说明</h3>
+        <div class="note">
+          火车在<b>外高内低</b>的倾斜弯道上转弯。<br>
+          弯道半径 R = 300 m、轨道倾角 θ = 10°，临界速度
+          <span style="font-family:Consolas,monospace;color:#0f3d6e">v₀ = √(gR·tanθ) ≈ 23.0 m/s</span>：<br>
+          · v = v₀ → 轮缘与轨道<b>无挤压</b>（重力与支持力的合力恰为向心力）<br>
+          · v &gt; v₀ → 火车有向外趋势，<b>挤压外轨</b><br>
+          · v &lt; v₀ → 火车有向内趋势，<b>挤压内轨</b><br>
+          注意轮子的<b>轮缘</b>（凸出轮内侧的小边）——正是它卡住轨道。<br>
+          拖动上方滑块改变车速，观察轮缘挤压内/外轨的变化（轮缘接触处的<b>放射状短线</b>表示挤压的松紧程度，被挤钢轨会泛红鼓出）；点「显示受力分析」可同时查看<b>火车受到的力</b>与<b>轨道受到的力</b>（F、F′ 按 mg 基准放大 2 倍；N、F合 的长度由"竖直分量抵消、水平分量合成"实时确定——<b>无论是否挤压，合力始终水平指向圆心</b>；挤外轨时 N 变大，挤内轨时 N 变小），配合「暂停」可定格画面、旋转缩放细看。<br>
+          钢轨最多承受 <b>0.15mg</b> 的侧向挤压力：<b>v &gt; 31.4 m/s</b> 外轨断裂、火车向外脱轨；<b>v &lt; 8.5 m/s</b> 内轨断裂、火车向内脱轨（滑块刻度上有标记点）。
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">高中物理动画 · 生活中的圆周运动 · 火车转弯</div>
+
+<script>
+"use strict";
+(function(){
+/* ================= 物理参数 ================= */
+const G = 10;                 // 重力加速度 m/s²
+const PPM = 70;               // 像素/米（绘图比例）
+
+/* 漏斗参数（内壁圆锥面，顶点在原点向下）：
+   物体在高度 H 处的水平截面是半径 r = H·tanθ 的圆。
+   物体在斜面上做匀速圆周运动 → mg·tanθ = m·v²/r。
+   由此可求出与给定 v 对应的高度（进而确定半径 r）。 */
+let theta = 45 * Math.PI/180; // 漏斗半角（与竖直方向）
+let v = 4.0;                  // 物体线速度 m/s
+let playing = true;
+
+/* ================= 相机（手写透视） ================= */
+const cam = { az: 0.7, el: 0.42, dist: 13, f: 640, target: [0, 2.0, 0] };
+
+/* ================= 画布（尺寸随窗口自适应） ================= */
+const cv = document.getElementById('cv');
+let W = 640, Hh = 560;
+const ctx = cv.getContext('2d');
+function resize(){
+  const r = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  W = Math.max(320, Math.round(r.width));
+  Hh = Math.max(320, Math.round(r.height));
+  cv.width = Math.round(W*dpr); cv.height = Math.round(Hh*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cam.f = 640*Math.min(W/640, Hh/560);   // 场景随画布等比放大
+}
+window.addEventListener('resize', resize);
+resize();
+
+/* ================= 向量工具 ================= */
+function vsub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function vdot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function vcross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function vnorm(a){const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];}
+
+function project(p){
+  const t = cam.target;
+  const C = [t[0]+cam.dist*Math.cos(cam.el)*Math.sin(cam.az),
+             t[1]+cam.dist*Math.sin(cam.el),
+             t[2]+cam.dist*Math.cos(cam.el)*Math.cos(cam.az)];
+  const fw = vnorm(vsub(t,C));
+  const rt = vnorm(vcross(fw,[0,1,0]));
+  const uv = vcross(rt,fw);
+  const d = vsub(p,C);
+  const xv = vdot(d,rt), yv = vdot(d,uv), zv = vdot(d,fw);
+  const s = cam.f/Math.max(zv,0.1);
+  return [W/2+xv*s, Hh*0.56-yv*s, s];
+}
+
+/* ================= 几何：物体在斜面上的高度与半径 ================= */
+/* 已知速度 v 和漏斗半角 θ，求物体稳定运转的高度 H 与半径 r。
+   平衡方程：mg·tanθ = m·v²/r，且 r = H·tanθ
+   联立得 H = v² / (g·tan²θ)，r = v²/(g·tanθ)。 */
+function geometry(v, th){
+  const tt = Math.tan(th);
+  const r = v*v/(G*tt);          // 半径（米）
+  const Hhgt = r/tt;             // 距顶点高度（米）
+  return {r:r, H:Hhgt};
+}
+
+/* ================= 绘制 ================= */
+function line3(a,b,color,lw,dash){
+  const pa=project(a),pb=project(b);
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw||1;
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();
+  ctx.restore();
+}
+function poly3(pts,color,lw,dash,closed,fill){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw||1;
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();
+  pts.forEach((p,i)=>{const pp=project(p);i===0?ctx.moveTo(pp[0],pp[1]):ctx.lineTo(pp[0],pp[1]);});
+  if(closed)ctx.closePath();
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  ctx.stroke();ctx.restore();
+}
+function text3(p,str,opt){
+  opt=opt||{};
+  const pp=project(p);
+  ctx.font=(opt.bold?'bold ':'')+(opt.size||13)+'px "Microsoft YaHei",sans-serif';
+  ctx.textAlign=opt.align||'left';ctx.textBaseline='middle';
+  ctx.lineWidth=3.2;ctx.strokeStyle='rgba(255,255,255,0.9)';
+  const x=pp[0]+(opt.dx||0),y=pp[1]+(opt.dy||0);
+  ctx.strokeText(str,x,y);
+  ctx.fillStyle=opt.color||'#1f2937';
+  ctx.fillText(str,x,y);
+}
+function arrow3(a,b,color,lw,label,opt){
+  opt=opt||{};
+  const pa=project(a),pb=project(b);
+  const ang=Math.atan2(pb[1]-pa[1],pb[0]-pa[0]);
+  ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=lw||2.5;
+  ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();
+  const hs=opt.head||9;
+  ctx.beginPath();
+  ctx.moveTo(pb[0],pb[1]);
+  ctx.lineTo(pb[0]-hs*Math.cos(ang-0.42),pb[1]-hs*Math.sin(ang-0.42));
+  ctx.lineTo(pb[0]-hs*Math.cos(ang+0.42),pb[1]-hs*Math.sin(ang+0.42));
+  ctx.closePath();ctx.fill();
+  ctx.restore();
+  if(label)text3(b,label,{dx:6,dy:-12,color:color,bold:true,size:opt.size||13});
+}
+
+/* 漏斗内壁：用多圈椭圆环+母线渲染圆锥面 */
+function drawFunnel(th){
+  const Hmax = 4.0;                       // 漏斗绘制高度（米）
+  const rings = 10;
+  /* 填充面（用三角形带近似一个半透明锥面，分前后两半，配合排序简化） */
+  const segs = 56;
+  for(let i=0;i<segs;i++){
+    const a0=i/segs*2*Math.PI, a1=(i+1)/segs*2*Math.PI;
+    const pts=[];
+    for(let k=0;k<=rings;k++){
+      const Hk=k/rings*Hmax, rk=Hk*Math.tan(th);
+      pts.push([rk*Math.cos(a0),Hk,rk*Math.sin(a0)]);
+    }
+    const pts2=[];
+    for(let k=rings;k>=0;k--){
+      const Hk=k/rings*Hmax, rk=Hk*Math.tan(th);
+      pts2.push([rk*Math.cos(a1),Hk,rk*Math.sin(a1)]);
+    }
+    poly3(pts.concat(pts2),'rgba(120,150,190,0.0)',0,null,true,'rgba(86,128,179,0.10)');
+  }
+  /* 椭圆环 */
+  for(let k=0;k<=rings;k++){
+    const Hk=k/rings*Hmax, rk=Hk*Math.tan(th);
+    const pts=[];
+    for(let i=0;i<=segs;i++){const a=i/segs*2*Math.PI;pts.push([rk*Math.cos(a),Hk,rk*Math.sin(a)]);}
+    const alpha = k===0?0.45:(k%2===0?0.28:0.14);
+    poly3(pts,'rgba(90,120,160,'+alpha+')',1);
+  }
+  /* 母线（8 条） */
+  for(let i=0;i<12;i++){
+    const a=i/12*2*Math.PI;
+    const r1=Math.tan(th)*Hmax;
+    line3([r1*Math.cos(a),Hmax,r1*Math.sin(a)],[0,0,0],'rgba(90,120,160,0.22)',1);
+  }
+  /* 顶点 */
+  text3([0,0,0],'漏斗顶点',{dx:-8,dy:14,color:'#5b6b7d',size:12});
+}
+
+/* 物体（小球） */
+function drawBall(pos){
+  const pp=project(pos);
+  const R=Math.max(7,0.16*pp[2]);
+  const grd=ctx.createRadialGradient(pp[0]-R*0.35,pp[1]-R*0.4,R*0.15,pp[0],pp[1],R);
+  grd.addColorStop(0,'#ff9a8a');grd.addColorStop(1,'#c0392b');
+  ctx.fillStyle=grd;
+  ctx.beginPath();ctx.arc(pp[0],pp[1],R,0,7);ctx.fill();
+  ctx.strokeStyle='rgba(120,30,20,0.7)';ctx.lineWidth=1.2;ctx.stroke();
+}
+
+let phase = 0;          // 物体绕轴角度
+let trail = [];
+
+function draw(){
+  ctx.clearRect(0,0,W,Hh);
+
+  /* 地面网格 */
+  drawGround();
+
+  /* 漏斗 */
+  drawFunnel(theta);
+
+  const {r:r, H:Hhgt} = geometry(v, theta);
+
+  /* 物体位置 */
+  const pos = [r*Math.cos(phase), Hhgt, r*Math.sin(phase)];
+
+  /* 运动尾迹 */
+  if(trail.length>1){
+    for(let i=1;i<trail.length;i++){
+      const pa=project(trail[i-1]),pb=project(trail[i]);
+      ctx.strokeStyle='rgba(231,76,60,'+(0.15+0.6*i/trail.length)+')';
+      ctx.lineWidth=2.5;
+      ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();
+    }
+  }
+
+  /* 竖直轴 */
+  line3([0,4.2,0],[0,0,0],'rgba(100,116,139,0.4)',1,[4,4]);
+
+  /* 物体 */
+  drawBall(pos);
+  text3(pos,'物体',{dx:12,dy:-12,size:12,color:'#c0392b',bold:true});
+
+  /* 说明文字（场景内） */
+  text3([0,4.3,0],'漏斗内壁（光滑圆锥面）',{align:'center',dy:-6,color:'#5b6b7d',size:13});
+
+  /* 数据更新 */
+  updateData(r,Hhgt);
+}
+
+function drawGround(){
+  const y=0,x0=-3.5,x1=3.5,z0=-3.5,z1=3.5;
+  for(let x=x0;x<=x1+1e-6;x+=0.5)line3([x,y,z0],[x,y,z1],'rgba(130,144,163,0.18)',1);
+  for(let z=z0;z<=z1+1e-6;z+=0.5)line3([x0,y,z],[x1,y,z],'rgba(130,144,163,0.18)',1);
+  poly3([[x0,y,z0],[x1,y,z0],[x1,y,z1],[x0,y,z1]],'rgba(120,135,155,0.5)',1.2,null,true);
+}
+
+/* ================= 数据面板 ================= */
+const el = id=>document.getElementById(id);
+function updateData(r,Hh){
+  const v0 = Math.sqrt(G*r*Math.tan(theta));   // 当前半径下的临界速度
+  el('dState').innerHTML = '<span class="tag eq">匀速圆周运动</span>';
+  el('dR').textContent = r.toFixed(2)+' m';
+  el('dH').textContent = Hh.toFixed(2)+' m';
+  el('dV0').textContent = v0.toFixed(2)+' m/s';
+}
+
+/* ================= 主循环 ================= */
+let last = null;
+function frame(now){
+  if(last===null)last=now;
+  const dt=Math.min((now-last)/1000,0.05);
+  last=now;
+  if(playing){
+    const {r:r}=geometry(v,theta);
+    const omega = v/r;                 // 角速度
+    phase += omega*dt;
+    /* 记录尾迹 */
+    const {H:Hhgt}=geometry(v,theta);
+    const p=[r*Math.cos(phase),Hhgt,r*Math.sin(phase)];
+    const lp=trail[trail.length-1];
+    if(!lp||Math.hypot(p[0]-lp[0],p[1]-lp[1],p[2]-lp[2])>0.06){
+      trail.push(p);
+      if(trail.length>120)trail.shift();
+    }
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ================= 交互 ================= */
+el('vIn').addEventListener('input',e=>{
+  v=parseFloat(e.target.value);
+  el('vVal').textContent=v.toFixed(1);
+  trail=[];          // 速度变化，尾迹重置
+});
+el('tIn').addEventListener('input',e=>{
+  theta=parseFloat(e.target.value)*Math.PI/180;
+  el('tVal').textContent=e.target.value;
+  trail=[];
+});
+el('play').addEventListener('click',()=>{
+  playing=!playing;
+  el('play').textContent=playing?'暂停':'继续';
+});
+el('reset').addEventListener('click',()=>{
+  cam.az=0.7;cam.el=0.42;cam.dist=13;
+});
+
+/* 鼠标拖动旋转 / 滚轮缩放 */
+let drag=null;
+cv.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY};});
+window.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  cam.az += (e.clientX-drag.x)*0.006;
+  cam.el = Math.min(1.3,Math.max(0.08,cam.el-(e.clientY-drag.y)*0.006));
+  drag={x:e.clientX,y:e.clientY};
+});
+window.addEventListener('mouseup',()=>drag=null);
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  cam.dist=Math.min(24,Math.max(7,cam.dist*(1+Math.sign(e.deltaY)*0.08)));
+},{passive:false});
+
+/* 触摸支持 */
+let touch=null;
+cv.addEventListener('touchstart',e=>{
+  if(e.touches.length===1)touch={x:e.touches[0].clientX,y:e.touches[0].clientY};
+},{passive:true});
+cv.addEventListener('touchmove',e=>{
+  if(!touch||e.touches.length!==1)return;
+  cam.az+=(e.touches[0].clientX-touch.x)*0.008;
+  cam.el=Math.min(1.3,Math.max(0.08,cam.el-(e.touches[0].clientY-touch.y)*0.008));
+  touch={x:e.touches[0].clientX,y:e.touches[0].clientY};
+},{passive:true});
+cv.addEventListener('touchend',()=>touch=null);
+
+/* ================= tab 切换 ================= */
+function switchTab(i){
+  document.querySelectorAll('.tabs button').forEach(b=>{
+    b.classList.toggle('active', b.dataset.tab===i);
+  });
+  document.getElementById('page0').classList.toggle('hidden',i!=='0');
+  document.getElementById('page1').classList.toggle('hidden',i!=='1');
+  window.dispatchEvent(new Event('resize'));   // 让新显示页的画布重新测量尺寸
+}
+document.querySelectorAll('.tabs button').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const i=btn.dataset.tab;
+    history.replaceState(null,'','#page'+i);
+    switchTab(i);
+  });
+});
+/* 支持 URL hash 直接定位（用于截图与分享） */
+(function init(){
+  const h=(location.hash||'').replace('#page','');
+  if(h==='1'||h==='0') switchTab(h);
+})();
+})();
+</script>
+
+<script>
+"use strict";
+(function(){
+/* ================= 物理参数（数据面板用真实值） ================= */
+const G = 10;                       // m/s²
+const R = 300;                       // 弯道半径 m（真实物理值，用于数据面板）
+const theta = 10 * Math.PI/180;      // 轨道倾角（真实，10°）
+const v0 = Math.sqrt(G*R*Math.tan(theta));   // 临界速度 ≈ 23 m/s
+
+/* —— 绘制参数 ——
+   轨道用"绘制半径"RD 画在画面中央以便看清；真实 R=300 只用于数据面板。
+   绘制倾角放大到 32°，突出"外高内低"的倾斜结构（物理结论不变）。 */
+const RD = 4.5;                      // 绘制半径 m（仅可视化）
+const DRAW_THETA = 32 * Math.PI/180; // 绘制倾角
+const TRACK_HALF = 1.5;              // 轨道半宽（两轨间距/2）
+const ARC_RANGE = Math.PI;           // 弧形轨道弧度范围（rad，半圈 180°）
+const ARC_START = -ARC_RANGE/2;      // 弧从 -π/2 铺到 +π/2，朝 +x 方向拱起
+const STR_LEN = 4;                   // 两端直轨道长度 m
+let trainD = 0;                      // 火车沿轨道走过的路程（含两端直线段）
+let trainV = 23.0;                   // 行驶速度 m/s（滑块控制）
+let showForces = false;              // 受力分析开关
+let oscPhase = 0;                    // 往复运动相位（推进速度随 trainV 缩放）
+let SQ = {side:0, k:0, a:0};         // 当前挤压状态（每帧重算）
+let lastPose = null;                 // 火车位姿与轮轨接触点（受力分析/挤压特效用）
+/* 轮缘受到的轨面侧向弹力沿轨面方向：F = m·cosθ·(v²/R − g·tanθ)。
+   钢轨能承受的最大侧向挤压力取 0.15mg，由此推出两个断裂阈值：
+   v > V_HI 外轨断裂向外脱轨；v < V_LO 内轨断裂向内脱轨 */
+const MU = 0.15;
+const V_HI = Math.sqrt(G*R*(Math.tan(theta)+MU/Math.cos(theta)));    // ≈ 31.4 m/s
+const V_LO = Math.sqrt(G*R*(Math.tan(theta)-MU/Math.cos(theta)));    // ≈ 8.5 m/s
+let derailP = 0;                     // 脱轨进度 0..1
+let derailSide = 0;                  // 脱轨方向（锁存）：+1 向外 / −1 向内
+let paused = false;                  // 暂停开关（暂停时冻结运动与动画，便于细看受力分析）
+let animTime = 0;                    // 动画内部累计时间（秒），暂停时不再增加
+
+/* ================= 画布（尺寸随窗口自适应） ================= */
+const cv = document.getElementById('cv2');
+let W = 640, Hh = 560;
+const ctx = cv.getContext('2d');
+function resize(){
+  const r = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  W = Math.max(320, Math.round(r.width));
+  Hh = Math.max(320, Math.round(r.height));
+  cv.width = Math.round(W*dpr); cv.height = Math.round(Hh*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cam.f = 640*Math.min(W/640, Hh/560);   // 场景随画布等比放大
+}
+
+/* ================= 相机 ================= */
+const cam = { az: -0.5, el: 0.9, dist: 22, f: 640, target: [0, 0, 0] };
+window.addEventListener('resize', resize);
+resize();
+
+/* ================= 向量工具 ================= */
+function vsub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function vdot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function vcross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function vnorm(a){const l=Math.hypot(a[0],a[1],a[2])||1;return [a[0]/l,a[1]/l,a[2]/l];}
+function vscale(a,s){return [a[0]*s,a[1]*s,a[2]*s];}
+function vadd(a,b){return [a[0]+b[0],a[1]+b[1],a[2]+b[2]];}
+
+function project(p){
+  const t = cam.target;
+  const C = [t[0]+cam.dist*Math.cos(cam.el)*Math.sin(cam.az),
+             t[1]+cam.dist*Math.sin(cam.el),
+             t[2]+cam.dist*Math.cos(cam.el)*Math.cos(cam.az)];
+  const fw = vnorm(vsub(t,C));
+  const rt = vnorm(vcross(fw,[0,1,0]));
+  const uv = vcross(rt,fw);
+  const d = vsub(p,C);
+  const xv = vdot(d,rt), yv = vdot(d,uv), zv = vdot(d,fw);
+  const s = cam.f/Math.max(zv,0.1);
+  return [W/2+xv*s, Hh*0.54-yv*s, s];
+}
+
+/* ================= 绘制原语 ================= */
+function line3(a,b,color,lw,dash){
+  const pa=project(a),pb=project(b);
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw||1;
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();
+  ctx.restore();
+}
+function poly3(pts,color,lw,dash,closed,fill){
+  ctx.save();ctx.strokeStyle=color;ctx.lineWidth=lw||1;
+  if(dash)ctx.setLineDash(dash);
+  ctx.beginPath();
+  pts.forEach((p,i)=>{const pp=project(p);i===0?ctx.moveTo(pp[0],pp[1]):ctx.lineTo(pp[0],pp[1]);});
+  if(closed)ctx.closePath();
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  ctx.stroke();ctx.restore();
+}
+function text3(p,str,opt){
+  opt=opt||{};
+  const pp=project(p);
+  ctx.font=(opt.bold?'bold ':'')+(opt.size||13)+'px "Microsoft YaHei",sans-serif';
+  ctx.textAlign=opt.align||'left';ctx.textBaseline='middle';
+  ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,0.9)';
+  const x=pp[0]+(opt.dx||0),y=pp[1]+(opt.dy||0);
+  ctx.strokeText(str,x,y);
+  ctx.fillStyle=opt.color||'#1f2937';
+  ctx.fillText(str,x,y);
+}
+function arrow3(a,b,color,lw,label,opt){
+  opt=opt||{};
+  const pa=project(a),pb=project(b);
+  const ang=Math.atan2(pb[1]-pa[1],pb[0]-pa[0]);
+  ctx.save();ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=lw||2.5;
+  if(opt.dash)ctx.setLineDash(opt.dash);
+  ctx.beginPath();ctx.moveTo(pa[0],pa[1]);ctx.lineTo(pb[0],pb[1]);ctx.stroke();
+  ctx.setLineDash([]);
+  const hs=opt.head||9;
+  ctx.beginPath();
+  ctx.moveTo(pb[0],pb[1]);
+  ctx.lineTo(pb[0]-hs*Math.cos(ang-0.42),pb[1]-hs*Math.sin(ang-0.42));
+  ctx.lineTo(pb[0]-hs*Math.cos(ang+0.42),pb[1]-hs*Math.sin(ang+0.42));
+  ctx.closePath();ctx.fill();
+  ctx.restore();
+  if(label)text3(b,label,{dx:opt.dx!==undefined?opt.dx:6, dy:opt.dy!==undefined?opt.dy:-12, color:color, bold:true, size:opt.size||13});
+}
+
+/* ================= 几何：轨道与火车位姿 ================= */
+/* 在角度 φ 处：
+     径向 er = (cosφ, 0, sinφ)   —— 从圆心指向外（水平）
+     切向 et = (−sinφ, 0, cosφ)  —— 火车前进方向
+     轨面径向 erR = er·cosθ + up·sinθ —— 沿倾斜轨面指向外（与轨面法线 cabUp 正交）
+   轨道绕中线倾斜 θ：内外轨都在倾斜轨面内，外轨(+erR)高、内轨(−erR)低。 */
+function railPoint(phi, side){          // side: +1=外轨(高), −1=内轨(低)
+  const w = TRACK_HALF;
+  const ct = Math.cos(DRAW_THETA), st = Math.sin(DRAW_THETA);
+  const er = [Math.cos(phi), 0, Math.sin(phi)];
+  const mid = [RD*Math.cos(phi), 0, RD*Math.sin(phi)];
+  /* 沿轨面方向偏移 side·w：水平分量 w·cosθ，竖直分量 w·sinθ */
+  return vadd(mid, [er[0]*side*w*ct, side*w*st, er[2]*side*w*ct]);
+}
+/* 轨道帧：按路程 d 给出火车所在位置与朝向。
+   d<0：直线段 A（z=-RD，沿 +x 驶入半圆）；
+   d∈[0,πRD]：半圆弧；d>πRD：直线段 B（z=+RD，沿 -x 驶离半圆）。 */
+function trackFrame(d){
+  const up=[0,1,0];
+  const ct=Math.cos(DRAW_THETA), st=Math.sin(DRAW_THETA);
+  let mid, er, et;
+  if(d<0){
+    mid=[d,0,-RD]; er=[0,0,-1]; et=[1,0,0];
+  }else if(d<=Math.PI*RD){
+    const phi=-Math.PI/2 + d/RD;
+    mid=[RD*Math.cos(phi),0,RD*Math.sin(phi)];
+    er=[Math.cos(phi),0,Math.sin(phi)];
+    et=[-Math.sin(phi),0,Math.cos(phi)];
+  }else{
+    const xd=d-Math.PI*RD;
+    mid=[-xd,0,RD]; er=[0,0,1]; et=[-1,0,0];
+  }
+  const cabUp=vadd(vscale(up, ct), vscale(er, -st));  // 垂直轨面、向外上方
+  return {mid, er, et, up, cabUp};
+}
+
+/* ================= 绘制轨道 ================= */
+const SEG = 90;
+function drawTrack(){
+  const onArc = trainD>=0 && trainD<=Math.PI*RD;
+  const phiT = onArc ? (-Math.PI/2 + trainD/RD) : null;
+  const broken = derailP>0 && phiT!==null;        // 钢轨已断裂
+  const bSide = derailSide || SQ.side;            // 断裂（或被挤）的那根轨
+  const gapHalf = 0.08+0.10*derailP;
+  /* 轨道点：挤压时局部鼓出（沿轨面方向）；断裂时留断口、断口两端弯折下垂 */
+  const ct=Math.cos(DRAW_THETA), st=Math.sin(DRAW_THETA);
+  const pt=(phi,side)=>{
+    let p=railPoint(phi,side);
+    if(phiT===null || side!==bSide) return p;
+    const d=phi-phiT;
+    const erR=[Math.cos(phi)*ct, st, Math.sin(phi)*ct];   // 轨面内径向
+    if(broken){
+      if(Math.abs(d)<gapHalf) return null;       // 断口
+      const bend=Math.exp(-Math.pow(Math.abs(d)-gapHalf,2)/(2*0.06*0.06));
+      return vadd(p, vadd(vscale(erR, side*(0.22*SQ.k+0.4*derailP*bend)),
+                          [0,-0.25*derailP*bend,0]));
+    }
+    if(SQ.side){
+      p=vadd(p, vscale(erR, side*SQ.k*0.22*Math.exp(-d*d/(2*0.14*0.14))));
+    }
+    return p;
+  };
+  /* 轨枕（端点随钢轨变形，断口处缺失） */
+  for(let i=0;i<=SEG;i+=4){
+    const phi = ARC_START + (i/SEG)*ARC_RANGE;
+    const a=pt(phi,1), b=pt(phi,-1);
+    if(a&&b) line3(a, b, '#b08968', 5);
+  }
+  /* 外轨（高）/ 内轨（低）：断口处自然分成两段 */
+  const drawRail=(side,col)=>{
+    let cur=[];
+    const flush=()=>{if(cur.length>1)poly3(cur,col,6);cur=[];};
+    for(let i=0;i<=SEG;i++){
+      const phi=ARC_START+(i/SEG)*ARC_RANGE;
+      const p=pt(phi,side);
+      if(p)cur.push(p);else flush();
+    }
+    flush();
+  };
+  drawRail(1,'#52606d');
+  drawRail(-1,'#6b7a89');
+  /* 断口处的碎裂痕迹（短钢筋头/碎块） */
+  if(broken){
+    for(let k=0;k<6;k++){
+      const phi=phiT+(k-2.5)*0.045;
+      const base=railPoint(phi,bSide);
+      const r1=((k*37)%10)/10, r2=((k*53)%10)/10;
+      const off1=vadd(vscale([Math.cos(phi),0,Math.sin(phi)], bSide*(0.1+0.35*r1*derailP)), [0,-0.12*r2*derailP,0]);
+      const off2=vadd(off1, vadd(vscale([Math.cos(phi),0,Math.sin(phi)], bSide*0.12), [0,-0.08-0.1*r1,0]));
+      line3(vadd(base,off1), vadd(base,off2), k%2?'#7f1d1d':'#52525b', 3);
+    }
+  }
+  /* 被挤钢轨的红色高亮段（随时间脉动；断裂后不再显示） */
+  if(SQ.side && phiT!==null && !broken){
+    const seg=[];
+    for(let i=0;i<=30;i++){
+      const phi=Math.max(ARC_START, Math.min(ARC_START+ARC_RANGE, phiT-0.45+(i/30)*0.9));
+      seg.push(pt(phi,SQ.side));
+    }
+    const c=SQ.side===1?'rgba(220,38,38,':'rgba(234,88,12,';
+    poly3(seg, c+(0.5+0.3*Math.sin(animTime*1000/160))+')', 9);
+  }
+  /* 中线参考（虚线） */
+  const mid=[];
+  for(let i=0;i<=SEG;i++){const phi=ARC_START+(i/SEG)*ARC_RANGE;mid.push([RD*Math.cos(phi),0,RD*Math.sin(phi)]);}
+  poly3(mid,'rgba(100,116,139,0.4)',1,[5,4]);
+
+  /* 标注：外轨 / 内轨 */
+  const phiL = -0.9;
+  text3(railPoint(phiL,1),'外轨（高）',{dx:10,dy:-10,color:'#9b2c2c',bold:true,size:13});
+  text3(railPoint(phiL,-1),'内轨（低）',{dx:10,dy:12,color:'#7c3f10',bold:true,size:13});
+}
+
+/* 两端直轨道：与半圆端点相切，分别沿 z=-RD 与 z=+RD 向 -x 方向延伸。
+   用浅色样式与弯道段区分（受力分析、挤压/断裂效果都只在弯道段进行）。 */
+function drawStraightTrack(){
+  const lift = TRACK_HALF * Math.sin(DRAW_THETA);
+  const zO = RD + TRACK_HALF*Math.cos(DRAW_THETA), zI = RD - TRACK_HALF*Math.cos(DRAW_THETA);   // 外轨/内轨的 z 偏移（沿轨面方向量取）
+  const n = Math.ceil(STR_LEN/0.6);
+  /* 直线段 A（z=-RD 侧） */
+  for(let i=0;i<=n;i++){
+    const x = -i*0.6;
+    line3([x, lift,-zO],[x,-lift,-zI],'#cfc4b0',5);   // 轨枕（浅）
+  }
+  line3([0, lift,-zO],[-STR_LEN, lift,-zO],'#9fb0bd',6);  // 外轨（高）
+  line3([0,-lift,-zI],[-STR_LEN,-lift,-zI],'#b0bcc7',6);  // 内轨（低）
+  /* 直线段 B（z=+RD 侧） */
+  for(let i=0;i<=n;i++){
+    const x = -i*0.6;
+    line3([x, lift, zO],[x,-lift, zI],'#cfc4b0',5);
+  }
+  line3([0, lift, zO],[-STR_LEN, lift, zO],'#9fb0bd',6);
+  line3([0,-lift, zI],[-STR_LEN,-lift, zI],'#b0bcc7',6);
+}
+
+/* ================= 绘制火车（车厢 + 底盘 + 带轮缘的立体车轮） ================= */
+/* 所有部件统一转成"带法线的多边形"：先按固定平行光着明暗色，
+   再按到相机的距离排序绘制（画家算法）。
+   轮子画成有厚度的圆柱（轮盘 + 辐条 + 轮毂），轮面垂直于车轴、随轨道一起倾斜，
+   从任何角度看都是"立"着的；轮缘是贴在车轮内侧、比轮盘大一圈的深色凸边，
+   下沿探到钢轨顶面以下，正是它卡住钢轨。 */
+const LIGHT = vnorm([-0.5, 0.85, 0.35]);   // 固定平行光
+let POLYS = [];
+
+function shade(hex, f){
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  const cc=x=>Math.max(0,Math.min(255,Math.round(x*f)));
+  return 'rgb('+cc(r)+','+cc(g)+','+cc(b)+')';
+}
+function addP(pts, n, base, opt){
+  opt=opt||{};
+  const sp=pts.map(project);
+  let d=0; for(const q of sp)d+=q[2]; d/=sp.length;
+  const f=0.40+0.60*Math.max(0, vdot(n, LIGHT));
+  const q={sp:sp, n:n, fill:shade(base,f), stroke:opt.stroke||shade(base,Math.max(0.22,f*0.5)),
+           lw:opt.lw||1, d:d, decos:[]};
+  POLYS.push(q);
+  return q;
+}
+/* 贴在某表面上的装饰（车窗、辐条等）：紧随其母面绘制，随母面一起被遮挡 */
+function addDeco(parent, pts, base, opt){
+  opt=opt||{};
+  const f=0.40+0.60*Math.max(0, vdot(parent.n, LIGHT));
+  parent.decos.push({sp:pts.map(project), n:parent.n,
+    fill:('fill' in opt)?opt.fill:shade(base,f),
+    stroke:('stroke' in opt)?opt.stroke:shade(base,Math.max(0.22,f*0.5)),
+    lw:opt.lw||1});
+}
+function drawQ(q){
+  ctx.beginPath();
+  q.sp.forEach((p,i)=>i===0?ctx.moveTo(p[0],p[1]):ctx.lineTo(p[0],p[1]));
+  ctx.closePath();
+  if(q.fill){ctx.fillStyle=q.fill;ctx.fill();}
+  if(q.stroke){ctx.strokeStyle=q.stroke;ctx.lineWidth=q.lw;ctx.stroke();}
+}
+function flushPolys(){
+  POLYS.sort((a,b)=>a.d-b.d);
+  for(const q of POLYS){drawQ(q);for(const d2 of q.decos)drawQ(d2);}
+  POLYS.length=0;
+}
+function cylBasis(ax){
+  const ref=Math.abs(ax[1])<0.9?[0,1,0]:[1,0,0];
+  const u=vnorm(vcross(ax,ref));
+  return [u, vcross(ax,u)];
+}
+function ringPts(c,u,v,r,N){
+  const pts=[];
+  for(let i=0;i<N;i++){
+    const a=i/N*2*Math.PI;
+    pts.push(vadd(c,vadd(vscale(u,r*Math.cos(a)),vscale(v,r*Math.sin(a)))));
+  }
+  return pts;
+}
+/* 短圆柱（车轮、车轴通用）：侧面逐片四边形按径向法线着明暗色，两端多边形端盖 */
+function addCyl(c, ax, r, half, N, capBase, bandBase){
+  const b=cylBasis(ax), u=b[0], v=b[1];
+  const cA=vadd(c,vscale(ax,-half)), cB=vadd(c,vscale(ax,half));
+  const rA=ringPts(cA,u,v,r,N), rB=ringPts(cB,u,v,r,N);
+  for(let i=0;i<N;i++){
+    const j=(i+1)%N;
+    const mid=vscale(vadd(rA[i],rB[j]),0.5);
+    addP([rA[i],rA[j],rB[j],rB[i]], vnorm(vsub(mid,c)), bandBase);
+  }
+  return {capA:addP(rA,vscale(ax,-1),capBase), capB:addP(rB,ax,capBase)};
+}
+/* 长方体：返回 6 个面（pos/neg 按三根轴顺序），便于在表面上贴车窗等装饰 */
+function addBox(c, a1,h1, a2,h2, a3,h3, base){
+  const A=[[a1,h1],[a2,h2],[a3,h3]], faces={pos:[],neg:[]};
+  for(let i=0;i<3;i++){
+    const ai=A[i][0], hi=A[i][1], aj=A[(i+1)%3][0], hj=A[(i+1)%3][1], ak=A[(i+2)%3][0], hk=A[(i+2)%3][1];
+    for(const s of [-1,1]){
+      const n=vscale(ai,s);
+      const fc=vadd(c,vscale(ai,s*hi));
+      const q=addP([
+        vadd(fc,vadd(vscale(aj,-hj),vscale(ak,-hk))),
+        vadd(fc,vadd(vscale(aj, hj),vscale(ak,-hk))),
+        vadd(fc,vadd(vscale(aj, hj),vscale(ak, hk))),
+        vadd(fc,vadd(vscale(aj,-hj),vscale(ak, hk)))
+      ], n, base);
+      (s>0?faces.pos:faces.neg).push(q);
+    }
+  }
+  return faces;
+}
+/* 在某个面上贴装饰四边形（车窗、腰线等） */
+function faceQuad(parent, c, u, hu, v, hv, base){
+  addDeco(parent,[
+    vadd(c,vadd(vscale(u,-hu),vscale(v,-hv))),
+    vadd(c,vadd(vscale(u, hu),vscale(v,-hv))),
+    vadd(c,vadd(vscale(u, hu),vscale(v, hv))),
+    vadd(c,vadd(vscale(u,-hu),vscale(v, hv)))
+  ], base);
+}
+
+/* 单个车轮：立体轮盘（带厚度）+ 辐条（随行驶滚动）+ 轮毂 + 内侧轮缘 */
+function addWheel(center, et, cabUp, axIn, rot){
+  const rr=0.26, wHalf=0.06, fr=0.37, fHalf=0.04;
+  /* 轮缘：贴在靠轨道内侧、比轮盘大一圈的深色凸边，橙色描边强调 */
+  const fC=vadd(center, vscale(axIn, wHalf+fHalf));
+  const fl=addCyl(fC, axIn, fr, fHalf, 20, '#1f2937', '#0f172a');
+  const fb=cylBasis(axIn);
+  addDeco(fl.capB, ringPts(vadd(fC,vscale(axIn, fHalf+0.002)), fb[0], fb[1], fr, 20), '#f59e0b', {fill:null, stroke:'#f59e0b', lw:2.4});
+  addDeco(fl.capA, ringPts(vadd(fC,vscale(axIn,-fHalf-0.002)), fb[0], fb[1], fr, 20), '#f59e0b', {fill:null, stroke:'#f59e0b', lw:2.4});
+  /* 轮盘（有厚度的圆柱） */
+  const wh=addCyl(center, axIn, rr, wHalf, 22, '#9aa8bc', '#5f6f83');
+  /* 两侧轮面的辐条与轮毂 */
+  for(const s of [1,-1]){
+    const cap=s>0?wh.capB:wh.capA;
+    const capC=vadd(center, vscale(axIn, s*(wHalf+0.004)));
+    for(let k=0;k<6;k++){
+      const a=rot+k*Math.PI/3;
+      const dir=vadd(vscale(et,Math.cos(a)),vscale(cabUp,Math.sin(a)));
+      const perp=vadd(vscale(et,-Math.sin(a)),vscale(cabUp,Math.cos(a)));
+      addDeco(cap,[
+        vadd(capC,vadd(vscale(dir,0.07),vscale(perp,-0.024))),
+        vadd(capC,vadd(vscale(dir,0.07),vscale(perp, 0.024))),
+        vadd(capC,vadd(vscale(dir,rr*0.85),vscale(perp, 0.024))),
+        vadd(capC,vadd(vscale(dir,rr*0.85),vscale(perp,-0.024)))
+      ], '#46536b');
+    }
+    addDeco(cap, ringPts(vadd(center,vscale(axIn,s*(wHalf+0.008))), fb[0], fb[1], 0.08, 10), '#dbe4ee');
+  }
+  return fC;
+}
+
+function drawTrain(d){
+  const F=trackFrame(d), et=F.et, up=F.up;
+  let er=F.er, cabUp=F.cabUp, upT=F.up;
+  const ct=Math.cos(DRAW_THETA), st=Math.sin(DRAW_THETA);
+  /* 轨面内的径向单位向量 erR：与轨面法线 cabUp 正交。
+     车轮、车轴、底盘、车厢都在 (et, erR, cabUp) 这个正交标架里构造，
+     保证车厢底面与两根轮轴构成的平面严格平行（贴合无缝）。 */
+  let erR=vadd(vscale(er,ct), vscale(up,st));
+  /* 挤压时整车沿轨面向被挤一侧微微横移，让轮缘顶上钢轨 */
+  let mid=vadd(F.mid, vscale(erR, SQ.side*SQ.k*0.07));
+  /* 脱轨：绕脱轨侧轮轨接触线翻倒（车顶倒向外/内侧），同时侧滑、下沉 */
+  if(derailP>0){
+    const s=derailSide||1, p=derailP;
+    const pivot=vadd(F.mid, vscale(erR, s*TRACK_HALF));
+    const al=-s*p*1.05;                        // 绕纵轴 et 的翻倒角（最多约 60°）
+    const ca=Math.cos(al), sa=Math.sin(al);
+    const er2=vadd(vscale(er,ca), vscale(up,sa));
+    const up2=vadd(vscale(up,ca), vscale(er,-sa));
+    er=er2; upT=up2;
+    cabUp=vadd(vscale(upT,ct), vscale(er,-st));
+    erR=vadd(vscale(er,ct), vscale(upT,st));
+    mid=vadd(pivot, vscale(erR, -s*TRACK_HALF));     // mid 随车身绕支点转过翻倒角
+    mid=vadd(mid, vscale(erR, s*1.5*p*p));           // 向外/内侧滑
+    mid=vadd(mid, vscale(up, -0.55*p*p));            // 下沉
+  }
+  const wheelLen=0.95, rr=0.26;
+  const carHalf=1.55, carW=0.92, carH=0.52;
+  const sOff=TRACK_HALF;                    // 轮心正对钢轨中心
+  let flangeMark=null, contact=null;
+  const sContacts=[];
+
+  /* —— 前后两根车轴，每轴内/外两个车轮 —— */
+  for(const sgn of [-1,1]){
+    const c0=vadd(mid, vscale(et, sgn*wheelLen));
+    const wc={};
+    for(const side of [1,-1]){
+      wc[side]=vadd(vadd(c0, vscale(erR, side*sOff)), vscale(cabUp, rr));
+    }
+    /* 车轴（圆柱，两端微微伸出轮外）——方向恰为 erR，与车厢底面平行 */
+    const axDir=vnorm(vsub(wc[1],wc[-1]));
+    const span=Math.hypot(wc[1][0]-wc[-1][0],wc[1][1]-wc[-1][1],wc[1][2]-wc[-1][2]);
+    addCyl(vscale(vadd(wc[1],wc[-1]),0.5), axDir, 0.05, span/2+0.11, 10, '#8b98a9', '#4b5563');
+    for(const side of [1,-1]){
+      /* 轴箱：车轴与底盘之间的连接块 */
+      addBox(vadd(wc[side], vscale(cabUp, 0.12)), et,0.12, erR,0.08, cabUp,0.11, '#2f3a4a');
+      const axIn = side===1 ? vscale(axDir,-1) : axDir;   // 指向车厢内侧（轮缘所在侧）
+      const fC=addWheel(wc[side], et, cabUp, axIn, d/rr);
+      if(sgn===1&&side===1) flangeMark=fC;
+      /* 记录被挤一侧的轮轨接触点（受力分析 / 挤压特效用） */
+      if(side===(SQ.side||1)){
+        if(sgn===1) contact=vadd(wc[side], vscale(cabUp,-rr));
+        sContacts.push(vadd(vadd(wc[side], vscale(cabUp,-0.28)), vscale(erR, (SQ.side||1)*0.10)));
+      }
+    }
+  }
+
+  /* —— 底盘：两侧纵梁 + 横梁 + 地板 —— */
+  for(const side of [1,-1])
+    addBox(vadd(vadd(mid, vscale(erR, side*sOff)), vscale(cabUp, rr+0.30)), et,wheelLen+0.18, erR,0.10, cabUp,0.10, '#2f3a4a');
+  for(const sgn of [-1,1])
+    addBox(vadd(vadd(mid, vscale(et, sgn*wheelLen)), vscale(cabUp, rr+0.42)), et,0.26, erR,sOff-0.04, cabUp,0.06, '#2f3a4a');
+  addBox(vadd(mid, vscale(cabUp, rr+0.50)), et,carHalf+0.10, erR,0.98, cabUp,0.06, '#334155');
+
+  /* —— 车厢：蓝色车身 + 深色车窗 + 白色腰线 + 浅灰车顶 —— */
+  const carC=vadd(mid, vscale(cabUp, rr+0.56+carH));
+  const body=addBox(carC, et,carHalf, erR,carW, cabUp,carH, '#2563eb');
+  addBox(vadd(carC, vscale(cabUp, carH+0.05)), et,carHalf+0.05, erR,carW+0.05, cabUp,0.05, '#e8eef5');
+  for(const side of [1,-1]){                  // 两侧车窗与腰线
+    const face=side===1?body.pos[1]:body.neg[1];
+    const fc=vadd(carC, vscale(erR, side*(carW+0.006)));
+    for(const wx of [-1.02,-0.34,0.34,1.02])
+      faceQuad(face, vadd(vadd(fc, vscale(et, wx)), vscale(cabUp, 0.16)), et,0.26, cabUp,0.19, '#123a75');
+    faceQuad(face, vadd(fc, vscale(cabUp, -0.26)), et,carHalf*0.96, cabUp,0.045, '#f1f5f9');
+  }
+  /* 前脸：挡风玻璃 + 两盏车灯；后脸一扇窗 */
+  const fcF=vadd(carC, vscale(et, carHalf+0.006));
+  faceQuad(body.pos[0], vadd(fcF, vscale(cabUp, 0.16)), erR,0.55, cabUp,0.20, '#123a75');
+  for(const side of [-1,1])
+    faceQuad(body.pos[0], vadd(vadd(fcF, vscale(erR, side*0.5)), vscale(cabUp, -0.28)), erR,0.09, cabUp,0.05, '#fde047');
+  const fcR=vadd(carC, vscale(et, -carHalf-0.006));
+  faceQuad(body.neg[0], vadd(fcR, vscale(cabUp, 0.16)), erR,0.55, cabUp,0.20, '#123a75');
+
+  flushPolys();
+  lastPose={carC:carC, er:F.er, cabUp:F.cabUp, contact:contact, sContacts:sContacts};
+
+  /* —— 标注（受力分析或脱轨翻倒时隐藏，避免画面拥挤） —— */
+  if(!showForces && derailP<0.3){
+    const headPos=vadd(vadd(carC, vscale(et, carHalf+0.45)), vscale(cabUp, carH));
+    text3(headPos,'车头',{dy:-12,color:'#1e40af',bold:true,size:13,align:'center'});
+    if(flangeMark){
+      const pT=vadd(flangeMark, vscale(cabUp, -0.30));           // 指向轮缘下缘（卡轨处）
+      const pA=vadd(flangeMark, vadd(vscale(cabUp, 0.45), vscale(erR, 1.2)));
+      line3(pT, pA, '#d97706', 1.5);
+      const pd=project(pT);
+      ctx.fillStyle='#d97706';
+      ctx.beginPath();ctx.arc(pd[0],pd[1],3,0,7);ctx.fill();
+      text3(pA,'轮缘',{color:'#b45309',bold:true,size:13,align:'center',dy:-12});
+    }
+  }
+}
+
+/* ================= 挤压状态 / 挤压特效 / 受力分析 ================= */
+/* 辅助量 a = v²/R − g·tanθ（轮缘沿轨面方向的弹力 F = m·cosθ·a）。
+   a>0 → N 的水平分量不够，轮缘挤压外轨；a<0 → 挤压内轨。 */
+function squeezeInfo(){
+  const a = trainV*trainV/R - G*Math.tan(theta);
+  if(Math.abs(a) < 0.06) return {side:0, k:0, a:0};   // 死区：视为无挤压
+  return {side: a>0 ? 1 : -1, k: Math.min(1, Math.abs(a)/3), a: a};
+}
+
+/* 轮缘与钢轨侧面的挤压处：放射状压痕短线（随时间闪烁） */
+function drawSqueezeFX(){
+  if(!SQ.side || !lastPose) return;
+  if(trainD<0 || trainD>Math.PI*RD) return;          // 只在弯道上显示
+  if(derailP>0.3) return;                            // 断轨脱轨后不再显示挤压火花
+  if(showForces) return;                             // 受力分析时由 F/F′ 箭头表达挤压，隐藏火花避免混淆
+  const col = SQ.side===1 ? '220,38,38' : '234,88,12';
+  const pulse = 0.65+0.35*Math.sin(animTime*1000/130);
+  for(const P of lastPose.sContacts){
+    for(const da of [-0.95,-0.5,0,0.5,0.95]){
+      const dir=vnorm(vadd(vscale(lastPose.er, SQ.side*Math.cos(da)), [0,Math.sin(da),0]));
+      line3(P, vadd(P, vscale(dir, (0.16+0.14*SQ.k)*pulse)), 'rgba('+col+','+(0.5+0.4*pulse)+')', 2.5);
+    }
+  }
+}
+
+/* 受力分析：火车受 mg、N、轨对车的弹力 F（沿轨面方向；重心处画一个——整体受力图，
+   轮缘接触处再画一个——实际作用点）与合力 F合=mv²/R（水平指向圆心）；
+   轨道受 F′（轮缘对钢轨的侧压力，与 F 互为牛三反作用） */
+function drawForces(){
+  if(!lastPose) return;
+  if(trainD<0 || trainD>Math.PI*RD) return;    // 受力分析仅在弯道段显示
+  const cc=lastPose.carC, er=lastPose.er, cabUp=lastPose.cabUp;
+  const ct=Math.cos(DRAW_THETA), st=Math.sin(DRAW_THETA);
+  const erR=vadd(vscale(er,ct), vscale([0,1,0],st));   // 轨面内径向（弹力 F/F′ 的方向）
+  const C=lastPose.contact;                            // 前轮轮缘与钢轨的接触点
+  const mgL=1.35;
+  const FSCALE=2.0;              // F、F′ 箭头相对 mg 的放大倍数（便于观察）
+  const FL = SQ.side ? mgL*Math.abs(SQ.a)*Math.cos(theta)/G*FSCALE+0.12 : 0;
+  /* 关键：火车在水平面内做圆周运动 → 三力的合力必须水平指向圆心。
+     F 沿轨面有竖直分量，所以 N 不再恒等于 mg/cosΘ：
+     挤外轨时 F 的竖直分量向下 → N 变大；挤内轨时 F 的竖直分量向上 → N 变小。
+     N、F合 的长度由"竖直分量抵消、水平分量合成向心力"实时确定，
+     使 mg、N、F 三个箭头的矢量和严格等于水平的 F合（闭合矢量图）。 */
+  const NL=(mgL + SQ.side*FL*st)/ct;
+  const FcL=mgL*st/ct + SQ.side*FL/ct;
+  /* —— 火车受到的力（画在车厢质心处） —— */
+  arrow3(cc, vadd(cc,[0,-mgL,0]), '#dc2626', 3, 'mg', {dy:16});
+  arrow3(cc, vadd(cc, vscale(cabUp, NL)), '#2563eb', 3, 'N', {dy:-16});
+  arrow3(cc, vadd(cc, vscale(er, -FcL)), '#0891b2', 2.5, 'F合', {dash:[6,5], dy:-18});
+  if(SQ.side){
+    /* 质心处的 F 与轮缘处的 F 是同一个力：按屏幕投影长度归一（透视补偿），
+       保证任何视角下两处箭头看起来都一样长 */
+    const dirF=vscale(erR,-SQ.side);
+    const projLen=(a,L)=>{const pa=project(a),pb=project(vadd(a,vscale(dirF,L)));return Math.hypot(pb[0]-pa[0],pb[1]-pa[1]);};
+    const FLcom=Math.min(FL*3, FL*projLen(C,FL)/Math.max(projLen(cc,FL),1e-6));
+    arrow3(cc, vadd(cc, vscale(dirF, FLcom)), '#7c3aed', 3, null);
+    text3(vadd(cc, vscale(dirF, FLcom+0.32)), 'F', {color:'#7c3aed', bold:true, align:'center'});
+  }
+  /* —— F 与 F′：画在接触点 C 上，沿轨面反向、等长 ——
+     （牛三反作用对：F 轨对车、F′ 车对轨；同起点便于看出两力相等） —— */
+  if(SQ.side){
+    arrow3(C, vadd(C, vscale(erR, -SQ.side*FL)), '#7c3aed', 3, null);
+    text3(vadd(C, vscale(erR, -SQ.side*(FL+0.35))), 'F', {color:'#7c3aed', bold:true, align:'center'});
+    arrow3(C, vadd(C, vscale(erR,  SQ.side*FL)), '#f97316', 3, null);
+    text3(vadd(C, vscale(erR,  SQ.side*(FL+0.35))), 'F′', {color:'#f97316', bold:true, align:'center'});
+  }
+}
+
+/* ================= 地面网格 ================= */
+function drawGround(){
+  const gs=2, n=5;
+  for(let i=-n;i<=n;i++){
+    line3([i*gs,0,-n*gs],[i*gs,0,n*gs],'rgba(130,144,163,0.15)',1);
+    line3([-n*gs,0,i*gs],[n*gs,0,i*gs],'rgba(130,144,163,0.15)',1);
+  }
+}
+
+/* ================= 主绘制 ================= */
+function draw(){
+  ctx.clearRect(0,0,W,Hh);
+  drawGround();
+  drawTrack();
+  drawStraightTrack();
+  drawTrain(trainD);
+  drawSqueezeFX();
+  if(showForces) drawForces();
+  text3([0, 6.5, 0],'直轨道 + 倾斜半圆弯道（外高内低）',{align:'center',color:'#5b6b7d',size:13});
+}
+
+/* ================= 数据面板 ================= */
+const el2 = id=>document.getElementById(id);
+function updatePanel(){
+  const over = trainV>V_HI ? 1 : (trainV<V_LO ? -1 : 0);
+  if(over || derailP>0.02){
+    const s = over || derailSide;
+    el2('d2State').innerHTML = s===1
+      ? '<span class="tag-track derail">外轨断裂 · 向外脱轨！</span>'
+      : '<span class="tag-track derail">内轨断裂 · 向内脱轨！</span>';
+    el2('d2F').textContent = '≈ '+(Math.abs(SQ.a)*Math.cos(theta)/G).toFixed(2)+' mg ≥ 0.15 mg';
+    return;
+  }
+  if(!SQ.side){
+    el2('d2State').innerHTML = '<span class="tag-track none">无挤压</span>';
+    el2('d2F').textContent = '0';
+  }else{
+    el2('d2State').innerHTML = SQ.side===1
+      ? '<span class="tag-track outer">挤压外轨</span>'
+      : '<span class="tag-track inner">挤压内轨</span>';
+    el2('d2F').textContent = '≈ '+(Math.abs(SQ.a)*Math.cos(theta)/G).toFixed(2)+' mg';
+  }
+}
+
+/* ================= 主循环 ================= */
+let lastT = null;
+function frame(now){
+  if(lastT===null)lastT=now;
+  const dt=Math.min((now-lastT)/1000,0.05);
+  lastT=now;
+  SQ = squeezeInfo();
+  if(!paused){
+    animTime += dt;
+    /* 脱轨判定：超过断裂阈值且已进入弯道 → 逐渐翻倒；速度恢复后缓缓复位 */
+    const onArc = trainD>=0 && trainD<=Math.PI*RD;
+    const over = trainV>V_HI ? 1 : (trainV<V_LO ? -1 : 0);
+    if(over && onArc){
+      derailSide = over;
+      derailP = Math.min(1, derailP + dt*1.3);
+    }else{
+      derailP = Math.max(0, derailP - dt*0.7);
+      if(derailP===0) derailSide = 0;
+    }
+    /* 脱轨翻倒时火车停在断轨处 */
+    if(derailP<0.02) oscPhase += dt*0.625*(trainV/v0);
+  }
+  trainD = Math.PI*RD/2 + (STR_LEN + Math.PI*RD/2)*Math.sin(oscPhase);
+  draw();
+  updatePanel();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ================= 交互：速度滑块 / 受力分析开关 ================= */
+el2('v2In').addEventListener('input',e=>{
+  trainV=parseFloat(e.target.value);
+  el2('v2Val').textContent=trainV.toFixed(1);
+});
+el2('pauseBtn').addEventListener('click',()=>{
+  paused=!paused;
+  el2('pauseBtn').textContent=paused?'继续':'暂停';
+  el2('pauseBtn').classList.toggle('btn-primary',paused);
+  el2('pauseBtn').classList.toggle('btn-ghost',!paused);
+});
+el2('forceBtn').addEventListener('click',()=>{
+  showForces=!showForces;
+  el2('forceBtn').textContent=showForces?'隐藏受力分析':'显示受力分析';
+  el2('forceBtn').classList.toggle('btn-primary',showForces);
+  el2('forceBtn').classList.toggle('btn-ghost',!showForces);
+  el2('forceLegend').classList.toggle('hidden',!showForces);
+});
+
+/* 滑块刻度点：内轨断裂阈值 / 临界速度 v₀ / 外轨断裂阈值 */
+(function(){
+  const sc=el2('v2Scale'), min=5, max=40;
+  const mk=(v,cls,txt)=>{
+    const pct=(v-min)/(max-min);
+    const t=document.createElement('div');
+    t.className='tick '+cls;
+    /* 补偿滑块拇指宽度（约 14px），使刻度与拇指中心对齐 */
+    t.style.left='calc('+(pct*100).toFixed(2)+'% + '+((0.5-pct)*14).toFixed(1)+'px)';
+    t.appendChild(document.createElement('i'));
+    t.appendChild(document.createTextNode(txt));
+    sc.appendChild(t);
+  };
+  mk(V_LO,'warn',V_LO.toFixed(1)+' 内断');
+  mk(v0,'crit','v₀');
+  mk(V_HI,'danger',V_HI.toFixed(1)+' 外断');
+})();
+
+/* ================= 交互：旋转视角 / 缩放 ================= */
+let drag=null;
+cv.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY};});
+window.addEventListener('mousemove',e=>{
+  if(!drag)return;
+  cam.az += (e.clientX-drag.x)*0.006;
+  cam.el = Math.min(1.3,Math.max(0.08,cam.el-(e.clientY-drag.y)*0.006));
+  drag={x:e.clientX,y:e.clientY};
+});
+window.addEventListener('mouseup',()=>drag=null);
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  cam.dist=Math.min(26,Math.max(7,cam.dist*(1+Math.sign(e.deltaY)*0.08)));
+},{passive:false});
+})();
+</script>
+
+</body>
+</html>
