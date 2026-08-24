@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>原子的结构 · 3D 交互演示</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    background: linear-gradient(135deg, #0c0f1d, #161a30);
+    font-family: -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+    color: #dbe4f5;
+  }
+  header {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    text-align: center; z-index: 5; pointer-events: none; white-space: nowrap;
+  }
+  h1 {
+    margin: 0; font-size: 26px; letter-spacing: 2px;
+    background: linear-gradient(90deg, #64b5f6, #4dd0e1);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  header p { margin: 4px 0 0; font-size: 13px; color: #8fa3c8; }
+  .card {
+    position: fixed; z-index: 6;
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 14px; padding: 14px 16px;
+    backdrop-filter: blur(8px);
+  }
+  #panelLeft  { left: 16px;  top: 92px; width: 280px; }
+  #panelRight { right: 16px; top: 92px; width: 300px; }
+  .sec { font-size: 13px; color: #4dd0e1; letter-spacing: 2px; margin: 12px 0 8px; }
+  .sec:first-child { margin-top: 0; }
+  .elgrid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .elgrid button {
+    padding: 7px 0; border-radius: 9px;
+    border: 1px solid rgba(255,255,255,.15);
+    background: rgba(255,255,255,.06); color: #cdd9ee;
+    font-size: 13px; cursor: pointer; transition: all .15s;
+    font-family: inherit;
+  }
+  .elgrid button:hover { border-color: #4dd0e1; color: #4dd0e1; }
+  .elgrid button.active { background: rgba(77,208,225,.18); border-color: #4dd0e1; color: #4dd0e1; font-weight: bold; }
+  .drow {
+    display: flex; justify-content: space-between; gap: 10px;
+    font-size: 13px; padding: 5px 0;
+    border-bottom: 1px dashed rgba(255,255,255,.07);
+  }
+  .drow span:first-child { color: #93a4c7; flex-shrink: 0; }
+  .drow span:last-child { color: #eaf1ff; font-variant-numeric: tabular-nums; text-align: right; }
+  .row { margin: 10px 0; }
+  .row label { display: flex; justify-content: space-between; font-size: 13px; color: #aebcdf; margin-bottom: 4px; }
+  .row label b { color: #64b5f6; font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: #4dd0e1; cursor: pointer; }
+  .btnrow { display: flex; gap: 8px; margin-top: 10px; }
+  .btnrow button {
+    flex: 1; padding: 7px 0; border-radius: 9px;
+    border: 1px solid rgba(255,255,255,.15);
+    background: rgba(255,255,255,.06); color: #cdd9ee;
+    font-size: 13px; cursor: pointer; transition: all .15s;
+    font-family: inherit;
+  }
+  .btnrow button:hover { border-color: #4dd0e1; color: #4dd0e1; }
+  .btnrow button.active { background: rgba(77,208,225,.18); border-color: #4dd0e1; color: #4dd0e1; font-weight: bold; }
+  .legend { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; color: #c6d2ea; }
+  .dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .note { font-size: 11px; color: #6c7da3; margin-top: 10px; line-height: 1.6; }
+  #hint {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    color: #5f7099; font-size: 12px; z-index: 5; pointer-events: none; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>原子的结构</h1>
+  <p>质子 + 中子 → 原子核（带正电） · 核外电子（带负电）绕核高速旋转</p>
+</header>
+
+<div class="card" id="panelLeft">
+  <div class="sec">选 择 元 素</div>
+  <div class="elgrid" id="elGrid"></div>
+
+  <div class="sec">原 子 信 息</div>
+  <div class="drow"><span>元素</span><span id="dName">—</span></div>
+  <div class="drow"><span>原子序数 Z</span><span id="dZ">—</span></div>
+  <div class="drow"><span>质子数（正电荷）</span><span id="dP">—</span></div>
+  <div class="drow"><span>中子数（不带电）</span><span id="dN">—</span></div>
+  <div class="drow"><span>核外电子数（负电荷）</span><span id="dE">—</span></div>
+  <div class="drow"><span>电子层排布</span><span id="dShell">—</span></div>
+  <div class="drow"><span>整体电性</span><span id="dCharge" style="color:#4dd0e1">电中性</span></div>
+</div>
+
+<div class="card" id="panelRight">
+  <div class="sec">演 示 控 制</div>
+  <div class="row">
+    <label><span>电子旋转速度</span><b id="speedVal">1.0×</b></label>
+    <input type="range" id="speed" min="0.1" max="3" step="0.1" value="1">
+  </div>
+  <div class="btnrow">
+    <button id="btnPlay">⏸ 暂停</button>
+    <button id="btnOrbit" class="active">电子轨道</button>
+    <button id="btnSpin" class="active">自动转视角</button>
+  </div>
+  <div class="btnrow">
+    <button id="btnReset">重置视角</button>
+  </div>
+
+  <div class="sec">图 例</div>
+  <div class="legend"><div class="dot" style="background:#ff5252"></div>质子：带 1 个单位正电荷（+e）</div>
+  <div class="legend"><div class="dot" style="background:#b0bec5"></div>中子：不带电（电中性）</div>
+  <div class="legend"><div class="dot" style="background:#448aff"></div>电子：带 1 个单位负电荷（−e）</div>
+
+  <div class="note">
+    原子核由质子和中子构成，体积小、质量大，几乎集中了原子的全部质量；核外电子在核外空间绕核高速运动。质子数 = 核外电子数，正负电荷相等，所以原子整体呈电中性。球的大小与轨道半径均为示意，并非真实比例。
+  </div>
+</div>
+
+<div id="hint">🖱 左键拖动旋转 · 滚轮缩放 · 右键平移</div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+'use strict';
+/* ---------------- 元素数据：Z、符号、名称、中子数（常见同位素） ---------------- */
+const ELEMENTS = [
+  { z: 1,  sym: 'H',  name: '氢', n: 0  },
+  { z: 2,  sym: 'He', name: '氦', n: 2  },
+  { z: 3,  sym: 'Li', name: '锂', n: 4  },
+  { z: 4,  sym: 'Be', name: '铍', n: 5  },
+  { z: 5,  sym: 'B',  name: '硼', n: 6  },
+  { z: 6,  sym: 'C',  name: '碳', n: 6  },
+  { z: 7,  sym: 'N',  name: '氮', n: 7  },
+  { z: 8,  sym: 'O',  name: '氧', n: 8  },
+  { z: 9,  sym: 'F',  name: '氟', n: 10 },
+  { z: 10, sym: 'Ne', name: '氖', n: 10 },
+];
+
+/* ---------------- 场景基础 ---------------- */
+let scene, camera, renderer, controls;
+let atomGroup = null;          // 当前原子整体
+let nucleons = [];             // {mesh, base:Vector3, phase}
+let electrons = [];            // {mesh, shell, angle, speed}
+let orbitRings = [];
+let playing = true, speedFactor = 1.0, showOrbits = true;
+let currentZ = 6;
+const clock = new THREE.Clock();
+
+const NUCLEON_R = 0.34;        // 质子/中子半径
+const ELECTRON_R = 0.16;
+const SHELL_R0 = 2.2;          // 第一层轨道半径
+const SHELL_DR = 1.3;          // 层间距
+
+init();
+buildAtom(currentZ);
+animate();
+
+function init() {
+  scene = new THREE.Scene();
+  camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 200);
+  camera.position.set(6.5, 4.5, 9);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  document.body.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.06;
+  controls.autoRotate = true;
+  controls.autoRotateSpeed = 1.2;
+
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9);
+  key.position.set(5, 8, 6);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.35);
+  fill.position.set(-6, -4, -5);
+  scene.add(fill);
+
+  addStars();
+  buildElementButtons();
+  bindUI();
+  addEventListener('resize', onResize);
+}
+
+/* 背景星点，增强空间感 */
+function addStars() {
+  const N = 500, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 40 + Math.random() * 40;
+    const t = Math.random() * Math.PI * 2, p = Math.acos(2 * Math.random() - 1);
+    pos[i * 3]     = r * Math.sin(p) * Math.cos(t);
+    pos[i * 3 + 1] = r * Math.sin(p) * Math.sin(t);
+    pos[i * 3 + 2] = r * Math.cos(p);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({ color: 0x5f7099, size: 0.12, transparent: true, opacity: 0.7 });
+  scene.add(new THREE.Points(g, m));
+}
+
+/* ---------------- 文本标签（电荷符号 + / −） ---------------- */
+function makeLabel(text, color) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  ctx.font = 'bold 90px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0,0,0,.8)';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = color;
+  ctx.fillText(text, 64, 70);
+  const tex = new THREE.CanvasTexture(c);
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+  const sp = new THREE.Sprite(mat);
+  sp.scale.set(0.42, 0.42, 1);
+  return sp;
+}
+
+/* ---------------- 构建原子 ---------------- */
+function buildAtom(z) {
+  if (atomGroup) {
+    scene.remove(atomGroup);
+    atomGroup.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); }
+    });
+  }
+  atomGroup = new THREE.Group();
+  scene.add(atomGroup);
+  nucleons = []; electrons = []; orbitRings = [];
+
+  const el = ELEMENTS.find(e => e.z === z);
+
+  /* --- 原子核：质子(红)+中子(灰) 紧密成团 --- */
+  const total = el.z + el.n;
+  const clusterR = total <= 2 ? NUCLEON_R * 0.9 : NUCLEON_R * 0.95 * Math.cbrt(total);
+  const positions = clusterPositions(total, clusterR);
+
+  // 顺序打乱，使质子中子混杂
+  const kinds = [];
+  for (let i = 0; i < el.z; i++) kinds.push('p');
+  for (let i = 0; i < el.n; i++) kinds.push('n');
+  for (let i = kinds.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [kinds[i], kinds[j]] = [kinds[j], kinds[i]];
+  }
+
+  const protonMat = new THREE.MeshStandardMaterial({ color: 0xff5252, roughness: 0.35, metalness: 0.15, emissive: 0x551111 });
+  const neutronMat = new THREE.MeshStandardMaterial({ color: 0xb0bec5, roughness: 0.5, metalness: 0.1, emissive: 0x22282c });
+  const nucGeo = new THREE.SphereGeometry(NUCLEON_R, 24, 18);
+
+  kinds.forEach((kind, i) => {
+    const mesh = new THREE.Mesh(nucGeo, kind === 'p' ? protonMat : neutronMat);
+    mesh.position.copy(positions[i]);
+    if (kind === 'p') {
+      const label = makeLabel('+', '#ffffff');
+      label.position.set(0, 0.1, NUCLEON_R * 0.95);
+      mesh.add(label);
+    }
+    atomGroup.add(mesh);
+    nucleons.push({ mesh, base: positions[i].clone(), phase: Math.random() * Math.PI * 2 });
+  });
+
+  /* --- 核外电子：按电子层 2, 8, 18… 排布 --- */
+  const shells = shellConfig(z);
+  const eGeo = new THREE.SphereGeometry(ELECTRON_R, 20, 14);
+  const eMat = new THREE.MeshStandardMaterial({ color: 0x448aff, roughness: 0.3, metalness: 0.2, emissive: 0x0a2472 });
+
+  shells.forEach((count, si) => {
+    const R = SHELL_R0 + si * SHELL_DR;
+    // 每层轨道面略有倾斜，便于 3D 观察
+    const tiltX = (si === 0 ? 0.28 : -0.35 + si * 0.22);
+    const tiltZ = si * 0.5;
+    const quat = new THREE.Quaternion().setFromEuler(new THREE.Euler(tiltX, 0, tiltZ));
+
+    // 轨道圆环
+    const seg = 96, pts = [];
+    for (let i = 0; i <= seg; i++) {
+      const a = i / seg * Math.PI * 2;
+      const v = new THREE.Vector3(Math.cos(a) * R, 0, Math.sin(a) * R).applyQuaternion(quat);
+      pts.push(v);
+    }
+    const ringGeo = new THREE.BufferGeometry().setFromPoints(pts);
+    const ring = new THREE.Line(ringGeo, new THREE.LineBasicMaterial({ color: 0x3d5a80, transparent: true, opacity: 0.55 }));
+    atomGroup.add(ring);
+    orbitRings.push(ring);
+
+    // 电子均布在轨道上，内层转得快
+    for (let i = 0; i < count; i++) {
+      const mesh = new THREE.Mesh(eGeo, eMat);
+      const label = makeLabel('−', '#cfe0ff');
+      label.position.set(0, 0.05, ELECTRON_R * 1.1);
+      mesh.add(label);
+      atomGroup.add(mesh);
+      electrons.push({
+        mesh,
+        R, quat,
+        angle: i / count * Math.PI * 2,
+        speed: 1.6 / (1 + si * 0.55)   // 角速度：外层较慢
+      });
+    }
+  });
+
+  updateInfoPanel(el, shells);
+}
+
+/* 在团内均匀生成 total 个大致等距的位置（斐波那契球 + 中心点） */
+function clusterPositions(total, R) {
+  if (total === 1) return [new THREE.Vector3(0, 0, 0)];
+  const pts = [];
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < total; i++) {
+    const y = 1 - (i / (total - 1)) * 2;
+    const rad = Math.sqrt(Math.max(0, 1 - y * y));
+    const th = golden * i;
+    pts.push(new THREE.Vector3(Math.cos(th) * rad, y, Math.sin(th) * rad).multiplyScalar(R * 0.8));
+  }
+  return pts;
+}
+
+/* 电子层排布：2, 8, 18, 32… */
+function shellConfig(z) {
+  const shells = [];
+  let left = z, cap = 2;
+  while (left > 0) {
+    const take = Math.min(left, cap);
+    shells.push(take);
+    left -= take;
+    cap = Math.min(cap * 2, 32);
+  }
+  return shells;
+}
+
+/* ---------------- 信息面板 ---------------- */
+function updateInfoPanel(el, shells) {
+  document.getElementById('dName').textContent  = el.name + '（' + el.sym + '）';
+  document.getElementById('dZ').textContent     = el.z;
+  document.getElementById('dP').textContent     = el.z + '（+' + el.z + 'e）';
+  document.getElementById('dN').textContent     = el.n;
+  document.getElementById('dE').textContent     = el.z + '（−' + el.z + 'e）';
+  document.getElementById('dShell').textContent = shells.join(' · ');
+}
+
+/* ---------------- UI ---------------- */
+function buildElementButtons() {
+  const grid = document.getElementById('elGrid');
+  ELEMENTS.forEach(el => {
+    const b = document.createElement('button');
+    b.textContent = el.sym;
+    b.title = el.name;
+    if (el.z === currentZ) b.classList.add('active');
+    b.onclick = () => {
+      currentZ = el.z;
+      grid.querySelectorAll('button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      buildAtom(el.z);
+    };
+    grid.appendChild(b);
+  });
+}
+
+function bindUI() {
+  const speed = document.getElementById('speed');
+  speed.oninput = () => {
+    speedFactor = parseFloat(speed.value);
+    document.getElementById('speedVal').textContent = speedFactor.toFixed(1) + '×';
+  };
+  document.getElementById('btnPlay').onclick = function () {
+    playing = !playing;
+    this.textContent = playing ? '⏸ 暂停' : '▶ 播放';
+  };
+  document.getElementById('btnOrbit').onclick = function () {
+    showOrbits = !showOrbits;
+    orbitRings.forEach(r => r.visible = showOrbits);
+    this.classList.toggle('active', showOrbits);
+  };
+  document.getElementById('btnSpin').onclick = function () {
+    controls.autoRotate = !controls.autoRotate;
+    this.classList.toggle('active', controls.autoRotate);
+  };
+  document.getElementById('btnReset').onclick = () => {
+    camera.position.set(6.5, 4.5, 9);
+    controls.target.set(0, 0, 0);
+  };
+}
+
+/* ---------------- 动画循环 ---------------- */
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // 原子核轻微振动（表现核内粒子的热运动示意）
+  nucleons.forEach(n => {
+    const s = 0.045;
+    n.mesh.position.set(
+      n.base.x + Math.sin(t * 7 + n.phase) * s,
+      n.base.y + Math.sin(t * 9 + n.phase * 1.7) * s,
+      n.base.z + Math.cos(t * 8 + n.phase) * s
+    );
+  });
+
+  // 电子绕核旋转
+  if (playing) {
+    electrons.forEach(e => {
+      e.angle += e.speed * speedFactor * dt;
+      const v = new THREE.Vector3(Math.cos(e.angle) * e.R, 0, Math.sin(e.angle) * e.R);
+      v.applyQuaternion(e.quat);
+      e.mesh.position.copy(v);
+    });
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+function onResize() {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+}
+</script>
+</body>
+</html>
