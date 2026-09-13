@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>库仑扭秤实验 — 3D 交互模拟</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;background:#f2f5f9;color:#1f2937;min-height:100vh}
+.header{text-align:center;padding:22px 16px 10px}
+.header h1{font-size:1.7rem;color:#0f3d6e}
+.header p{color:#5b6b7d;margin-top:6px;font-size:.95rem}
+.wrap{display:flex;gap:18px;justify-content:center;align-items:flex-start;padding:14px 18px 30px;flex-wrap:wrap}
+.stage{background:#fff;border:1px solid #d7e0ea;border-radius:14px;box-shadow:0 6px 24px rgba(15,61,110,.08);padding:10px}
+#scene{width:980px;height:860px;border-radius:8px;overflow:hidden;cursor:grab;position:relative}
+#scene:active{cursor:grabbing}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+.prog{margin-top:10px;color:#5b6b7d;font-size:.92rem;font-weight:600}
+.hintbar{position:absolute;left:24px;top:262px;width:240px;background:rgba(255,248,230,.94);border:1px solid #f3e2a9;border-radius:10px;padding:10px 12px;font-size:1.05rem;color:#7a5b13;line-height:1.6;box-shadow:0 4px 16px rgba(15,61,110,.12);pointer-events:none;z-index:3}
+.hintbar b{color:#b45309}
+.panel{width:430px;display:flex;flex-direction:column;gap:14px}
+.card{background:#fff;border:1px solid #d7e0ea;border-radius:14px;padding:16px 18px;box-shadow:0 6px 24px rgba(15,61,110,.06)}
+.card h3{font-size:1.1rem;color:#0f3d6e;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid #e5ecf3}
+button{border:none;cursor:pointer;padding:8px 14px;border-radius:10px;font-size:.92rem;font-weight:600;transition:all .15s}
+.btn-primary{background:#2563eb;color:#fff}
+.btn-primary:hover{background:#1d4ed8}
+.btn-ghost{background:#e8eef5;color:#33475b}
+.btn-ghost:hover{background:#d8e3ee}
+table{width:100%;border-collapse:collapse;font-size:.95rem;margin-top:6px}
+th,td{border:1px solid #e2e8f0;padding:6px 8px;text-align:center}
+th{background:#f1f5f9;color:#33475b;font-size:.88rem}
+td.sym{font-family:"Consolas",monospace;font-weight:700;color:#0f3d6e;font-size:1.05rem}
+td.val{color:#94a3b8}
+tr.done td.val{color:#b45309}
+@keyframes rowflash{0%{background:#fef3c7}100%{background:transparent}}
+tr.flash{animation:rowflash 1.8s ease}
+.tblcap{font-size:.88rem;color:#33475b;font-weight:600;margin-top:6px}
+.note{margin-top:8px;font-size:.83rem;color:#64748b;line-height:1.65}
+.fprop{margin-top:10px;font-size:.95rem;color:#b45309;font-weight:700;text-align:center;background:#fef3c7;border:1px solid #f3e2a9;border-radius:8px;padding:6px 8px}
+.footer{text-align:center;color:#8aa0b4;font-size:.8rem;padding:10px 0 24px}
+/* 放大镜（悬丝扭转 / 旋钮转角） */
+.lenswrap{position:absolute;top:24px;width:220px;height:220px;pointer-events:none}
+.lensR{left:736px}
+.lensL{left:24px}
+.lensring{position:absolute;inset:0;border-radius:50%;border:5px solid #8a5a33;background:rgba(255,255,255,.96);box-shadow:0 6px 20px rgba(15,61,110,.18);overflow:hidden}
+.lenstag{position:absolute;top:9px;left:0;right:0;text-align:center;font-size:12px;color:#64748b;font-weight:600}
+.lenscap{position:absolute;bottom:8px;left:0;right:0;text-align:center;font-size:14px;color:#b45309;font-weight:700}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>库仑扭秤实验（3D 交互模拟）</h1>
+  <p>探究库仑力与两球电荷量、两球间距离的关系 · 拖动旋转视角 · 滚轮缩放</p>
+</div>
+<div class="wrap">
+  <div>
+    <div class="stage">
+      <div id="scene">
+        <div class="lenswrap lensL">
+          <div class="lensring">
+            <canvas id="knobCv" width="220" height="220"></canvas>
+            <div class="lenstag">旋钮 · 转角放大</div>
+            <div class="lenscap" id="knobCap">φ = 0.0°（逆时针）</div>
+          </div>
+        </div>
+        <div class="lenswrap lensR">
+          <div class="lensring">
+            <canvas id="lensCv" width="220" height="220"></canvas>
+            <div class="lenstag">悬丝 · 放大示意</div>
+            <div class="lenscap" id="lensCap">扭转角 α = 0.0°</div>
+          </div>
+        </div>
+        <div class="hintbar" id="hint">点击 <b>【力与 r 的关系】/【力与 q 的关系】</b>选择演示内容，再点击 <b>【开始实验】</b>；直接点击【开始实验】则演示完整实验。</div>
+      </div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="card">
+      <h3>控制</h3>
+      <div class="btns">
+        <button id="btnPlay" class="btn-primary">▶ 开始实验</button>
+        <button id="btnModeR" class="btn-ghost">力与 r 的关系</button>
+        <button id="btnModeQ" class="btn-ghost">力与 q 的关系</button>
+      </div>
+      <div class="prog" id="prog">准备就绪</div>
+    </div>
+    <div class="card" id="dataCard" style="display:none">
+      <h3>实验数据记录</h3>
+      <div id="tblR">
+        <div class="tblcap">F 与距离 r 的关系（q<sub>A</sub>、q<sub>C</sub> 不变）</div>
+        <table>
+          <thead><tr><th>实验<br>次数</th><th>A、C 间<br>距离</th><th>旋钮转角<br>（悬丝扭转角）</th></tr></thead>
+          <tbody>
+            <tr id="row1"><td>1</td><td class="sym">r</td><td class="sym val">—</td></tr>
+            <tr id="row2"><td>2</td><td class="sym">r/2</td><td class="sym val">—</td></tr>
+            <tr id="row3"><td>3</td><td class="sym">r/4</td><td class="sym val">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="tblQ">
+        <div class="tblcap" style="margin-top:10px">F 与电荷量的关系（r、q<sub>A</sub> 不变）</div>
+        <table>
+          <thead><tr><th>实验<br>次数</th><th>C 的<br>电荷量</th><th>旋钮转角<br>（悬丝扭转角）</th></tr></thead>
+          <tbody>
+            <tr id="qrow1"><td>1</td><td class="sym">q</td><td class="sym val">—</td></tr>
+            <tr id="qrow2"><td>2</td><td class="sym">q/2</td><td class="sym val">—</td></tr>
+            <tr id="qrow3"><td>3</td><td class="sym">q/4</td><td class="sym val">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="fprop">F ∝ α（悬丝扭转角）—— 转角的大小反映库仑力的大小</div>
+      <div class="note">A 回到原点后，悬丝的扭转角等于旋钮转角。A 的偏转角只用于观察现象，不作记录。</div>
+    </div>
+  </div>
+</div>
+<div class="footer">库仑扭秤实验 3D 模拟 · three.min.js 已本地化，断网可用 · 小球尺寸为教学放大示意</div>
+<script src="three.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
