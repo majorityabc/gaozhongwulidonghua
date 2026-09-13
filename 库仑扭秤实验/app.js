@@ -3,7 +3,7 @@
  * 教学流程（自动演示，可用控制条暂停/重播）：
  *  第一步：C 球充电 → C 与 A 接触起电（A 带上同种电荷）→ 分开后两球排斥，A 偏转。
  *  第二步：保持 qA、qC 不变，探究 F 与距离 r 的关系：
- *    C 依次放在 r、r/2、r/4 处，A 偏转后用手逆时针转旋钮使 A 回原点，
+ *    C 依次放在 r、r/2、r/4 处，A 偏转后用扳手逆时针转旋钮使 A 回原点，
  *    旋钮转角依次为 θ、4θ、16θ ⟹ F ∝ 1/r²。
  *  第三步：保持 r、qA 不变，探究 F 与电荷量的关系：
  *    第 1 次：C（电荷量 q）放在 r 处 → 转旋钮归零，转角为 θ；
@@ -59,7 +59,7 @@ var state = {
   cRad: RAD_OUT,             // C 的径向外移量（场景单位，0=在圆周上）
   dZ: DZ_OUT,                // D 的 z 坐标（场景单位）
   spring: false,             // 是否启用偏转弹簧（转旋钮时改为直接插值）
-  handT: 0,                  // 手的就位程度 0=隐藏 1=握住旋钮
+  handT: 0,                  // 扳手的就位程度 0=隐藏 1=钳住旋钮
   rText: null,               // r 标注文字（"r" / "r/2" / "r/4" / null）
   forceRel: 0,               // 库仑力相对大小（控制箭头长度）
   sparkT: 0, sparkPos: null
@@ -144,7 +144,6 @@ var matInsul  = new THREE.MeshStandardMaterial({ color: 0xf0e6c0, metalness: 0.0
 var matCharged = new THREE.MeshStandardMaterial({ color: 0xdc2626, metalness: 0.35, roughness: 0.4 });
 var matNeutral = new THREE.MeshStandardMaterial({ color: 0x8fa3b8, metalness: 0.5, roughness: 0.45 });
 var matGlass  = new THREE.MeshPhysicalMaterial({ color: 0xd8ecff, transparent: true, opacity: 0.16, roughness: 0.06, metalness: 0, side: THREE.DoubleSide, depthWrite: false });
-var matSkin   = new THREE.MeshStandardMaterial({ color: 0xf2c19b, metalness: 0.0, roughness: 0.65 });
 
 function addMesh(geo, mat, x, y, z, parent, shadow) {
   var m = new THREE.Mesh(geo, mat);
@@ -386,7 +385,7 @@ function drawRLabel(text) {
   rLabelTex.needsUpdate = true;
 }
 
-// ---------- 右手（转旋钮时出现，握住旋钮随之转动） ----------
+// ---------- 扳手（转旋钮时出现，U 形钳口卡住旋钮随之转动） ----------
 // 用圆柱 + 球头拼成“胶囊”（本 three 版本无 CapsuleGeometry）
 function capsule(r, len, mat) {
   var g = new THREE.Group();
@@ -395,45 +394,23 @@ function capsule(r, len, mat) {
   var s2 = new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), mat); s2.position.y = -len / 2; g.add(s2);
   return g;
 }
-function aimY(obj, dir) {   // 让物体的 +y 轴指向 dir
-  obj.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-}
-// 从 from 到 to 的一段“手指/手臂”（圆柱+两端球头）
-function fingerSeg(x1, y1, z1, x2, y2, z2, r) {
-  var from = new THREE.Vector3(x1, y1, z1), to = new THREE.Vector3(x2, y2, z2);
-  var f = capsule(r, from.distanceTo(to), matSkin);
-  f.position.copy(from).add(to).multiplyScalar(0.5);
-  aimY(f, to.clone().sub(from));
-  return f;
-}
 var handGroup = new THREE.Group(); handGroup.position.y = HEAD_Y; handGroup.visible = false; scene.add(handGroup);
 var handSlide = new THREE.Group(); handGroup.add(handSlide);   // 沿局部 +x 滑入/滑出
-(function buildHand() {
-  // 拳头（掌背）：盖在旋钮上方，手指从拳沿延伸下来——手指与手掌相连
-  var palm = new THREE.Mesh(new THREE.SphereGeometry(0.30, 20, 16), matSkin);
-  palm.scale.set(1.3, 0.78, 1.15);
-  palm.position.set(0.02, 0.35, 0);
-  handSlide.add(palm);
-  // 四指：从拳的前沿向下扣在旋钮前侧（朝向相机），中间两指略长
-  var fx = [-0.24, -0.08, 0.08, 0.24];
-  var tipY = [-0.02, -0.06, -0.06, -0.02];
-  for (var i = 0; i < 4; i++) {
-    handSlide.add(fingerSeg(fx[i], 0.30, 0.10, fx[i] * 1.15, tipY[i], 0.46, 0.075));
-  }
-  // 拇指：扣在旋钮 +x 侧面
-  handSlide.add(fingerSeg(0.28, 0.26, 0.14, 0.50, 0.04, -0.10, 0.085));
-  // 手腕（与拳相连）
-  var wrist = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), matSkin);
-  wrist.position.set(0.44, 0.46, -0.04);
-  handSlide.add(wrist);
-  // 小臂（向右上方延伸）
-  handSlide.add(fingerSeg(0.55, 0.55, -0.06, 1.45, 1.28, -0.18, 0.145));
-  // 袖口
-  var cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.19, 0.21, 0.24, 16),
-    new THREE.MeshStandardMaterial({ color: 0x3b6ea5, roughness: 0.7 }));
-  cuff.position.set(1.50, 1.33, -0.19);
-  aimY(cuff, new THREE.Vector3(0.90, 0.73, -0.12));
-  handSlide.add(cuff);
+(function buildWrench() {
+  var matWrench = new THREE.MeshStandardMaterial({ color: 0xd4dbe3, metalness: 0.45, roughness: 0.4 });
+  var JAW_Y = 0.02;
+  // U 形钳口：开口朝 −x（扳手滑入时旋钮进入凹陷处），钳背在 +x 侧接手柄
+  addMesh(new THREE.BoxGeometry(0.18, 0.10, 1.20), matWrench, 0.52, JAW_Y, 0, handSlide);              // 钳背
+  addMesh(new THREE.BoxGeometry(0.95, 0.10, 0.20), matWrench, -0.02, JAW_Y, 0.51, handSlide);          // 上钳臂
+  addMesh(new THREE.BoxGeometry(0.95, 0.10, 0.20), matWrench, -0.02, JAW_Y, -0.51, handSlide);         // 下钳臂
+  addMesh(new THREE.CylinderGeometry(0.10, 0.10, 0.10, 16), matWrench, -0.495, JAW_Y, 0.51, handSlide);   // 钳臂圆头
+  addMesh(new THREE.CylinderGeometry(0.10, 0.10, 0.10, 16), matWrench, -0.495, JAW_Y, -0.51, handSlide);
+  // 手柄（沿 +x 延伸）+ 柄尾
+  var handle = capsule(0.075, 1.55, matWrench);
+  handle.position.set(1.45, JAW_Y, 0);
+  handle.rotation.z = Math.PI / 2;
+  handSlide.add(handle);
+  addMesh(new THREE.BoxGeometry(0.30, 0.11, 0.20), matWrench, 2.30, JAW_Y, 0, handSlide);
 })();
 
 // ================= 工具函数 =================
@@ -613,8 +590,8 @@ function segDeflect(deg, dur) {
   return { dur: dur || 2.4, begin: function () { state.spring = true; state.betaT = deg * DEG; } };
 }
 
-// 手出现 → 转旋钮到 phiDeg → A 同步回原点 → 手退出
-// opts.rate：手转速 °/s（默认 55）；opts.minTurn：转动阶段最短时长；
+// 扳手出现 → 转旋钮到 phiDeg → A 同步回原点 → 扳手退出
+// opts.rate：扳手转速 °/s（默认 55）；opts.minTurn：转动阶段最短时长；
 // opts.moveCOut=true：转动的同时把 C 移出装置并转回停靠角（用于每次测量间归零复位）
 function segTurnKnob(phiDeg, betaDeg, opts) {
   opts = opts || {};
@@ -722,7 +699,7 @@ var TL_R = [
   segWait(2.0),
 
   // 复位：旋钮转回零，悬丝恢复自然；移出 C，A 保持在原点
-  segHint("<b>复位：</b>手把旋钮<b>转回零</b>，悬丝恢复自然（无转角）；同时移出 C，A 保持在原点。"),
+  segHint("<b>复位：</b>扳手把旋钮<b>转回零</b>，悬丝恢复自然（无转角）；同时移出 C，A 保持在原点。"),
   segTurnKnob(0, 0, { rate: 55, minTurn: 1.4, moveCOut: true }),
   segWait(0.8),
 
