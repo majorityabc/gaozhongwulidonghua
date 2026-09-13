@@ -203,10 +203,6 @@ scalePlane.position.y = 0.395;
 scalePlane.receiveShadow = true;
 scene.add(scalePlane);
 
-// 原点（0°）红色标记锥
-var markCone = addMesh(new THREE.ConeGeometry(0.07, 0.16, 16), new THREE.MeshStandardMaterial({ color: 0xe11d48, roughness: 0.5 }),
-  2.3 * Math.cos(TH0), 0.47, 2.3 * Math.sin(TH0));
-
 // ---------- 顶部：盖板、立管、扭秤头 ----------
 addMesh(new THREE.CylinderGeometry(2.7, 2.7, 0.08, 48), matCopper, 0, HEAD_Y - 2.02, 0);       // 顶盖
 var tube = addMesh(new THREE.CylinderGeometry(0.17, 0.17, 1.75, 24, 1, true), matGlass, 0, HEAD_Y - 1.10, 0, scene, false);
@@ -935,8 +931,9 @@ function resetAll() {
   tl.i = -1; tl.t = 0; tl.playing = false; tl.started = false; tl.done = false;
   updatePlayBtn();
 }
-// 界面随模式切换：完整实验不显示数据卡；r/q 模式显示对应数据表
+// 界面随模式切换：未选模式时隐藏开始按钮和数据卡；r/q 模式显示开始按钮 + 对应数据表
 function setModeUI(mode) {
+  btnPlay.style.display = mode === "full" ? "none" : "";
   $("dataCard").style.display = mode === "full" ? "none" : "";
   $("tblR").style.display = mode === "q" ? "none" : "";
   $("tblQ").style.display = mode === "r" ? "none" : "";
