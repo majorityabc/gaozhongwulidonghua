@@ -899,7 +899,7 @@ function nextSeg() {
   }
   if (tl.i >= TL.length) {
     tl.playing = false; tl.done = true;
-    setProg("实验结束（可点击按钮单独演示某一步骤）");
+    setProg("实验结束");
     updatePlayBtn();
   }
 }
