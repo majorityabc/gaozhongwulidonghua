@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>电场线和等势面 · 3D 交互演示</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body {
+    background: linear-gradient(135deg, #0c0f1d, #161a30);
+    font-family: -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;
+    color: #dbe4ff;
+  }
+  canvas { display: block; }
+  header {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    text-align: center; z-index: 10; pointer-events: none; width: 100%;
+  }
+  h1 {
+    margin: 0; font-size: 26px; letter-spacing: 2px;
+    background: linear-gradient(90deg, #64b5f6, #4dd0e1);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .card {
+    position: fixed; z-index: 10;
+    background: rgba(255, 255, 255, .05);
+    border: 1px solid rgba(255, 255, 255, .1);
+    border-radius: 14px; padding: 12px 14px;
+    backdrop-filter: blur(6px);
+  }
+  #panelLeft  { left: 14px;  top: 84px; width: 246px; }
+  .label { font-size: 13px; color: #8fa3d0; margin: 10px 0 6px; }
+  .label:first-child { margin-top: 0; }
+  .btn {
+    padding: 7px 12px; border: 1px solid rgba(120, 150, 220, .35); border-radius: 10px;
+    background: rgba(30, 42, 75, .6); color: #a9bee8; font-size: 13px; cursor: pointer;
+    transition: all .15s;
+  }
+  .btn:hover { border-color: #64b5f6; color: #cfe3ff; }
+  .btn.active {
+    background: linear-gradient(90deg, #64b5f6, #4dd0e1);
+    color: #0c1226; border-color: transparent; font-weight: 600;
+  }
+  #modeBtns .btn { display: block; width: 100%; margin: 4px 0; text-align: left; }
+  input[type=range] { width: 100%; accent-color: #4dd0e1; }
+  .mode-desc {
+    font-size: 12px; color: #9fb2dd; line-height: 1.55;
+    background: rgba(255, 255, 255, .04); border-radius: 8px; padding: 7px 9px; margin-top: 10px;
+  }
+  #hint {
+    position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+    color: #c9d6f2; font-size: 13px; z-index: 10; text-align: center;
+    background: rgba(20, 30, 55, .7); padding: 7px 18px; border-radius: 12px;
+    max-width: 92%; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>电场线和等势面</h1>
+</header>
+
+<div id="panelLeft" class="card">
+  <div class="label">场源模式</div>
+  <div id="modeBtns">
+    <button class="btn active" data-mode="0">单正点电荷</button>
+    <button class="btn" data-mode="1">单负点电荷</button>
+    <button class="btn" data-mode="2">等量异种双电荷</button>
+    <button class="btn" data-mode="3">等量同种双电荷</button>
+  </div>
+  <div class="mode-desc" id="modeDesc"></div>
+
+  <button class="btn" id="btn2d" style="display:block;width:100%;margin-top:10px">2D 等势线视图</button>
+
+  <div class="label">等势面密度（<b id="isoVal" style="color:#4dd0e1">4</b> 档）</div>
+  <input type="range" id="isoSlider" min="1" max="6" step="1" value="4">
+  <div class="mode-desc">相邻等势面电势差 Δφ 相等；从 1 档（仅最内层）起，每加 1 档就向外多套一层等势面——可清楚看出「场强大的地方等势面更密」。</div>
+</div>
+
+<div id="hint">左键旋转 · 滚轮缩放 · 右键平移</div>
+
+<script src="lib/three.min.js"></script>
+<script src="lib/OrbitControls.js"></script>
+<script>
+'use strict';
+// ================= 物理常量与场源配置 =================
+const K  = 8.99e9;      // 静电力常量 N·m²/C²
+const Q0 = 1e-6;        // 场源电荷大小 1 μC
+const KQ = K * Q0;      // kQ = 8990 V·m
+
+const MODES = [
+  {
+    name: '单正点电荷',
+    desc: '等势面是以正电荷为球心的同心球壳；φ > 0，越靠近电荷 φ 越高、等势面越密（场强越大）。',
+    charges: [{ q: 1, x: 0, y: 0, z: 0 }],
+    cam: [6.4, 4.9, 11], seeds: 14,
+  },
+  {
+    name: '单负点电荷',
+    desc: '等势面仍是以电荷为球心的同心球壳，但 φ < 0；越靠近负电荷电势越低（蓝色越深）。电场线指向电荷。',
+    charges: [{ q: -1, x: 0, y: 0, z: 0 }],
+    cam: [6.4, 4.9, 11], seeds: 14,
+  },
+  {
+    name: '等量异种双电荷',
+    desc: '等量异种电荷（电偶极子）：两电荷连线的中垂面是 φ = 0 的等势面；正电荷一侧 φ > 0（红），负电荷一侧 φ < 0（蓝）。',
+    charges: [{ q: 1, x: -2.4, y: 0, z: 0 }, { q: -1, x: 2.4, y: 0, z: 0 }],
+    cam: [7, 5.2, 12.4], seeds: 13, inner: true, outer: true, zeroPlane: true,
+  },
+  {
+    name: '等量同种双电荷',
+    desc: '等量同种正电荷：电势较高的等势面各自包围一个电荷；降到连线中点（场强为零的鞍点）的电势 2kQ/a 时两族等势面恰好相接；更低的等势面把两个电荷一起包围，远处趋于球面。调大密度档数可看清这一转变。',
+    charges: [{ q: 1, x: -2.4, y: 0, z: 0 }, { q: 1, x: 2.4, y: 0, z: 0 }],
+    cam: [9, 7, 16], seeds: 12, outer: true,
+  },
+];
+
+// 等势面档位：固定的等差电势阶梯（相邻档 Δφ 相等），从最高档（最小等势面）起，
+// 档数每加 1 就向外多套一层等势面；电势范围取单电荷半径 r = ISO_R_MIN ~ ISO_R_MAX m
+// 之间的 φ = kQ/r。ISO_R_MIN 取 0.8：使同种双电荷连线中点的鞍点电势 2kQ/a ≈ 7.49 kV
+// 落入档位范围内，从而能同时看到「各自包围一个电荷」与「合并包围两个电荷」两类等势面。
+const ISO_R_MIN = 0.8, ISO_R_MAX = 5.6;
+const ISO_PHI_MAX = KQ / ISO_R_MIN, ISO_PHI_MIN = KQ / ISO_R_MAX;
+const ISO_MAX = 6;          // 密度滑块最大档数（与 #isoSlider 的 max 一致）：少而疏，Δφ 更大看得更清
+let isoCount = 4;           // 每种符号的等势面档数
+
+// 正电势档位 (V)：从 ISO_PHI_MAX 起按固定步长向外套加，高档位集合包含低档位集合。
+// span = 阶梯总间隔数：3D 视图 ISO_MAX−1 段；2D 视图密度加倍、步长减半
+function posLevels(n, span) {
+  const step = (ISO_PHI_MAX - ISO_PHI_MIN) / span;
+  n = Math.min(n, span + 1);   // 阶梯最多 span+1 档（恰好铺满 [ISO_PHI_MIN, ISO_PHI_MAX]）
+  const arr = [];
+  for (let i = 0; i < n; i++) arr.push(ISO_PHI_MAX - step * i);
+  return arr;
+}
+
+const CHARGE_R  = 0.28;     // 场源电荷球半径
+
+// ================= 物理场函数（方向计算取 k = 1） =================
+function fieldAt1(px, py, pz, charges) {
+  let ex = 0, ey = 0, ez = 0;
+  for (const c of charges) {
+    const dx = px - c.x, dy = py - c.y, dz = pz - c.z;
+    const r2 = dx * dx + dy * dy + dz * dz;
+    if (r2 < 1e-10) continue;
+    const f = c.q / (r2 * Math.sqrt(r2));
+    ex += f * dx; ey += f * dy; ez += f * dz;
+  }
+  return [ex, ey, ez];
+}
+
+// ================= 电场线积分（与合集电场线动画同法） =================
+const SEED_R = 0.36, DS = 0.05, MAX_STEPS = 1200, R_MAX = 13, HIT_R = 0.32;
+
+function fibonacciSphere(n) {
+  const pts = [], golden = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < n; i++) {
+    const y = 1 - (i / (n - 1)) * 2;
+    const r = Math.sqrt(Math.max(0, 1 - y * y));
+    const t = golden * i;
+    pts.push([Math.cos(t) * r, y, Math.sin(t) * r]);
+  }
+  return pts;
+}
+
+function traceLine(sx, sy, sz, dirSign, charges) {
+  const pts = [];
+  let x = sx, y = sy, z = sz, pex = 0, pey = 0, pez = 0;
+  for (let step = 0; step < MAX_STEPS; step++) {
+    pts.push(x, y, z);
+    const [ex, ey, ez] = fieldAt1(x, y, z, charges);
+    const len = Math.sqrt(ex * ex + ey * ey + ez * ez);
+    if (len < 1e-9) break;
+    if (step > 0 && ex * pex + ey * pey + ez * pez < 0) break;
+    pex = ex; pey = ey; pez = ez;
+    const s = DS * dirSign / len;
+    x += ex * s; y += ey * s; z += ez * s;
+    let hit = false;
+    for (const c of charges) {
+      const dx = x - c.x, dy = y - c.y, dz = z - c.z;
+      const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      const isSource = (dirSign > 0 && c.q > 0) || (dirSign < 0 && c.q < 0);
+      if (!isSource && d < HIT_R) { pts.push(x, y, z); hit = true; break; }
+    }
+    if (hit) break;
+    if (x * x + y * y + z * z > R_MAX * R_MAX) break;
+  }
+  return pts;
+}
+
+// ================= 等势面构建 =================
+// 单电荷：同心球壳；双电荷：利用绕连线的轴对称性，
+// 在 (x, ρ) 半平面上做 marching squares 提取等值线，再绕 x 轴旋转成面。
+// 归一化电势 Σqᵢ/rᵢ：场点为 z=0 平面上的 (x, y)。场源电荷均满足 y=z=0，
+// 第二个坐标只以平方出现，故带符号的 y 与 ρ=|y| 结果相同
+//（lathe 网格传 ρ≥0，xy 平面等势线网格传带符号 y）。
+function potentialN(x, rho, charges) {
+  let s = 0;
+  for (const c of charges) {
+    const dx = x - c.x;
+    const r = Math.sqrt(dx * dx + c.y * c.y + rho * rho);
+    if (r < 1e-6) return c.q * 1e9;
+    s += c.q / r;
+  }
+  return s;
+}
+
+function marchingSquares(phi, nx, nr, xMin, rMin, dx, dr, level) {
+  const segs = [];
+  for (let i = 0; i < nx - 1; i++) {
+    for (let j = 0; j < nr - 1; j++) {
+      const v00 = phi[i * nr + j],       v10 = phi[(i + 1) * nr + j];
+      const v01 = phi[i * nr + j + 1],   v11 = phi[(i + 1) * nr + j + 1];
+      const b00 = v00 > level, b10 = v10 > level, b01 = v01 > level, b11 = v11 > level;
+      if (b00 === b10 && b10 === b01 && b01 === b11) continue;
+      const x0 = xMin + i * dx, x1 = x0 + dx, r0 = rMin + j * dr, r1 = r0 + dr;
+      const pts = [];
+      if (b00 !== b10) { const t = (level - v00) / (v10 - v00); pts.push([x0 + t * dx, r0]); }
+      if (b10 !== b11) { const t = (level - v10) / (v11 - v10); pts.push([x1, r0 + t * dr]); }
+      if (b01 !== b11) { const t = (level - v01) / (v11 - v01); pts.push([x0 + t * dx, r1]); }
+      if (b00 !== b01) { const t = (level - v00) / (v01 - v00); pts.push([x0, r0 + t * dr]); }
+      if (pts.length === 2) {
+        segs.push([pts[0], pts[1]]);
+      } else if (pts.length === 4) {
+        // 鞍点：用单元中心均值消歧
+        const centerHigh = (v00 + v10 + v11 + v01) / 4 > level;
+        if ((b00 && b11 && centerHigh) || (b10 && b01 && !centerHigh)) {
+          segs.push([pts[0], pts[1]]); segs.push([pts[2], pts[3]]);
+        } else {
+          segs.push([pts[0], pts[3]]); segs.push([pts[1], pts[2]]);
+        }
+      }
+    }
+  }
+  return segs;
+}
+
+const RADIAL_SEGS = 48;
+
+// 把 marching squares 输出的零散线段按端点拼接成连续折线（相邻单元对同一交点的计算结果逐位相同）
+function chainSegments(segs) {
+  const key = p => p[0].toFixed(5) + ',' + p[1].toFixed(5);
+  const byStart = new Map(), byEnd = new Map();
+  segs.forEach((s, i) => { byStart.set(key(s[0]), i); byEnd.set(key(s[1]), i); });
+  const used = new Array(segs.length).fill(false);
+  const chains = [];
+  for (let i = 0; i < segs.length; i++) {
+    if (used[i]) continue;
+    used[i] = true;
+    const chain = [segs[i][0], segs[i][1]];
+    for (;;) {
+      const j = byStart.get(key(chain[chain.length - 1]));
+      if (j === undefined || used[j]) break;
+      used[j] = true;
+      chain.push(segs[j][1]);
+    }
+    for (;;) {
+      const j = byEnd.get(key(chain[0]));
+      if (j === undefined || used[j]) break;
+      used[j] = true;
+      chain.unshift(segs[j][0]);
+    }
+    chains.push(chain);
+  }
+  return chains;
+}
+
+// 折线绕 x 轴旋转成面（双电荷场关于连线轴对称）
+function buildLatheGeometry(chains, charges) {
+  const positions = [], normals = [], indices = [];
+  for (const chain of chains) {
+    const base = positions.length / 3;
+    const nP = chain.length;
+    for (let k = 0; k <= RADIAL_SEGS; k++) {
+      const th = 2 * Math.PI * k / RADIAL_SEGS, c = Math.cos(th), s = Math.sin(th);
+      for (const [x, r] of chain) {
+        positions.push(x, r * c, r * s);
+        // 等势面法线 = −E 方向（φ 增加方向），双面光照下方向符号不影响显示
+        const e = fieldAt1(x, r * c, r * s, charges);
+        const l = Math.hypot(e[0], e[1], e[2]) || 1;
+        normals.push(-e[0] / l, -e[1] / l, -e[2] / l);
+      }
+    }
+    for (let k = 0; k < RADIAL_SEGS; k++) {
+      for (let j = 0; j < nP - 1; j++) {
+        const a = base + k * nP + j, b = a + 1, c2 = a + nP, d = c2 + 1;
+        indices.push(a, c2, b, b, c2, d);
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geo.setIndex(indices);
+  return geo;
+}
+
+// ---- 等势面网格线（勾勒曲面轮廓，让面清晰可辨）----
+const WHITE = new THREE.Color(0xffffff);
+const SURF_GRID_ORDER = 10;   // 网格线在所有面片之后绘制，保持清晰
+
+function makeGridLineMat(col) {
+  return new THREE.LineBasicMaterial({
+    color: col.clone().lerp(WHITE, 0.45), transparent: true, opacity: 0.55, depthWrite: false,
+  });
+}
+
+// 球面经纬线（每 15° 一条）
+function makeSphereGrid(radius) {
+  const pos = [];
+  const SEG = 72;
+  for (let lat = -75; lat <= 75; lat += 15) {          // 纬线
+    const p = lat * Math.PI / 180, y = radius * Math.sin(p), rr = radius * Math.cos(p);
+    for (let i = 0; i < SEG; i++) {
+      const a = 2 * Math.PI * i / SEG, b = 2 * Math.PI * (i + 1) / SEG;
+      pos.push(rr * Math.cos(a), y, rr * Math.sin(a), rr * Math.cos(b), y, rr * Math.sin(b));
+    }
+  }
+  for (let m = 0; m < 12; m++) {                        // 经线
+    const t = Math.PI * m / 12;
+    for (let i = 0; i < SEG; i++) {
+      const p0 = -Math.PI / 2 + Math.PI * i / SEG, p1 = -Math.PI / 2 + Math.PI * (i + 1) / SEG;
+      pos.push(
+        radius * Math.cos(p0) * Math.cos(t), radius * Math.sin(p0), radius * Math.cos(p0) * Math.sin(t),
+        radius * Math.cos(p1) * Math.cos(t), radius * Math.sin(p1), radius * Math.cos(p1) * Math.sin(t)
+      );
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return geo;
+}
+
+// 旋转面网格线：经线（沿母线）+ 纬线（绕轴圆周）
+function makeLatheGridLines(chains) {
+  const pos = [];
+  const meridianStep = Math.max(1, Math.round(RADIAL_SEGS / 8));   // 8 条经线
+  for (const chain of chains) {
+    const nP = chain.length;
+    for (let k = 0; k < RADIAL_SEGS; k += meridianStep) {          // 经线
+      const th = 2 * Math.PI * k / RADIAL_SEGS, c = Math.cos(th), s = Math.sin(th);
+      for (let j = 0; j < nP - 1; j++) {
+        pos.push(chain[j][0], chain[j][1] * c, chain[j][1] * s,
+                 chain[j + 1][0], chain[j + 1][1] * c, chain[j + 1][1] * s);
+      }
+    }
+    const jStep = Math.max(1, Math.round(nP / 8));                 // 约 8 条纬线
+    for (let j = 0; j < nP; j += jStep) {
+      const [x, r] = chain[j];
+      for (let k = 0; k < RADIAL_SEGS; k++) {
+        const a = 2 * Math.PI * k / RADIAL_SEGS, b = 2 * Math.PI * (k + 1) / RADIAL_SEGS;
+        pos.push(x, r * Math.cos(a), r * Math.sin(a), x, r * Math.cos(b), r * Math.sin(b));
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  return geo;
+}
+
+// ================= Three.js 基础 =================
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0d1122);
+
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.85);
+dirLight.position.set(6, 9, 7);
+scene.add(dirLight);
+
+// xy 平面参考网格
+const grid = new THREE.GridHelper(25, 25, 0x2a3a66, 0x1b2547);
+grid.rotation.x = Math.PI / 2;
+grid.material.transparent = true;
+grid.material.opacity = 0.35;
+scene.add(grid);
+
+// 共享资源
+const coneGeo  = new THREE.ConeGeometry(0.05, 0.16, 10);
+// 电场线用冷白紫色调，与暖色系等势面区分开
+const lineMat  = new THREE.LineBasicMaterial({ color: 0xdce4ff, transparent: true, opacity: 0.5 });
+const coneMat  = new THREE.MeshBasicMaterial({ color: 0xdce4ff, transparent: true, opacity: 0.55 });
+const UP       = new THREE.Vector3(0, 1, 0);
+
+function makeTextSprite(text, scale) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const ctx = cv.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 88px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 64, 64);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false }));
+  sp.scale.set(scale, scale, 1);
+  sp.renderOrder = 999;
+  return sp;
+}
+
+// 场源电荷极性标注（+Q / −Q，颜色与电荷一致）：黑色阴影描边，任何背景下都清晰可读
+function makeChargeLabel(text, colorCss) {
+  const cv = document.createElement('canvas');
+  cv.width = 256; cv.height = 128;
+  const ctx = cv.getContext('2d');
+  ctx.font = 'bold 64px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.95)';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = colorCss;
+  ctx.fillText(text, 128, 64);
+  ctx.fillText(text, 128, 64);   // 画两遍让阴影更实
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), depthTest: false }));
+  sp.scale.set(1.28, 0.64, 1);
+  sp.renderOrder = 999;
+  return sp;
+}
+
+// 电势 → 颜色（红高蓝低）：t=1 红，t=0.5 绿，t=0 蓝
+// 蓝端（低电势）更亮且偏青，与深蓝背景拉开距离；红端略降饱和避免中心过艳
+function levelColor(t) {
+  const c = new THREE.Color();
+  c.setHSL((1 - t) * 225 / 360, 0.95 - t * 0.10, 0.62 + (1 - t) * 0.10);
+  return c;
+}
+
+let sceneGroup = null;
+let currentMode = MODES[0];
+let currentModeIdx = 0;
+let view2D = false;         // 2D 等势线视图开关
+const CAM2D = 20;           // 2D 视图的相机高度（俯视 xy 平面）
+
+function clearGroup() {
+  if (!sceneGroup) return;
+  sceneGroup.traverse(o => {
+    if (o.geometry && o.geometry !== coneGeo) o.geometry.dispose();
+    if (o.material && o.material !== lineMat && o.material !== coneMat) {
+      if (o.material.map) o.material.map.dispose();
+      o.material.dispose();
+    }
+  });
+  scene.remove(sceneGroup);
+}
+
+function buildMode(idx, resetCam = true) {
+  currentMode = MODES[idx];
+  currentModeIdx = idx;
+  const cfg = currentMode;
+  clearGroup();
+  sceneGroup = new THREE.Group();
+  const group3D = new THREE.Group();   // 3D 等势面与电场线（2D 视图下隐藏）
+  const group2D = new THREE.Group();   // xy 平面等势线（仅 2D 视图下显示）
+  sceneGroup.add(group3D, group2D);
+
+  // --- 场源电荷 ---
+  for (const c of cfg.charges) {
+    const color = c.q > 0 ? 0xe74c3c : 0x3498db;
+    const sph = new THREE.Mesh(
+      new THREE.SphereGeometry(CHARGE_R, 32, 24),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.35, metalness: 0.1, emissive: color, emissiveIntensity: 0.25 })
+    );
+    sph.position.set(c.x, c.y, c.z);
+    sceneGroup.add(sph);
+    const sign = makeTextSprite(c.q > 0 ? '+' : '−', 0.42);
+    sign.position.set(c.x, c.y, c.z);
+    sceneGroup.add(sign);
+    // 极性标注：+Q / −Q，红正蓝负，置于电荷上方
+    const label = makeChargeLabel(c.q > 0 ? '+Q' : '−Q', c.q > 0 ? '#e74c3c' : '#3498db');
+    label.position.set(c.x, c.y + 0.62, c.z);
+    sceneGroup.add(label);
+  }
+
+  // --- 电场线 ---
+  for (const c of cfg.charges) {
+    const dirSign = c.q > 0 ? 1 : -1;
+    const seeds = fibonacciSphere(cfg.seeds);
+    for (const other of cfg.charges) {
+      if (other === c) continue;
+      let dx = other.x - c.x, dy = other.y - c.y, dz = other.z - c.z;
+      const dl = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (dl < 1e-6) continue;
+      if (cfg.inner) seeds.push([dx / dl, dy / dl, dz / dl]);
+      if (cfg.outer) seeds.push([-dx / dl, -dy / dl, -dz / dl]);
+    }
+    for (const [ux, uy, uz] of seeds) {
+      const pts = traceLine(c.x + ux * SEED_R, c.y + uy * SEED_R, c.z + uz * SEED_R, dirSign, cfg.charges);
+      if (pts.length < 30) continue;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      group3D.add(new THREE.Line(geo, lineMat));
+      const n = pts.length / 3;
+      for (const frac of [0.35, 0.7]) {
+        const i = Math.floor(n * frac);
+        if (i < 2 || i >= n - 2) continue;
+        const p0 = new THREE.Vector3(pts[3 * (i - 1)], pts[3 * (i - 1) + 1], pts[3 * (i - 1) + 2]);
+        const p1 = new THREE.Vector3(pts[3 * (i + 1)], pts[3 * (i + 1) + 1], pts[3 * (i + 1) + 2]);
+        const dir = p1.sub(p0);
+        if (dir.lengthSq() < 1e-12) continue;
+        dir.normalize().multiplyScalar(dirSign);
+        const cone = new THREE.Mesh(coneGeo, coneMat);
+        cone.position.set(pts[3 * i], pts[3 * i + 1], pts[3 * i + 2]);
+        cone.quaternion.setFromUnitVectors(UP, dir);
+        group3D.add(cone);
+      }
+    }
+  }
+
+  // --- 等势面 ---
+  const hasNeg = cfg.charges.some(c => c.q < 0);
+  const hasPos = cfg.charges.some(c => c.q > 0);
+  // 2D 视图下等势线密度加倍（档数 ×2、阶梯步长减半）
+  const levelsPos = posLevels(view2D ? isoCount * 2 : isoCount, (view2D ? 2 : 1) * (ISO_MAX - 1));
+  let levels = [];
+  if (hasPos) levels = levels.concat(levelsPos);
+  if (hasNeg) levels = levels.concat(levelsPos.map(v => -v));
+  const minL = Math.min(...levels), maxL = Math.max(...levels);
+  const span = maxL - minL;
+  // 仅 1 档时（span = 0）没有相对标度，按电势符号取端点色：正红负蓝
+  const tOf = span > 0 ? (v => (v - minL) / span) : (v => (v >= 0 ? 1 : 0));
+
+  if (cfg.charges.length === 1) {
+    // 单电荷：同心球壳（levelsPos 从高到低 = 从内到外）
+    const c0 = cfg.charges[0];
+    for (let i = 0; i < levelsPos.length; i++) {
+      const lv = c0.q > 0 ? levelsPos[i] : -levelsPos[i];
+      const r = KQ / levelsPos[i];
+      const col = levelColor(tOf(lv));
+      const mesh = new THREE.Mesh(
+        new THREE.SphereGeometry(r, 48, 32),
+        new THREE.MeshPhongMaterial({
+          color: col, transparent: true, opacity: 0.28, side: THREE.DoubleSide,
+          depthWrite: false, specular: 0x4a5a78, shininess: 90, emissive: col, emissiveIntensity: 0.3,
+        })
+      );
+      mesh.position.set(c0.x, c0.y, c0.z);
+      // 内层壳后绘制（renderOrder 更大），保证从外向内叠色正确
+      mesh.renderOrder = 2 + (levelsPos.length - 1 - i);
+      group3D.add(mesh);
+      // 球面经纬线勾勒轮廓
+      const grid = new THREE.LineSegments(makeSphereGrid(r), makeGridLineMat(col));
+      grid.position.copy(mesh.position);
+      grid.renderOrder = SURF_GRID_ORDER;
+      group3D.add(grid);
+    }
+  } else {
+    // 双电荷：(x, ρ) 网格采样 + marching squares + 绕 x 轴旋转成面
+    // 采样域 ±12.5：保证同种双电荷最低档（合并面，轴向延伸至 x≈±11.7）完整闭合
+    const xMin = -12.5, xMax = 12.5, rMax = 12.5, dx = 0.11, dr = 0.11;
+    const nx = Math.round((xMax - xMin) / dx) + 1;
+    const nr = Math.round(rMax / dr) + 1;
+    const phi = new Float32Array(nx * nr);
+    for (let i = 0; i < nx; i++) {
+      const x = xMin + i * dx;
+      for (let j = 0; j < nr; j++) {
+        phi[i * nr + j] = potentialN(x, j * dr, cfg.charges);
+      }
+    }
+    for (const lv of levels) {
+      const segs = marchingSquares(phi, nx, nr, xMin, 0, dx, dr, lv / KQ);
+      if (segs.length === 0) continue;
+      const col = levelColor(tOf(lv));
+      const chains = chainSegments(segs);
+      const mesh = new THREE.Mesh(
+        buildLatheGeometry(chains, cfg.charges),
+        new THREE.MeshPhongMaterial({
+          color: col, transparent: true, opacity: 0.25, side: THREE.DoubleSide,
+          depthWrite: false, specular: 0x4a5a78, shininess: 90, emissive: col, emissiveIntensity: 0.3,
+        })
+      );
+      mesh.renderOrder = 2;
+      group3D.add(mesh);
+      // 曲面网格线勾勒轮廓
+      const grid = new THREE.LineSegments(makeLatheGridLines(chains), makeGridLineMat(col));
+      grid.renderOrder = SURF_GRID_ORDER;
+      group3D.add(grid);
+    }
+  }
+
+  // --- φ = 0 中垂面（等量异种电荷的关键等势面）---
+  if (cfg.zeroPlane) {
+    const plane = new THREE.Mesh(
+      new THREE.PlaneGeometry(25, 25),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.05,
+        side: THREE.DoubleSide, depthWrite: false,
+      })
+    );
+    plane.rotation.y = Math.PI / 2;   // 法线沿 x 轴（两电荷连线方向）
+    plane.renderOrder = 2;
+    group3D.add(plane);
+    const border = new THREE.LineSegments(
+      new THREE.EdgesGeometry(plane.geometry),
+      new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false })
+    );
+    border.rotation.y = Math.PI / 2;
+    border.renderOrder = SURF_GRID_ORDER;
+    group3D.add(border);
+    // φ=0 中垂面在 xy 平面的截线（即 y 轴）
+    const traceGeo = new THREE.BufferGeometry();
+    traceGeo.setAttribute('position', new THREE.Float32BufferAttribute([0, -12.5, 0, 0, 12.5, 0], 3));
+    const trace = new THREE.Line(traceGeo, new THREE.LineBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.8, depthWrite: false,
+    }));
+    trace.position.z = 0.02;
+    trace.renderOrder = SURF_GRID_ORDER + 1;
+    group2D.add(trace);
+  }
+
+  // --- xy 平面等势线（各等势面在 z=0 截面上的图景，颜色与图例对应）---
+  {
+    const xMin = -12.5, xMax = 12.5, yMin = -12.5, yMax = 12.5, dxy = 0.11;
+    const nx = Math.round((xMax - xMin) / dxy) + 1;
+    const ny = Math.round((yMax - yMin) / dxy) + 1;
+    const phi = new Float32Array(nx * ny);
+    for (let i = 0; i < nx; i++) {
+      const x = xMin + i * dxy;
+      for (let j = 0; j < ny; j++) {
+        phi[i * ny + j] = potentialN(x, yMin + j * dxy, cfg.charges);
+      }
+    }
+    for (const lv of levels) {
+      const segs = marchingSquares(phi, nx, ny, xMin, yMin, dxy, dxy, lv / KQ);
+      if (segs.length === 0) continue;
+      const pos = [];
+      for (const [p0, p1] of segs) pos.push(p0[0], p0[1], 0, p1[0], p1[1], 0);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      const line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({
+        color: levelColor(tOf(lv)).clone().lerp(WHITE, 0.25),
+        transparent: true, opacity: 0.9, depthWrite: false,
+      }));
+      line.position.z = 0.02;   // 略高于 xy 参考网格，避免深度冲突
+      line.renderOrder = SURF_GRID_ORDER + 1;
+      group2D.add(line);
+    }
+  }
+
+  // --- xy 平面电场线（仅 2D 视图显示；场关于 z=0 平面对称，轨迹始终留在平面内）---
+  {
+    const N2D = 16;   // 每个电荷在平面内的电场线条数（圆周均布，已含连线方向）
+    for (const c of cfg.charges) {
+      const dirSign = c.q > 0 ? 1 : -1;
+      for (let k = 0; k < N2D; k++) {
+        const th = 2 * Math.PI * k / N2D;
+        const ux = Math.cos(th), uy = Math.sin(th);
+        const pts = traceLine(c.x + ux * SEED_R, c.y + uy * SEED_R, c.z, dirSign, cfg.charges);
+        if (pts.length < 30) continue;
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+        const line = new THREE.Line(geo, lineMat);
+        line.position.z = 0.01;   // 与参考网格、等势线错开避免深度冲突
+        group2D.add(line);
+        // 箭头（与 3D 电场线同样取 35% / 70% 处）
+        const n = pts.length / 3;
+        for (const frac of [0.35, 0.7]) {
+          const i = Math.floor(n * frac);
+          if (i < 2 || i >= n - 2) continue;
+          const p0 = new THREE.Vector3(pts[3 * (i - 1)], pts[3 * (i - 1) + 1], pts[3 * (i - 1) + 2]);
+          const p1 = new THREE.Vector3(pts[3 * (i + 1)], pts[3 * (i + 1) + 1], pts[3 * (i + 1) + 2]);
+          const dir = p1.sub(p0);
+          if (dir.lengthSq() < 1e-12) continue;
+          dir.normalize().multiplyScalar(dirSign);
+          const cone = new THREE.Mesh(coneGeo, coneMat);
+          cone.position.set(pts[3 * i], pts[3 * i + 1], 0.01);
+          cone.quaternion.setFromUnitVectors(UP, dir);
+          group2D.add(cone);
+        }
+      }
+    }
+  }
+
+  scene.add(sceneGroup);
+  // --- 2D / 3D 视图可见性与相机 ---
+  group3D.visible = !view2D;
+  group2D.visible = view2D;
+  controls.enableRotate = !view2D;   // 2D 视图下锁定旋转
+  if (resetCam) {
+    if (view2D) camera.position.set(0, 0, CAM2D);   // 俯视 xy 平面
+    else camera.position.set(...cfg.cam);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }
+
+  // --- 界面：模式描述 ---
+  document.getElementById('modeDesc').textContent = cfg.desc;
+}
+
+// ================= 界面事件 =================
+const modeBtns = document.querySelectorAll('#modeBtns .btn');
+modeBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    modeBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    buildMode(+btn.dataset.mode);
+  });
+});
+
+// 2D 等势线视图切换：隐藏 3D 等势面与电场线，相机俯视 xy 平面
+const btn2d = document.getElementById('btn2d');
+const hintEl = document.getElementById('hint');
+btn2d.addEventListener('click', () => {
+  view2D = !view2D;
+  btn2d.classList.toggle('active', view2D);
+  btn2d.textContent = view2D ? '返回 3D 视图' : '2D 等势线视图';
+  hintEl.textContent = view2D ? '滚轮缩放 · 右键平移（2D 视图已锁定旋转）'
+                              : '左键旋转 · 滚轮缩放 · 右键平移';
+  buildMode(currentModeIdx, true);
+});
+
+// 等势面密度滑块：改变档数并重建场景（保持当前视角不变）
+const isoSlider = document.getElementById('isoSlider');
+const isoValEl = document.getElementById('isoVal');
+isoSlider.addEventListener('input', () => {
+  isoCount = parseInt(isoSlider.value, 10);
+  isoValEl.textContent = isoCount;
+  buildMode(currentModeIdx, false);
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ================= 主循环 =================
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// 支持 ?mode=0~3 直接打开指定场源模式
+let initialMode = parseInt(new URLSearchParams(location.search).get('mode'), 10);
+if (!(initialMode >= 0 && initialMode < MODES.length)) initialMode = 0;
+modeBtns.forEach(b => b.classList.toggle('active', +b.dataset.mode === initialMode));
+
+buildMode(initialMode);
+animate();
+</script>
+</body>
+</html>
